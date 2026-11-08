@@ -33,31 +33,30 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className="sticky top-0 z-30 apple-glass border-b border-apple-border dark:border-apple-darkBorder flex items-center justify-between px-3 sm:px-6 shrink-0 transition-all"
+      className="sticky top-0 z-30 apple-glass border-b border-apple-border dark:border-apple-darkBorder shrink-0 transition-all"
       style={{
-        paddingTop: 'max(env(safe-area-inset-top), 0.75rem)',
-        paddingBottom: '0.625rem',
-        minHeight: 'calc(3.75rem + env(safe-area-inset-top, 0px))',
+        paddingTop: 'max(env(safe-area-inset-top, 0px), 0px)',
       }}
     >
-      {/* 検索トリガー (Cmd+K 風) */}
-      <div className="flex items-center space-x-2 flex-1 min-w-0 mr-2 max-w-md">
-        <button
-          onClick={onSearchClick}
-          className="w-full flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-neutral-200/50 dark:bg-neutral-800/80 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 text-xs sm:text-sm transition-all truncate"
-        >
-          <Search className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">人脈・面談・AI検索...</span>
-          <kbd className="hidden sm:inline-block ml-auto px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-neutral-700 rounded border border-neutral-300 dark:border-neutral-600 text-neutral-500">
-            ⌘K
-          </kbd>
-        </button>
-      </div>
+      <div className="h-14 flex items-center justify-between px-3 sm:px-6">
+        {/* 検索トリガー (Cmd+K 風) */}
+        <div className="flex items-center space-x-2 flex-1 min-w-0 mr-2 max-w-md">
+          <button
+            onClick={onSearchClick}
+            className="w-full flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-neutral-200/50 dark:bg-neutral-800/80 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 text-xs sm:text-sm transition-all truncate"
+          >
+            <Search className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">人脈・面談・AI検索...</span>
+            <kbd className="hidden sm:inline-block ml-auto px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-neutral-700 rounded border border-neutral-300 dark:border-neutral-600 text-neutral-500">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
 
-      {/* 右側アクション群 */}
-      <div className="flex items-center space-x-1 sm:space-x-2.5 shrink-0">
-        {/* テナント切替（PC表示・スマホでは非表示にして見切れ防止） */}
-        <select
+        {/* 右側アクション群 */}
+        <div className="flex items-center space-x-1 sm:space-x-2.5 shrink-0">
+          {/* テナント切替（PC表示・スマホでは非表示にして見切れ防止） */}
+          <select
           value={currentTenant.id}
           onChange={(e) => onSelectTenant(e.target.value)}
           aria-label="テナント切り替え"
@@ -125,6 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
         >
           {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
         </button>
+      </div>
       </div>
     </header>
   );
