@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { store } from '../services/store';
+import { MeetingType, MeetingProvider } from '../types';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -15,8 +16,19 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'paste' | 'card' | 'person' | 'voice'>('paste');
 
-  // 予定貼り付け状態
+  // 予定貼り付け・入力状態
   const [pasteText, setPasteText] = useState('');
+  const [participantName, setParticipantName] = useState('');
+  const [meetingTitle, setMeetingTitle] = useState('');
+  const [scheduledTime, setScheduledTime] = useState(() => {
+    const d = new Date();
+    d.setHours(d.getHours() + 1, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const [meetingType, setMeetingType] = useState<MeetingType>('1to1');
+  const [meetingProvider, setMeetingProvider] = useState<MeetingProvider>('zoom');
+  const [meetingUrl, setMeetingUrl] = useState('');
   const [parsedResult, setParsedResult] = useState<any>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -30,38 +42,60 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
   const handleParse = (text: string) => {
     setPasteText(text);
-    if (text.trim().length > 5) {
+    if (text.trim().length > 3) {
       const res = store.parseMeetingIntent(text);
       setParsedResult(res);
+      if (res?.extracted) {
+        if (res.extracted.candidate_participants && res.extracted.candidate_participants[0]?.name) {
+          setParticipantName(res.extracted.candidate_participants[0].name);
+        }
+        if (res.extracted.suggested_type) {
+          setMeetingType(res.extracted.suggested_type);
+        }
+        if (res.extracted.provider) {
+          setMeetingProvider(res.extracted.provider as any);
+        }
+        if (res.extracted.meeting_url) {
+          setMeetingUrl(res.extracted.meeting_url);
+        }
+        if (res.extracted.scheduled_start_at) {
+          const d = new Date(res.extracted.scheduled_start_at);
+          const pad = (n: number) => String(n).padStart(2, '0');
+          setScheduledTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+        }
+      }
     } else {
       setParsedResult(null);
     }
   };
 
   const handleCreateMeeting = () => {
-    if (!parsedResult) return;
-    const { extracted } = parsedResult;
+    const finalParticipant = participantName.trim();
+    const finalTitle = meetingTitle.trim() || (finalParticipant ? `${finalParticipant}様と${meetingType === '1to1' ? '1to1' : '打合せ'}` : '面談予定');
+    const finalDate = scheduledTime ? new Date(scheduledTime).toISOString() : new Date().toISOString();
 
     store.createMeeting({
-      title: `${extracted.candidate_participants[0]?.name || '参加者'}様と${extracted.suggested_type === '1to1' ? '1to1' : '会議'}`,
-      meeting_type: extracted.suggested_type,
-      provider: extracted.provider,
-      meeting_url: extracted.meeting_url,
-      meeting_code: extracted.meeting_code,
-      scheduled_start_at: extracted.scheduled_start_at,
-      raw_invite_text: pasteText,
+      title: finalTitle,
+      participant_name: finalParticipant || undefined,
+      meeting_type: meetingType,
+      provider: meetingProvider,
+      meeting_url: meetingUrl.trim() || undefined,
+      scheduled_start_at: finalDate,
+      raw_invite_text: pasteText.trim() || undefined,
       host_type: 'self',
-      participant_ids: extracted.candidate_participants.map((c: any) => c.personId).filter(Boolean),
     });
 
     setIsSuccess(true);
     setTimeout(() => {
       setIsSuccess(false);
       setPasteText('');
+      setMeetingTitle('');
+      setParticipantName('');
+      setMeetingUrl('');
       setParsedResult(null);
       onRefresh();
       onClose();
-    }, 1000);
+    }, 800);
   };
 
   const handleCreatePerson = (e: React.FormEvent) => {
@@ -154,80 +188,150 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
             </div>
           )}
 
-          {/* 1. 予定貼り付け */}
+          {/* 1. 予定貼り付け・直接登録 */}
           {activeTab === 'paste' && (
             <div className="space-y-4">
               <div className="text-xs text-neutral-500 leading-relaxed">
-                LINEやメール等で受け取ったZoom/MeetのURL、または日時と案内文をそのまま貼り付けてください。自動抽出して候補を表示します。
+                LINEやメール等のZoom/Meet案内文を貼り付けると自動抽出されます。もちろん下の入力欄に直接入力して登録することも可能です。
               </div>
 
-              <textarea
-                value={pasteText}
-                onChange={(e) => handleParse(e.target.value)}
-                placeholder="例: 山田さんと1to1です！&#10;日時: 11/15 14:00〜&#10;Zoom: https://us02web.zoom.us/j/81234567890?pwd=xxxx"
-                rows={4}
-                className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
-              />
+              {/* テキスト貼り付けエリア */}
+              <div>
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => handleParse(e.target.value)}
+                  placeholder="例: 山田さんと1to1です！&#10;日時: 11/15 14:00〜&#10;Zoom: https://us02web.zoom.us/j/81234567890?pwd=xxxx"
+                  rows={3}
+                  className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
+                />
 
-              {/* サンプル文面挿入ボタン */}
-              <div className="flex space-x-2">
-                <button
-                  type="button"
-                  onClick={() => handleParse("山田太郎さんと次回1to1です！\n日時: 11/15 14:00〜15:00\nZoom: https://us02web.zoom.us/j/81234567890?pwd=test123")}
-                  className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
-                >
-                  ＋山田さんのZoom文面例を挿入
-                </button>
-                <span className="text-neutral-400">|</span>
-                <button
-                  type="button"
-                  onClick={() => handleParse("Google Meetでの打合せ\n日時: 11/20 10:00〜\nhttps://meet.google.com/abc-defg-hij")}
-                  className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
-                >
-                  ＋Google Meet文面例を挿入
-                </button>
-              </div>
-
-              {parsedResult && (
-                <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-3">
-                  <div className="flex items-center justify-between text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                    <span>抽出された情報</span>
-                    <span className="px-2 py-0.5 rounded-full bg-apple-blue/10 text-apple-blue dark:text-apple-darkBlue font-mono uppercase">
-                      {parsedResult.extracted.provider}
-                    </span>
-                  </div>
-
-                  {parsedResult.is_duplicate && (
-                    <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start space-x-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <div>
-                        <strong>同一番号の既存会議を検知:</strong> すでに登録済みの予定が存在します。重複登録を防ぐため別会議か確認してください。
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="text-xs space-y-1.5 text-neutral-600 dark:text-neutral-400">
-                    <div>
-                      <span className="text-neutral-400">日時:</span> {new Date(parsedResult.extracted.scheduled_start_at).toLocaleString('ja-JP')}
-                    </div>
-                    <div>
-                      <span className="text-neutral-400">種別:</span> {parsedResult.extracted.suggested_type === '1to1' ? '1to1面談' : '商談・打合せ'}
-                    </div>
-                    {parsedResult.extracted.candidate_participants.length > 0 && (
-                      <div>
-                        <span className="text-neutral-400">相手候補:</span> {parsedResult.extracted.candidate_participants.map((c: any) => c.name).join(', ')}
-                      </div>
-                    )}
-                  </div>
-
+                {/* サンプル文面挿入ボタン */}
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
                   <button
-                    onClick={handleCreateMeeting}
-                    className="w-full py-2.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-medium text-xs hover:opacity-90 active:scale-[0.98] transition-all shadow-sm"
+                    type="button"
+                    onClick={() => handleParse("山田太郎さんと次回1to1です！\n日時: 11/15 14:00〜15:00\nZoom: https://us02web.zoom.us/j/81234567890?pwd=test123")}
+                    className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
                   >
-                    この内容で予定を登録する
+                    ＋山田さんのZoom文面例
+                  </button>
+                  <span className="text-neutral-300 dark:text-neutral-700">|</span>
+                  <button
+                    type="button"
+                    onClick={() => handleParse("Google Meetでの打合せ\n日時: 11/20 10:00〜\nhttps://meet.google.com/abc-defg-hij")}
+                    className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
+                  >
+                    ＋Google Meet文面例
                   </button>
                 </div>
+              </div>
+
+              {/* 重複検知警告 */}
+              {parsedResult?.is_duplicate && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>同一番号の既存会議を検知:</strong> すでに登録済みの予定が存在します。重複登録を防ぐため別会議か確認してください。
+                  </div>
+                </div>
               )}
+
+              {/* 予定詳細・直接編集フォーム */}
+              <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-3">
+                <div className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                  <span>登録内容</span>
+                  {parsedResult && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-blue/10 text-apple-blue dark:text-apple-darkBlue font-medium">
+                      テキストから自動抽出完了
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-neutral-500 mb-1">相手のお名前</label>
+                    <input
+                      type="text"
+                      value={participantName}
+                      onChange={(e) => setParticipantName(e.target.value)}
+                      placeholder="例: 山田 太郎"
+                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-500 mb-1">面談種別</label>
+                    <select
+                      value={meetingType}
+                      onChange={(e) => setMeetingType(e.target.value as MeetingType)}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                    >
+                      <option value="1to1">BNI 1to1面談</option>
+                      <option value="business_meeting">商談・打合せ</option>
+                      <option value="internal_meeting">社内・チーム</option>
+                      <option value="networking">交流会・イベント</option>
+                      <option value="other">その他</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-neutral-500 mb-1">日時</label>
+                    <input
+                      type="datetime-local"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-500 mb-1">開催ツール</label>
+                    <select
+                      value={meetingProvider}
+                      onChange={(e) => setMeetingProvider(e.target.value as MeetingProvider)}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                    >
+                      <option value="zoom">Zoom</option>
+                      <option value="google_meet">Google Meet</option>
+                      <option value="in_person">対面・リアル面談</option>
+                      <option value="phone">電話</option>
+                      <option value="other">その他</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-neutral-500 mb-1 text-xs">会議URL / 場所</label>
+                  <input
+                    type="text"
+                    value={meetingUrl}
+                    onChange={(e) => setMeetingUrl(e.target.value)}
+                    placeholder="https://us02web.zoom.us/j/... または場所"
+                    className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-neutral-500 mb-1 text-xs">予定タイトル（任意）</label>
+                  <input
+                    type="text"
+                    value={meetingTitle}
+                    onChange={(e) => setMeetingTitle(e.target.value)}
+                    placeholder={participantName ? `${participantName}様と${meetingType === '1to1' ? '1to1面談' : '打合せ'}` : '面談予定'}
+                    className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCreateMeeting}
+                  disabled={!participantName.trim() && !pasteText.trim() && !meetingTitle.trim()}
+                  className="w-full py-3 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-medium text-xs hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed mt-2"
+                >
+                  予定を登録する
+                </button>
+              </div>
             </div>
           )}
 

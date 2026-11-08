@@ -206,7 +206,7 @@ export const App: React.FC = () => {
           )}
 
           {currentView === 'meetings' && (
-            <MeetingsView />
+            <MeetingsView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
           )}
 
           {currentView === 'concierge' && (

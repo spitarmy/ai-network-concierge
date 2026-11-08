@@ -318,4 +318,50 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(store.getOAuthConfig().google.is_connected).toBe(true);
     });
   });
+
+  describe('K. 予定登録・相手自動名寄せ・仮登録カルテ作成 (MEET-01〜03, 仕様ID 21)', () => {
+    it('登録人物がいない状態でも参加者名付き予定登録で仮人物カルテが自動生成・紐付けされること', () => {
+      // 一旦本番用初期状態（空）にリセット
+      store.resetToProductionEmptyState();
+      expect(store.getPersons().length).toBe(0);
+      expect(store.getMeetings().length).toBe(0);
+
+      // 参加者名付きで予定作成
+      const meeting = store.createMeeting({
+        title: '鈴木 一郎様と1to1面談',
+        participant_name: '鈴木 一郎',
+        meeting_type: '1to1',
+        scheduled_start_at: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      expect(meeting).toBeDefined();
+      expect(meeting.participant_ids.length).toBe(1);
+
+      // 仮登録人物（provisional）が生成されていること
+      const createdPerson = store.getPersonById(meeting.participant_ids[0]);
+      expect(createdPerson).toBeDefined();
+      expect(createdPerson?.display_name).toBe('鈴木 一郎');
+      expect(createdPerson?.status).toBe('provisional');
+
+      // 同意レコードも自動生成されること
+      const consents = store.getConsentsForMeeting(meeting.id);
+      expect(consents.length).toBe(1);
+      expect(consents[0].person_name).toBe('鈴木 一郎');
+      expect(consents[0].status).toBe('pending');
+    });
+
+    it('参加者名が既存人物と一致する場合は既存人物のIDに正しく紐付けられること', () => {
+      store.resetToSampleState();
+      const yamada = store.getPersons().find(p => p.display_name === '山田 太郎');
+      expect(yamada).toBeDefined();
+
+      const meeting = store.createMeeting({
+        title: '山田 太郎様とフォローアップ面談',
+        participant_name: '山田 太郎',
+        meeting_type: '1to1',
+      });
+
+      expect(meeting.participant_ids).toContain(yamada?.id);
+    });
+  });
 });

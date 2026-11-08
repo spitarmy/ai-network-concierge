@@ -6,7 +6,11 @@ import {
 import { store } from '../services/store';
 import { Meeting } from '../types';
 
-export const MeetingsView: React.FC = () => {
+interface MeetingsViewProps {
+  onOpenQuickAdd?: () => void;
+}
+
+export const MeetingsView: React.FC<MeetingsViewProps> = ({ onOpenQuickAdd }) => {
   const [, setRefreshKey] = useState(0);
   const meetings = store.getMeetings();
   const recordings = store.getRecordings();
@@ -73,17 +77,48 @@ export const MeetingsView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleRunPurge}
-          className="px-3.5 py-1.5 rounded-xl border border-apple-border dark:border-apple-darkBorder text-xs text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center space-x-1.5 self-start sm:self-auto"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>90日自動破棄ジョブを手動実行</span>
-        </button>
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {onOpenQuickAdd && (
+            <button
+              onClick={onOpenQuickAdd}
+              className="px-3.5 py-1.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center space-x-1.5"
+            >
+              <span>＋ 予定を登録</span>
+            </button>
+          )}
+          <button
+            onClick={handleRunPurge}
+            className="px-3.5 py-1.5 rounded-xl border border-apple-border dark:border-apple-darkBorder text-xs text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center space-x-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>90日自動破棄ジョブ</span>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">
-        {meetings.map((m) => {
+        {meetings.length === 0 ? (
+          <div className="rounded-3xl p-12 bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-apple-blue/10 dark:bg-apple-darkBlue/20 text-apple-blue dark:text-apple-darkBlue flex items-center justify-center mx-auto">
+              <Calendar className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">予定はまだ登録されていません</h3>
+              <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+                次回1to1や商談の予定を登録すると、相手カルテとの事前照合や録音同意管理の準備が自動的に行われます。
+              </p>
+            </div>
+            {onOpenQuickAdd && (
+              <button
+                onClick={onOpenQuickAdd}
+                className="px-5 py-2.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm"
+              >
+                ＋ 最初の予定を登録する
+              </button>
+            )}
+          </div>
+        ) : (
+          meetings.map((m) => {
           const consents = store.getConsentsForMeeting(m.id);
           const recording = recordings.find(r => r.meeting_id === m.id);
 
@@ -232,7 +267,7 @@ export const MeetingsView: React.FC = () => {
               )}
             </div>
           );
-        })}
+        }))}
       </div>
     </div>
   );

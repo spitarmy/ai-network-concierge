@@ -1032,6 +1032,14 @@ class DataStore {
       }
     }
 
+    // 既存人脈にない場合、日本語の招待文から相手氏名を自動抽出（U01要件）
+    if (candidates.length === 0) {
+      const nameMatch = rawText.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:さん|様|氏|社長|先生|代表)?(?:と|との)?(?:次回)?(?:1to1|面談|打合せ|打ち合わせ|会議|商談)/);
+      if (nameMatch && nameMatch[1] && !/^(明日|明後日|本日|日時|次回|時間|月曜|火曜|水曜|木曜|金曜|土曜|日曜)$/.test(nameMatch[1])) {
+        candidates.push({ name: nameMatch[1], confidence: 0.85 });
+      }
+    }
+
     // 重複判定（同一Zoomコードかつ同一日の会議が存在するか）
     let is_duplicate = false;
     let duplicate_meeting: Meeting | undefined;
@@ -1060,12 +1068,37 @@ class DataStore {
     };
   }
 
-  public createMeeting(data: Partial<Meeting>): Meeting {
+  public createMeeting(data: Partial<Meeting> & { participant_name?: string }): Meeting {
     const tid = this.state.currentTenantId;
+
+    // 参加者IDの自動補完・名寄せ・仮人物作成
+    const participantIds: string[] = [...(data.participant_ids || [])];
+    const candidateName = data.participant_name?.trim();
+
+    if (candidateName) {
+      // 既存の登録人物から検索
+      const existing = this.getPersons().find(
+        p => p.display_name === candidateName || p.display_name.startsWith(candidateName)
+      );
+      if (existing) {
+        if (!participantIds.includes(existing.id)) {
+          participantIds.push(existing.id);
+        }
+      } else {
+        // 見つからない場合は仕様ID 21に従い provisional（仮登録人物）として自動作成
+        const provisional = this.createPerson({
+          display_name: candidateName,
+          status: 'provisional',
+          category_tags: [data.meeting_type === '1to1' ? 'BNI' : '仕事'],
+        });
+        participantIds.push(provisional.id);
+      }
+    }
+
     const newMeeting: Meeting = {
       id: `m-${Date.now()}`,
       tenant_id: tid,
-      title: data.title || '面談予定',
+      title: data.title || (candidateName ? `${candidateName}様と面談` : '面談予定'),
       meeting_type: data.meeting_type || '1to1',
       provider: data.provider || 'zoom',
       meeting_url: data.meeting_url,
@@ -1074,7 +1107,7 @@ class DataStore {
       raw_invite_text: data.raw_invite_text,
       host_type: data.host_type || 'self',
       recording_status: 'awaiting_consent', // 同意待ちから開始
-      participant_ids: data.participant_ids || [],
+      participant_ids: participantIds,
       created_at: new Date().toISOString(),
     };
     this.state.meetings.push(newMeeting);
@@ -1102,7 +1135,9 @@ class DataStore {
 
   public getMeetings(): Meeting[] {
     const tid = this.state.currentTenantId;
-    return this.state.meetings.filter(m => m.tenant_id === tid);
+    return this.state.meetings
+      .filter(m => m.tenant_id === tid)
+      .sort((a, b) => new Date(a.scheduled_start_at).getTime() - new Date(b.scheduled_start_at).getTime());
   }
 
   // --- 同意ステートマシン (MEET-07〜MEET-10) ---
