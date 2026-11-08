@@ -8,6 +8,7 @@ interface HomeViewProps {
   onSelectPerson: (personId: string) => void;
   onNavigate: (view: any) => void;
   onOpenQuickAdd: () => void;
+  onOpenIdentify: (meetingId: string) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -15,6 +16,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectPerson,
   onNavigate,
   onOpenQuickAdd,
+  onOpenIdentify,
 }) => {
   const persons = store.getPersons();
   const meetings = store.getMeetings();
@@ -131,6 +133,42 @@ export const HomeView: React.FC<HomeViewProps> = ({
               )}
             </div>
           </div>
+
+          {/* Zoom中の相手特定バナー (事前LINEの仮名から本名・会社名をワンタップ昇格) */}
+          {(!upcomingParticipant || upcomingParticipant.status === 'provisional') ? (
+            <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-r from-blue-50/90 to-indigo-50/90 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/90 dark:border-blue-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+              <div className="flex items-start space-x-2.5">
+                <div className="w-7 h-7 rounded-xl bg-apple-blue/15 text-apple-blue dark:text-apple-darkBlue flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-apple-blue dark:text-apple-darkBlue">
+                    Zoom中に相手の本名や会社名が判明したら
+                  </div>
+                  <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed">
+                    現在はLINE名・仮名で登録されています。Zoom中の名乗りや自己紹介から、1タップで正式カルテへ昇格・確定できます。
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => onOpenIdentify(upcomingMeeting.id)}
+                className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm shrink-0 flex items-center justify-center space-x-1"
+              >
+                <span>本名・会社名を確定</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => onOpenIdentify(upcomingMeeting.id)}
+                className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline flex items-center space-x-1"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Zoom中の相手情報を再特定・編集</span>
+              </button>
+            </div>
+          )}
 
           {/* 前回の文脈・約束（U03要件） */}
           <div className="mt-5 pt-4 border-t border-apple-border dark:border-apple-darkBorder grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

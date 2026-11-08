@@ -363,5 +363,56 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
 
       expect(meeting.participant_ids).toContain(yamada?.id);
     });
+
+    it('LINEからのURLのみで相手情報が全く不明でも登録でき、Zoom中に本名・会社特定で正式昇格できること', () => {
+      store.resetToProductionEmptyState();
+
+      // LINEからZoom URLのみ受領（お名前・会社名一切不明）
+      const unknownMeeting = store.createMeeting({
+        meeting_url: 'https://us02web.zoom.us/j/999888777?pwd=line_secret',
+        meeting_type: '1to1',
+        scheduled_start_at: new Date(Date.now() + 3600000).toISOString(),
+      });
+
+      expect(unknownMeeting).toBeDefined();
+      expect(unknownMeeting.participant_ids.length).toBe(1);
+
+      // 仮カルテ「相手未特定 (LINE連絡)」が自動生成されていること
+      const provisionalPerson = store.getPersonById(unknownMeeting.participant_ids[0]);
+      expect(provisionalPerson).toBeDefined();
+      expect(provisionalPerson?.display_name).toContain('LINE連絡');
+      expect(provisionalPerson?.status).toBe('provisional');
+
+      // Zoom中に自己紹介があり、本名・会社・BNIチャプターが判明したため確定を実行
+      const result = store.identifyMeetingParticipant(unknownMeeting.id, {
+        realName: '高橋 誠治',
+        phoneticName: 'タカハシ セイジ',
+        companyName: '株式会社タカハシ看板デザイン',
+        title: '代表取締役',
+        bniChapter: '京都南チャプター',
+        bniCategory: '看板施工',
+        serviceDescription: 'LED電飾看板・店舗サイン施工',
+        notes: 'クリニックやカフェの出店オーナーを求めている',
+      });
+
+      // 正式カルテ（active）へ昇格していること
+      expect(result.person.status).toBe('active');
+      expect(result.person.display_name).toBe('高橋 誠治');
+
+      // 会社所属が紐付いていること
+      const orgs = store.getOrgMembershipsForPerson(result.person.id);
+      expect(orgs.some(o => o.organization_name.includes('タカハシ看板'))).toBe(true);
+
+      // BNIチャプター所属が紐付いていること
+      const bni = store.getBNIMembershipsForPerson(result.person.id);
+      expect(bni.some(b => b.chapter_name.includes('京都南'))).toBe(true);
+
+      // 会議タイトルが本名付きに自動更新されていること
+      expect(result.meeting.title).toContain('高橋 誠治');
+
+      // 同意レコードも本名に更新されていること
+      const consents = store.getConsentsForMeeting(unknownMeeting.id);
+      expect(consents[0].person_name).toBe('高橋 誠治');
+    });
   });
 });

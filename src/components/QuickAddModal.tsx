@@ -191,8 +191,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           {/* 1. 予定貼り付け・直接登録 */}
           {activeTab === 'paste' && (
             <div className="space-y-4">
-              <div className="text-xs text-neutral-500 leading-relaxed">
-                LINEやメール等のZoom/Meet案内文を貼り付けると自動抽出されます。もちろん下の入力欄に直接入力して登録することも可能です。
+              <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
+                <strong>💡 Zoom前は情報がなくて当然です:</strong> LINEでZoomリンクや日程だけ届いた段階でサクッと登録できます。最初はLINE表示名（ken、たろう等）や空欄でOK。Zoom中に自己紹介や名刺交換をした段階で、1タップで本名カルテへ確定できます。
               </div>
 
               {/* テキスト貼り付けエリア */}
@@ -200,7 +200,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 <textarea
                   value={pasteText}
                   onChange={(e) => handleParse(e.target.value)}
-                  placeholder="例: 山田さんと1to1です！&#10;日時: 11/15 14:00〜&#10;Zoom: https://us02web.zoom.us/j/81234567890?pwd=xxxx"
+                  placeholder="例: LINEで送られてきたZoomのURLや日時をそのまま貼り付け&#10;https://us02web.zoom.us/j/81234567890?pwd=xxxx"
                   rows={3}
                   className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
                 />
@@ -209,10 +209,18 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 <div className="flex flex-wrap items-center gap-2 mt-1.5">
                   <button
                     type="button"
+                    onClick={() => handleParse("https://us02web.zoom.us/j/81234567890?pwd=test123\n11/15 14:00〜")}
+                    className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
+                  >
+                    ＋Zoom URLのみ（相手未特定）
+                  </button>
+                  <span className="text-neutral-300 dark:text-neutral-700">|</span>
+                  <button
+                    type="button"
                     onClick={() => handleParse("山田太郎さんと次回1to1です！\n日時: 11/15 14:00〜15:00\nZoom: https://us02web.zoom.us/j/81234567890?pwd=test123")}
                     className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
                   >
-                    ＋山田さんのZoom文面例
+                    ＋名前入りZoom文面例
                   </button>
                   <span className="text-neutral-300 dark:text-neutral-700">|</span>
                   <button
@@ -248,12 +256,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-neutral-500 mb-1">相手のお名前</label>
+                    <label className="block text-neutral-500 mb-1">
+                      相手のお名前（LINE名・仮名でOK / 空欄可）
+                    </label>
                     <input
                       type="text"
                       value={participantName}
                       onChange={(e) => setParticipantName(e.target.value)}
-                      placeholder="例: 山田 太郎"
+                      placeholder="例: LINE名「ken」や「たろう」"
                       className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
                     />
                   </div>
@@ -326,7 +336,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCreateMeeting}
-                  disabled={!participantName.trim() && !pasteText.trim() && !meetingTitle.trim()}
+                  disabled={!participantName.trim() && !pasteText.trim() && !meetingTitle.trim() && !meetingUrl.trim()}
                   className="w-full py-3 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-medium text-xs hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed mt-2"
                 >
                   予定を登録する

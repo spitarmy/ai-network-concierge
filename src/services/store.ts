@@ -1073,9 +1073,9 @@ class DataStore {
 
     // 参加者IDの自動補完・名寄せ・仮人物作成
     const participantIds: string[] = [...(data.participant_ids || [])];
-    const candidateName = data.participant_name?.trim();
+    const candidateName = data.participant_name?.trim() || (data.title ? data.title.split('様')[0].trim() : '');
 
-    if (candidateName) {
+    if (candidateName && candidateName !== '面談予定') {
       // 既存の登録人物から検索
       const existing = this.getPersons().find(
         p => p.display_name === candidateName || p.display_name.startsWith(candidateName)
@@ -1090,15 +1090,30 @@ class DataStore {
           display_name: candidateName,
           status: 'provisional',
           category_tags: [data.meeting_type === '1to1' ? 'BNI' : '仕事'],
+          notes: 'LINE連絡・事前案内から登録。Zoom中に本名・所属を確認予定。',
         });
         participantIds.push(provisional.id);
       }
+    } else if (participantIds.length === 0) {
+      // 相手名が完全に不明（LINE URLのみ等）の場合でも仮登録人物を作成
+      const provisional = this.createPerson({
+        display_name: '相手未特定 (LINE連絡)',
+        status: 'provisional',
+        category_tags: [data.meeting_type === '1to1' ? 'BNI' : '仕事'],
+        notes: 'LINEでZoom URLのみ受領。Zoom面談中に本名・会社名を特定予定。',
+      });
+      participantIds.push(provisional.id);
     }
+
+    const firstPerson = participantIds[0] ? this.getPersonById(participantIds[0]) : undefined;
+    const defaultTitle = firstPerson && firstPerson.display_name !== '相手未特定 (LINE連絡)'
+      ? `${firstPerson.display_name}様と${data.meeting_type === '1to1' ? '1to1面談' : '面談'}`
+      : (data.meeting_type === '1to1' ? 'Zoom 1to1面談 (相手未特定)' : 'オンライン面談');
 
     const newMeeting: Meeting = {
       id: `m-${Date.now()}`,
       tenant_id: tid,
-      title: data.title || (candidateName ? `${candidateName}様と面談` : '面談予定'),
+      title: data.title || defaultTitle,
       meeting_type: data.meeting_type || '1to1',
       provider: data.provider || 'zoom',
       meeting_url: data.meeting_url,
@@ -1131,6 +1146,109 @@ class DataStore {
 
     this.persist();
     return newMeeting;
+  }
+
+  // Zoom中に相手の本名・会社名・BNIチャプターが判明した際のクイック確定・昇格
+  public identifyMeetingParticipant(
+    meetingId: string,
+    info: {
+      realName: string;
+      phoneticName?: string;
+      companyName?: string;
+      title?: string;
+      bniChapter?: string;
+      bniCategory?: string;
+      serviceDescription?: string;
+      notes?: string;
+    }
+  ): { person: Person; meeting: Meeting } {
+    const tid = this.state.currentTenantId;
+    const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
+    if (!meeting) throw new Error('Meeting not found');
+
+    let person: Person | undefined;
+    if (meeting.participant_ids.length > 0) {
+      person = this.getPersonById(meeting.participant_ids[0]);
+    }
+
+    if (!person) {
+      // 人物レコードがない場合は新規作成
+      person = this.createPerson({
+        display_name: info.realName,
+        phonetic_name: info.phoneticName || '',
+        status: 'active',
+        category_tags: [meeting.meeting_type === '1to1' ? 'BNI' : '仕事'],
+        notes: info.notes || '',
+      });
+      meeting.participant_ids.push(person.id);
+    } else {
+      // 既存の仮人物カルテを正式カルテへ昇格
+      this.updatePerson(person.id, {
+        display_name: info.realName,
+        phonetic_name: info.phoneticName || person.phonetic_name,
+        status: 'active',
+        notes: info.notes
+          ? (person.notes ? `${person.notes}\n[Zoom特定メモ] ${info.notes}` : info.notes)
+          : person.notes,
+      });
+    }
+
+    // 会社情報の紐付け
+    if (info.companyName?.trim()) {
+      this.addOrganizationMembership(person.id, info.companyName.trim(), info.title?.trim() || '代表');
+    }
+
+    // BNIチャプター所属の紐付け
+    if (info.bniChapter?.trim()) {
+      const chName = info.bniChapter.trim();
+      const existingCh = this.state.bniChapters.find(
+        c => c.chapter_name.includes(chName) || chName.includes(c.chapter_name)
+      );
+      const newMembership: BNIMembership = {
+        id: `bnim-${Date.now()}`,
+        tenant_id: tid,
+        person_id: person.id,
+        chapter_id: existingCh ? existingCh.id : `ch-${Date.now()}`,
+        chapter_name: existingCh ? existingCh.chapter_name : chName,
+        region_name: existingCh
+          ? (this.state.bniRegions.find(r => r.id === existingCh.region_id)?.region_name || '所属リージョン')
+          : '日本リージョン',
+        category: info.bniCategory || '専門職',
+        status: 'active',
+        joined_on: new Date().toISOString().split('T')[0],
+      };
+      this.state.bniMemberships.push(newMembership);
+    }
+
+    // 事業内容・オファリング
+    if (info.serviceDescription?.trim()) {
+      this.addBusinessOffering({
+        person_id: person.id,
+        service_title: info.serviceDescription.trim(),
+        target_clients: '法人・個人',
+        specialties: info.serviceDescription.trim(),
+        service_area: '全国・オンライン対応',
+        is_active: true,
+      });
+    }
+
+    // 会議タイトルの更新
+    meeting.title = `${info.realName}様と${meeting.meeting_type === '1to1' ? '1to1面談' : '面談'}`;
+
+    // 同意レコードの氏名更新
+    const consents = this.state.consents.filter(c => c.meeting_id === meeting.id && c.person_id === person?.id);
+    for (const c of consents) {
+      c.person_name = info.realName;
+    }
+
+    this.logAudit('IDENTIFY_PARTICIPANT_DURING_ZOOM', 'person', person.id, {
+      meeting_id: meeting.id,
+      real_name: info.realName,
+      company: info.companyName,
+    });
+
+    this.persist();
+    return { person, meeting };
   }
 
   public getMeetings(): Meeting[] {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigation, ViewType } from './components/Navigation';
 import { Header } from './components/Header';
 import { QuickAddModal } from './components/QuickAddModal';
+import { IdentifyParticipantModal } from './components/IdentifyParticipantModal';
 import { HomeView } from './views/HomeView';
 import { PersonsView } from './views/PersonsView';
 import { BNIView } from './views/BNIView';
@@ -20,6 +21,7 @@ export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [selectedPersonId, setSelectedPersonId] = useState<string | undefined>();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [identifyingMeetingId, setIdentifyingMeetingId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSimpleMode, setIsSimpleMode] = useState(false);
   const [, setRefreshKey] = useState(0);
@@ -175,6 +177,7 @@ export const App: React.FC = () => {
               onSelectPerson={handleSelectPerson}
               onNavigate={(v) => setCurrentView(v)}
               onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+              onOpenIdentify={(mId) => setIdentifyingMeetingId(mId)}
             />
           )}
 
@@ -206,7 +209,10 @@ export const App: React.FC = () => {
           )}
 
           {currentView === 'meetings' && (
-            <MeetingsView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
+            <MeetingsView
+              onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+              onOpenIdentify={(mId) => setIdentifyingMeetingId(mId)}
+            />
           )}
 
           {currentView === 'concierge' && (
@@ -248,6 +254,17 @@ export const App: React.FC = () => {
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onRefresh={handleRefresh}
+      />
+
+      {/* Zoom中相手特定・カルテ昇格モーダルシート */}
+      <IdentifyParticipantModal
+        isOpen={!!identifyingMeetingId}
+        meetingId={identifyingMeetingId}
+        onClose={() => setIdentifyingMeetingId(null)}
+        onSuccess={(personId) => {
+          handleRefresh();
+          handleSelectPerson(personId);
+        }}
       />
     </div>
   );
