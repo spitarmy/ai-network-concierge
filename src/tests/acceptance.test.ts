@@ -578,6 +578,16 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       const parsedWithDate = store.parseMeetingIntent(textWithDate);
       expect(parsedWithDate.extracted?.has_detected_date).toBe(true);
 
+      // 口語表現「11月9日の21時半」「明日の21時半」などの高精度抽出
+      const conversationalText = 'ちなみに今回は11月9日の21時半す。https://us02web.zoom.us/j/84920491029?pwd=abcd';
+      const parsedConversational = store.parseMeetingIntent(conversationalText);
+      expect(parsedConversational.extracted?.has_detected_date).toBe(true);
+      const parsedDate = new Date(parsedConversational.extracted?.scheduled_start_at || '');
+      expect(parsedDate.getMonth() + 1).toBe(11);
+      expect(parsedDate.getDate()).toBe(9);
+      expect(parsedDate.getHours()).toBe(21);
+      expect(parsedDate.getMinutes()).toBe(30);
+
       // ユーザー予定を登録
       const userMeeting = store.createMeeting({
         title: '大切な取引先との面談',

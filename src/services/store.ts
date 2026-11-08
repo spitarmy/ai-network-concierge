@@ -1087,16 +1087,23 @@ class DataStore {
 
     // 1. Zoom標準フォーマット (例: 時間: 2026年11月10日 03:00 PM または Time: Nov 10, 2026 3:00 PM)
     const zoomTimeMatch = normalizedText.match(/(?:時間|Time):\s*(\d{4})年?(\d{1,2})月?(\d{1,2})日?\s*(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-    // 2. 年月日時分 (例: 2026年11月10日 15:00 または 2026/11/10 15:00)
-    const fullDateMatch = normalizedText.match(/(202\d)[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
-    // 3. 月日時分 (例: 11/10 15:00, 11月10日 15時, 11/10(火) 15:00)
-    const monthDateMatch = normalizedText.match(/(\d{1,2})[\/月](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
-    // 4. 相対日 (例: 明日 14:00, 今日 15時, 本日 19:00)
-    const relativeDateMatch = normalizedText.match(/(明日|今日|明後日|本日)\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
-    // 5. 単独時刻 (例: 14:00〜, 15時〜, 14:00-15:00)
-    const timeOnlyMatch = normalizedText.match(/(?:時間|日時|時刻|開始|日程|から)?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?\s*(?:〜|~|-|から)/);
+    // 2. 年月日時分 (例: 2026年11月10日 15:00, 2026/11/9の21時半)
+    const fullDateMatch = normalizedText.match(/(202\d)[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2}|半)?(?:分)?/);
+    // 3. 月日時分 (例: 11/10 15:00, 11月9日の21時半, 11/9(月) 21:30)
+    const monthDateMatch = normalizedText.match(/(\d{1,2})[\/月](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2}|半)?(?:分)?/);
+    // 4. 相対日 (例: 明日 14:00, 明日の21時半, 今日 15時, 本日 19:00)
+    const relativeDateMatch = normalizedText.match(/(明日|今日|明後日|本日)\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2}|半)?(?:分)?/);
+    // 5. 単独時刻 (例: 14:00〜, 21時半, 15時〜, 14:00-15:00)
+    const timeOnlyMatch = normalizedText.match(/(?:時間|日時|時刻|開始|日程|から)?\s*(\d{1,2})(?::|時)(\d{0,2}|半)?(?:分)?\s*(?:〜|~|-|から|予定|す|です)?/);
     // 6. 日付のみ (例: 11月10日, 11/10) -> デフォルト14:00
     const dateOnlyMatch = normalizedText.match(/(\d{1,2})[\/月](\d{1,2})日?(?:\([月火水木金土日]\))?/);
+
+    const parseMin = (val?: string) => {
+      if (!val) return 0;
+      if (val === '半') return 30;
+      const n = parseInt(val);
+      return isNaN(n) ? 0 : n;
+    };
 
     if (zoomTimeMatch) {
       const year = parseInt(zoomTimeMatch[1]);
@@ -1114,20 +1121,20 @@ class DataStore {
       const month = parseInt(fullDateMatch[2]) - 1;
       const day = parseInt(fullDateMatch[3]);
       const hour = parseInt(fullDateMatch[4]);
-      const min = fullDateMatch[5] ? parseInt(fullDateMatch[5]) : 0;
+      const min = parseMin(fullDateMatch[5]);
       scheduled_start_at = new Date(year, month, day, hour, min).toISOString();
       has_detected_date = true;
     } else if (monthDateMatch) {
       const month = parseInt(monthDateMatch[1]) - 1;
       const day = parseInt(monthDateMatch[2]);
       const hour = parseInt(monthDateMatch[3]);
-      const min = monthDateMatch[4] ? parseInt(monthDateMatch[4]) : 0;
+      const min = parseMin(monthDateMatch[4]);
       scheduled_start_at = new Date(now.getFullYear(), month, day, hour, min).toISOString();
       has_detected_date = true;
     } else if (relativeDateMatch) {
       const rel = relativeDateMatch[1];
       const hour = parseInt(relativeDateMatch[2]);
-      const min = relativeDateMatch[3] ? parseInt(relativeDateMatch[3]) : 0;
+      const min = parseMin(relativeDateMatch[3]);
       const target = new Date();
       if (rel === '明日') target.setDate(target.getDate() + 1);
       if (rel === '明後日') target.setDate(target.getDate() + 2);
@@ -1136,7 +1143,7 @@ class DataStore {
       has_detected_date = true;
     } else if (timeOnlyMatch) {
       const hour = parseInt(timeOnlyMatch[1]);
-      const min = timeOnlyMatch[2] ? parseInt(timeOnlyMatch[2]) : 0;
+      const min = parseMin(timeOnlyMatch[2]);
       const target = new Date();
       if (hour < now.getHours() || (hour === now.getHours() && min < now.getMinutes())) {
         target.setDate(target.getDate() + 1);

@@ -378,6 +378,13 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => setPresetSchedule(1, 21, 30)}
+                          className="px-2 py-1 rounded-lg text-[10px] bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 font-bold"
+                        >
+                          明日 21:30
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setPresetSchedule(2, 14, 0)}
                           className="px-2 py-1 rounded-lg text-[10px] bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 font-semibold"
                         >
