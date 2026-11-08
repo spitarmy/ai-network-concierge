@@ -469,14 +469,17 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(thankYouBNI.draft_text).toContain('BNI 1to1面談');
     });
 
-    it('カスタムカテゴリー（一般社団法人stone等）の作成、人物カルテへの手動振り分け、顔写真の事後登録・更新ができること', () => {
-      // 1. デフォルトカテゴリーに「一般社団法人stone」が含まれていること
+    it('汎用的な初期カテゴリー設定、自由なカスタムカテゴリー（一般社団法人stone等）の追加・削除、人物カルテへの手動振り分け、顔写真の事後登録・更新ができること', () => {
+      // 1. 他ユーザーへの販売・一般公開時、初期カテゴリーは普遍的・汎用的なもの（BNI, 仕事, パートナー等）であること
       const initialCategories = store.getCategories();
-      expect(initialCategories).toContain('一般社団法人stone');
       expect(initialCategories).toContain('BNI');
+      expect(initialCategories).toContain('仕事');
+      expect(initialCategories).toContain('パートナー');
 
-      // 2. 任意の新規カテゴリー（例: 幹部, パートナー等）を追加作成できること
+      // 2. 自社や利用団体に合わせて任意のカスタムカテゴリー（例: 一般社団法人stone, 幹部等）を追加作成できること
+      store.addCategory('一般社団法人stone');
       store.addCategory('幹部');
+      expect(store.getCategories()).toContain('一般社団法人stone');
       expect(store.getCategories()).toContain('幹部');
 
       // 3. 非BNI人物カルテを作成し、一般社団法人stoneと幹部カテゴリーを手動割り当てできること
@@ -488,17 +491,23 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(person.category_tags).toContain('一般社団法人stone');
       expect(person.category_tags).toContain('幹部');
 
-      // 4. カテゴリーの更新・追加割り当て（例: 知人を追加）
+      // 4. カテゴリーの更新・追加割り当て
       const updatedPerson = store.updatePersonCategories(person.id, ['一般社団法人stone', '幹部', '知人']);
       expect(updatedPerson.category_tags).toContain('知人');
       expect(updatedPerson.category_tags.length).toBe(3);
 
-      // 5. 顔写真（アバター）を後から登録・変更できること
+      // 5. 不要になったカテゴリーを削除できること
+      store.addCategory('不要テストタグ');
+      expect(store.getCategories()).toContain('不要テストタグ');
+      store.removeCategory('不要テストタグ');
+      expect(store.getCategories()).not.toContain('不要テストタグ');
+
+      // 6. 顔写真（アバター）を後から登録・変更できること
       const mockDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
       const personWithAvatar = store.updatePersonAvatar(person.id, mockDataUrl);
       expect(personWithAvatar.avatar_url).toBe(mockDataUrl);
 
-      // 6. 永続化されたストアから取得しても顔写真とカテゴリーが正しく保持されていること
+      // 7. 永続化されたストアから取得しても顔写真とカテゴリーが正しく保持されていること
       const fetched = store.getPersonById(person.id);
       expect(fetched?.avatar_url).toBe(mockDataUrl);
       expect(fetched?.category_tags).toEqual(['一般社団法人stone', '幹部', '知人']);

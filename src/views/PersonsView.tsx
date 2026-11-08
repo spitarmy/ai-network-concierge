@@ -158,8 +158,18 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
     if (!trimmed) return;
     store.addCategory(trimmed);
     setNewCategoryName('');
-    setShowAddCategoryModal(false);
     onRefresh();
+  };
+
+  // カテゴリーの削除
+  const handleRemoveCategory = (catName: string) => {
+    if (confirm(`カテゴリー「${catName}」を削除しますか？`)) {
+      store.removeCategory(catName);
+      if (selectedTag === catName) {
+        setSelectedTag('ALL');
+      }
+      onRefresh();
+    }
   };
 
   // 顔写真ファイル選択（カメラ / 写真ライブラリ）
@@ -1187,14 +1197,14 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
         </div>
       )}
 
-      {/* 新規カテゴリー追加モーダル */}
+      {/* カテゴリー管理・新規追加モーダル */}
       {showAddCategoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
-          <form onSubmit={handleCreateGlobalCategory} className="w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-3xl border border-apple-border dark:border-apple-darkBorder p-6 space-y-4 shadow-2xl">
+          <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl border border-apple-border dark:border-apple-darkBorder p-6 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
               <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-2">
                 <FolderPlus className="w-4 h-4 text-apple-blue" />
-                <span>新しいカテゴリーの作成</span>
+                <span>人脈カテゴリーの管理・追加</span>
               </h3>
               <button type="button" onClick={() => setShowAddCategoryModal(false)} className="text-neutral-400 hover:text-neutral-600">
                 <X className="w-4 h-4" />
@@ -1202,41 +1212,70 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
             </div>
 
             <p className="text-xs text-neutral-500 leading-relaxed">
-              登録したカテゴリーは人脈カルテへの手動振り分けや、一覧での絞り込みフィルターとして利用できます。
+              自社の事業や人脈に合わせて自由にカテゴリーを整理できます（不要なタグは削除可能）。
             </p>
 
-            <div>
-              <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                カテゴリー名 *
+            {/* 登録済みカテゴリー一覧 */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                現在の登録カテゴリー ({store.getCategories().length}件)
               </label>
-              <input
-                type="text"
-                autoFocus
-                required
-                placeholder="例: 一般社団法人stone, 幹部, パートナー など"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7]"
-              />
+              <div className="flex flex-wrap gap-2 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder">
+                {store.getCategories().map(cat => (
+                  <span
+                    key={cat}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 border border-apple-border dark:border-apple-darkBorder shadow-2xs"
+                  >
+                    <span>{cat}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCategory(cat)}
+                      className="text-neutral-400 hover:text-red-500 transition-colors p-0.5 rounded"
+                      title={`${cat} を削除`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-2 border-t border-apple-border dark:border-apple-darkBorder">
+            {/* 新規カテゴリー追加フォーム */}
+            <form onSubmit={handleCreateGlobalCategory} className="space-y-3 pt-2 border-t border-apple-border dark:border-apple-darkBorder">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">
+                  新しいカテゴリーを作成
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="例: 一般社団法人stone, 幹部, 提携先 など"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    className="flex-1 p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newCategoryName.trim()}
+                    className="px-4 py-2 rounded-xl bg-apple-blue text-white text-xs font-medium hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap shadow-sm"
+                  >
+                    追加する
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <div className="flex justify-end pt-2 border-t border-apple-border dark:border-apple-darkBorder">
               <button
                 type="button"
                 onClick={() => setShowAddCategoryModal(false)}
-                className="px-3.5 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs"
+                className="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-medium hover:bg-neutral-200"
               >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                disabled={!newCategoryName.trim()}
-                className="px-4 py-1.5 rounded-xl bg-apple-blue text-white text-xs font-medium disabled:opacity-40"
-              >
-                作成する
+                閉じる
               </button>
             </div>
-          </form>
+          </div>
         </div>
       )}
     </div>

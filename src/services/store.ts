@@ -812,7 +812,7 @@ class DataStore {
     }
     if (!this.state.customCategories[tid] || this.state.customCategories[tid].length === 0) {
       this.state.customCategories[tid] = [
-        '一般社団法人stone', 'BNI', '仕事', 'パートナー', 'クライアント', '友人', '知人'
+        'BNI', '仕事', 'パートナー', 'クライアント', '友人', '知人'
       ];
       this.persist();
     }

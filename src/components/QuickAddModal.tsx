@@ -37,7 +37,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [personName, setPersonName] = useState('');
   const [phonetic, setPhonetic] = useState('');
   const [company, setCompany] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>(['一般社団法人stone']);
+  const [selectedTags, setSelectedTags] = useState<string[]>(['BNI']);
   const [customTagInput, setCustomTagInput] = useState('');
   const [isAddingTagInput, setIsAddingTagInput] = useState(false);
 
@@ -108,7 +108,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     const newP = store.createPerson({
       display_name: personName,
       phonetic_name: phonetic,
-      category_tags: selectedTags.length > 0 ? selectedTags : ['一般社団法人stone'],
+      category_tags: selectedTags.length > 0 ? selectedTags : ['BNI'],
     });
 
     if (company.trim()) {
@@ -121,7 +121,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       setPersonName('');
       setPhonetic('');
       setCompany('');
-      setSelectedTags(['一般社団法人stone']);
+      setSelectedTags(['BNI']);
       onRefresh();
       onClose();
     }, 1000);
