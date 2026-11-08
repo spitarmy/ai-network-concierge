@@ -774,7 +774,7 @@ class DataStore {
   public createPerson(data: Partial<Person>): Person {
     const tid = this.state.currentTenantId;
     const newPerson: Person = {
-      id: `p-${Date.now()}`,
+      id: data.id || `p-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       tenant_id: tid,
       display_name: data.display_name || '名称未設定',
       phonetic_name: data.phonetic_name || '',
@@ -1021,7 +1021,7 @@ class DataStore {
     const tid = this.state.currentTenantId;
     const newFact: Fact = {
       ...data,
-      id: `fact-${Date.now()}`,
+      id: `fact-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       tenant_id: tid,
       created_at: new Date().toISOString(),
     };
@@ -1175,13 +1175,13 @@ class DataStore {
       }
     }
 
-    // 重複判定（同一Zoomコードかつ同一日の会議が存在するか）
+    // 重複判定（同一Zoomコードかつ同一日時の会議が既に存在するか確認。異なる時間なら同一URLでも別予定として許容）
     let is_duplicate = false;
     let duplicate_meeting: Meeting | undefined;
     if (code && has_detected_date) {
       const existing = this.state.meetings.find(
         m => m.tenant_id === tid && m.meeting_code === code &&
-        m.scheduled_start_at.substring(0, 10) === scheduled_start_at.substring(0, 10)
+        m.scheduled_start_at.substring(0, 16) === scheduled_start_at.substring(0, 16)
       );
       if (existing) {
         is_duplicate = true;
@@ -1419,26 +1419,33 @@ class DataStore {
 高橋: 本当にありがとうございます！次回までに当社の施工実績カタログと事例集をお送りしますね。
     `.trim();
 
-    // 1. お名前の抽出
-    let realName = '高橋 誠治';
-    const nameMatch = sampleTranscript.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎)/);
-    if (nameMatch) {
-      const raw = nameMatch[0];
-      realName = raw.includes(' ') ? raw : `${raw.slice(0, 2)} ${raw.slice(2)}`;
-    } else {
-      const dynamicNameMatch = sampleTranscript.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:と申します|です|と申します。)/);
-      if (dynamicNameMatch && dynamicNameMatch[1] && !/^(はじめまして|本日|私|代表|社長)$/.test(dynamicNameMatch[1])) {
-        const raw = dynamicNameMatch[1];
-        realName = (raw.length === 4 && !raw.includes(' ')) ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
+    const firstPid = meeting.participant_ids[0];
+    const existingParticipant = firstPid ? this.getPersonById(firstPid) : undefined;
+    const isKnownParticipant = existingParticipant && !existingParticipant.display_name.startsWith('相手未特定');
+
+    // 1. お名前の抽出 (既存参加者が判明している場合はその実名を最優先で維持)
+    let realName = isKnownParticipant ? existingParticipant.display_name : '高橋 誠治';
+    if (transcriptText) {
+      const nameMatch = transcriptText.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎)/);
+      if (nameMatch) {
+        const raw = nameMatch[0];
+        realName = raw.includes(' ') ? raw : `${raw.slice(0, 2)} ${raw.slice(2)}`;
+      } else {
+        const dynamicNameMatch = transcriptText.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:と申します|です|と申します。)/);
+        if (dynamicNameMatch && dynamicNameMatch[1] && !/^(はじめまして|本日|私|代表|社長)$/.test(dynamicNameMatch[1])) {
+          const raw = dynamicNameMatch[1];
+          realName = (raw.length === 4 && !raw.includes(' ')) ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
+        }
       }
     }
 
     // 2. 会社名・役職の抽出
-    let companyName = '株式会社タカハシ看板デザイン';
+    const existingOrgs = existingParticipant ? this.getOrgMembershipsForPerson(existingParticipant.id) : [];
+    let companyName = existingOrgs[0]?.organization_name || (existingParticipant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '株式会社タカハシ看板デザイン');
     let title = '代表取締役';
-    const compMatch = sampleTranscript.match(/(?:株式会社|有限会社|合同会社)[^\s\n、。「」『』()（）]{2,20}/);
+    const compMatch = sampleTranscript.match(/(?:株式会社|有限会社|合同会社|一般社団法人)[^\s\n、。「」『』()（）]{2,20}/);
     if (compMatch) companyName = compMatch[0];
-    const titleMatch = sampleTranscript.match(/(代表取締役|代表|専務取締役|常務取締役|支店長|院長|所長)/);
+    const titleMatch = sampleTranscript.match(/(代表取締役|代表|理事|幹部|専務取締役|常務取締役|支店長|院長|所長)/);
     if (titleMatch) title = titleMatch[0];
 
     // 3. BNIチャプター・カテゴリーの抽出
@@ -1564,11 +1571,13 @@ class DataStore {
   // --- 面談後のお礼文 & 相互要約の自動生成 (LINE/メール手動送信用) ---
   public generateThankYouDraft(
     meetingId: string,
-    tone: 'line_casual' | 'business_polite' | 'bni_formal' = 'line_casual'
+    tone: 'line_casual' | 'business_polite' | 'bni_formal' = 'line_casual',
+    targetPersonId?: string
   ): {
     recipient_name: string;
     draft_text: string;
     meeting_title: string;
+    all_participants: { id: string; name: string }[];
     summary_points: {
       partner_business: string;
       partner_referral: string;
@@ -1578,7 +1587,14 @@ class DataStore {
   } {
     const tid = this.state.currentTenantId;
     const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
-    const participant = meeting && meeting.participant_ids[0] ? this.getPersonById(meeting.participant_ids[0]) : undefined;
+    const all_participants = (meeting?.participant_ids || []).map(pid => {
+      const p = this.getPersonById(pid);
+      return p ? { id: p.id, name: p.display_name } : null;
+    }).filter(Boolean) as { id: string; name: string }[];
+
+    const participant = targetPersonId
+      ? this.getPersonById(targetPersonId)
+      : (all_participants[0] ? this.getPersonById(all_participants[0].id) : undefined);
     const recipient_name = participant ? participant.display_name : '面談のお相手';
 
     const facts = participant ? this.getFactsForPerson(participant.id) : [];
@@ -1586,13 +1602,14 @@ class DataStore {
     const promiseFact = facts.find(f => f.fact_category === 'promise');
     const orgs = participant ? this.getOrgMembershipsForPerson(participant.id) : [];
     const bni = participant ? this.getBNIMembershipsForPerson(participant.id) : [];
+    const offerings = participant ? this.getBusinessOfferingsForPerson(participant.id) : [];
 
-    const company = orgs[0]?.organization_name || '御社';
+    const company = orgs[0]?.organization_name || (participant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '御社');
     const chapter = bni[0]?.chapter_name || '';
-    const partner_business = topicFact?.fact_value || '看板・屋外広告施工、店舗サイン企画';
-    const partner_referral = '新規開業・出店予定の飲食店オーナー様やクリニック院長様';
+    const partner_business = topicFact?.fact_value || offerings[0]?.service_title || (participant?.notes?.includes('紹介希望') ? participant.notes : '事業展開・共同取り組み');
+    const partner_referral = '新規提携先や協業ニーズのある事業者様';
     const my_commitment = '当方からマッチする事業者様への打診とお繋ぎ';
-    const action_items = promiseFact?.fact_value || '次回までに施工実績事例集の送付とお繋ぎ連絡';
+    const action_items = promiseFact?.fact_value || '次回までに参考事例の共有と追加情報のご連絡';
 
     let draft_text = '';
 
@@ -1658,6 +1675,7 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
       recipient_name,
       draft_text,
       meeting_title: meeting?.title || '面談',
+      all_participants,
       summary_points: {
         partner_business,
         partner_referral,
@@ -1779,6 +1797,37 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
     return this.state.relationships.filter(
       r => r.tenant_id === tid && (mode === 'actual' ? !r.is_ai_inferred : r.is_ai_inferred)
     );
+  }
+
+  public createRelationship(data: {
+    from_person_id: string;
+    to_person_id: string;
+    relationship_type: string;
+    is_ai_inferred?: boolean;
+    confidence?: number;
+    evidence_text: string;
+    source_meeting_id?: string;
+  }): PersonRelationship {
+    const tid = this.state.currentTenantId;
+    const newRel: PersonRelationship = {
+      id: `rel-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      tenant_id: tid,
+      from_person_id: data.from_person_id,
+      to_person_id: data.to_person_id,
+      relationship_type: data.relationship_type,
+      is_ai_inferred: !!data.is_ai_inferred,
+      confidence: data.confidence ?? 1.0,
+      evidence_text: data.evidence_text,
+      source_meeting_id: data.source_meeting_id,
+    };
+    this.state.relationships.push(newRel);
+    this.persist();
+    return newRel;
+  }
+
+  public deleteRelationship(id: string): void {
+    this.state.relationships = this.state.relationships.filter(r => r.id !== id);
+    this.persist();
   }
 
   // --- 紹介 (Referrals) ---

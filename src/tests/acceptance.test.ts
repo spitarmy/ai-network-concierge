@@ -602,5 +602,74 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(reloadedMeetings.some((m: any) => m.id === userMeeting.id)).toBe(true);
       expect(reloadedMeetings.find((m: any) => m.id === userMeeting.id)?.title).toBe('大切な取引先との面談');
     });
+
+    it('同一Zoomリンクを別時間に使用しても重複誤判定されず、面談・参加者ごとに個別要約とお礼文が生成されること', () => {
+      const zoomUrl = 'https://us02web.zoom.us/j/84920491029?pwd=abcd';
+
+      // 14:00の面談（鹿股さん）
+      const meeting1 = store.createMeeting({
+        title: '鹿股 幸男様と面談',
+        scheduled_start_at: '2026-11-09T14:00:00.000Z',
+        meeting_url: zoomUrl,
+        meeting_code: '84920491029',
+        participant_name: '鹿股 幸男',
+      });
+      expect(meeting1.id).toBeDefined();
+
+      // 同日21:30の面談（ツージーさん、同一Zoomコード）
+      const parseResult2 = store.parseMeetingIntent(`11/9 21:30〜 ${zoomUrl} ツージーさんと面談`);
+      // 時間が異なるため重複と判定されないこと
+      expect(parseResult2.is_duplicate).toBe(false);
+
+      const meeting2 = store.createMeeting({
+        title: 'ツージー様・木村 尚史様と面談',
+        scheduled_start_at: '2026-11-09T21:30:00.000Z',
+        meeting_url: zoomUrl,
+        meeting_code: '84920491029',
+        participant_name: 'ツージー',
+      });
+
+      // 木村さんも同席参加者に追加
+      const kimura = store.createPerson({ display_name: '木村 尚史' });
+      store.updateMeeting(meeting2.id, {
+        participant_ids: [...meeting2.participant_ids, kimura.id]
+      });
+
+      // お礼文生成テスト: ツージー様宛て
+      const draftTsuji = store.generateThankYouDraft(meeting2.id, 'line_casual', meeting2.participant_ids[0]);
+      expect(draftTsuji.recipient_name).toBe('ツージー');
+      expect(draftTsuji.draft_text).toContain('ツージーさん');
+
+      // お礼文生成テスト: 木村様宛て（個別要約・個別お礼文）
+      const draftKimura = store.generateThankYouDraft(meeting2.id, 'business_polite', kimura.id);
+      expect(draftKimura.recipient_name).toBe('木村 尚史');
+      expect(draftKimura.draft_text).toContain('木村 尚史様');
+      expect(draftKimura.all_participants.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('相関図において接点のない人脈はエッジ0で独立し、確証のある実関係のみを結線できること', () => {
+      const p1 = store.createPerson({ display_name: '鹿股 幸男' });
+      const p2 = store.createPerson({ display_name: '木村 尚史' });
+
+      // 新規登録時点では接点がないため、エッジ数は0
+      const p1Rels = store.getRelationships('actual').filter(r => r.from_person_id === p1.id || r.to_person_id === p1.id);
+      expect(p1Rels.length).toBe(0);
+
+      // 実関係を確証（紹介元・紹介先）として記録
+      const newRel = store.createRelationship({
+        from_person_id: p1.id,
+        to_person_id: p2.id,
+        relationship_type: '紹介元 / 紹介先',
+        evidence_text: '11月9日の面談で鹿股様より木村様をご紹介',
+      });
+
+      const updated = store.getRelationships('actual');
+      expect(updated.some(r => r.id === newRel.id)).toBe(true);
+      expect(updated.find(r => r.id === newRel.id)?.evidence_text).toContain('鹿股様より木村様をご紹介');
+
+      // 削除できること
+      store.deleteRelationship(newRel.id);
+      expect(store.getRelationships('actual').some(r => r.id === newRel.id)).toBe(false);
+    });
   });
 });

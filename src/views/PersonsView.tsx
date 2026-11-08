@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface PersonsViewProps {
   selectedPersonId?: string;
@@ -293,10 +294,10 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
               <div className="flex items-center space-x-4">
                 {/* 顔写真（タップで変更・カメラ起動可能） */}
                 <div className="relative group cursor-pointer" onClick={() => setIsAvatarModalOpen(true)}>
-                  <img
-                    src={selectedPerson.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                    alt=""
-                    className="w-16 h-16 rounded-2xl object-cover border border-apple-border dark:border-apple-darkBorder group-hover:opacity-80 transition-opacity"
+                  <UserAvatar
+                    name={selectedPerson.display_name}
+                    avatarUrl={selectedPerson.avatar_url}
+                    size="xl"
                   />
                   <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-[10px] font-medium flex-col space-y-0.5">
                     <Camera className="w-4 h-4" />
@@ -1147,10 +1148,11 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                   onClick={() => setInternalSelectedId(p.id)}
                   className="cursor-pointer p-4 rounded-2xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder hover:border-apple-blue/50 transition-all flex items-start space-x-3.5 group shadow-sm"
                 >
-                  <img
-                    src={p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120'}
-                    alt=""
-                    className="w-12 h-12 rounded-xl object-cover shrink-0"
+                  <UserAvatar
+                    name={p.display_name}
+                    avatarUrl={p.avatar_url}
+                    size="lg"
+                    className="shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-1.5">

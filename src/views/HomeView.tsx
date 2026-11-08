@@ -3,6 +3,7 @@ import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle
 import { store } from '../services/store';
 import { Person } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface HomeViewProps {
   isSimpleMode: boolean;
@@ -73,10 +74,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center space-x-4">
               {upcomingParticipant ? (
-                <img
-                  src={upcomingParticipant.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                  alt={upcomingParticipant.display_name}
-                  className="w-14 h-14 rounded-2xl object-cover border border-apple-border dark:border-apple-darkBorder"
+                <UserAvatar
+                  name={upcomingParticipant.display_name}
+                  avatarUrl={upcomingParticipant.avatar_url}
+                  size="lg"
                 />
               ) : (
                 <div className="w-14 h-14 rounded-2xl bg-apple-blue/10 dark:bg-apple-darkBlue/20 text-apple-blue dark:text-apple-darkBlue flex items-center justify-center font-bold text-xl border border-apple-border dark:border-apple-darkBorder">
@@ -438,10 +439,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   className="cursor-pointer p-2.5 rounded-xl hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 transition-colors flex items-center justify-between"
                 >
                   <div className="flex items-center space-x-3">
-                    <img
-                      src={p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                      alt=""
-                      className="w-8 h-8 rounded-xl object-cover"
+                    <UserAvatar
+                      name={p.display_name}
+                      avatarUrl={p.avatar_url}
+                      size="sm"
                     />
                     <div>
                       <div className="text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">

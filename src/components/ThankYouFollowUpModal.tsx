@@ -17,14 +17,20 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
   const [messageText, setMessageText] = useState('');
   const [copied, setCopied] = useState(false);
   const [recipientName, setRecipientName] = useState('');
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (isOpen && meetingId) {
-      const draft = store.generateThankYouDraft(meetingId, tone);
+      const draft = store.generateThankYouDraft(meetingId, tone, selectedPersonId || undefined);
       setMessageText(draft.draft_text);
       setRecipientName(draft.recipient_name);
+      setParticipants(draft.all_participants || []);
+      if (!selectedPersonId && draft.all_participants && draft.all_participants.length > 0) {
+        setSelectedPersonId(draft.all_participants[0].id);
+      }
     }
-  }, [isOpen, meetingId, tone]);
+  }, [isOpen, meetingId, tone, selectedPersonId]);
 
   if (!isOpen || !meetingId) return null;
 
@@ -76,6 +82,38 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
 
         {/* コンテンツエリア */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+          {/* 送付相手の個別選択（複数参加者または同一Zoomリンクの場合） */}
+          {participants.length > 1 && (
+            <div className="p-3 bg-neutral-100 dark:bg-neutral-800/80 rounded-2xl border border-apple-border dark:border-apple-darkBorder space-y-2">
+              <div className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center justify-between">
+                <span>送付相手を選択（参加者ごとに要約とお礼文が独立して生成されます）:</span>
+                <span className="text-[10px] text-apple-blue font-bold">個別要約対応</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {participants.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedPersonId(p.id)}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                      (selectedPersonId === p.id || (!selectedPersonId && participants[0].id === p.id))
+                        ? 'bg-apple-blue text-white shadow-xs'
+                        : 'bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200'
+                    }`}
+                  >
+                    {p.name} 様
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 同一リンク・人別要約に関する安心ガイド */}
+          <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 text-[11px] text-blue-800 dark:text-blue-300 flex items-center space-x-2">
+            <span className="text-sm">💡</span>
+            <span>同一のZoom URLであっても、各参加者・面談ごとに完全に分離してカルテ記録とお礼文の作成が行われます。</span>
+          </div>
+
           {/* 文体セレクター */}
           <div>
             <label className="block text-neutral-500 mb-1.5 font-medium">送信先・文体を選択:</label>
