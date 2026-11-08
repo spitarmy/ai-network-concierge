@@ -3,25 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI人脈コンシェルジュ — 営業提案資料 (Presentation Slides)</title>
+  <title>AI人脈コンシェルジュ — 営業・協業提案スライド (Interactive Presentation)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @media print {
       body { background: white !important; color: black !important; }
       .no-print { display: none !important; }
-      .slide-page { page-break-after: always; min-height: 98vh; display: block !important; border: 1px solid #e5e7eb; margin-bottom: 2rem; }
+      .slide-page { page-break-after: always; min-height: 98vh; display: block !important; border: 1px solid #e5e7eb; margin-bottom: 2rem; box-shadow: none !important; }
     }
   </style>
 </head>
-<body class="bg-[#FBFBFD] text-[#1D1D1F] font-sans antialiased min-h-screen flex flex-col justify-between p-4 sm:p-8">
+<body class="bg-gradient-to-b from-[#F5F5F7] via-[#FBFBFD] to-[#F5F5F7] text-[#1D1D1F] font-sans antialiased min-h-screen flex flex-col justify-between p-4 sm:p-8">
 
   <!-- Header Controls -->
-  <div class="no-print max-w-4xl mx-auto w-full flex items-center justify-between pb-4 border-b border-gray-200 text-xs">
-    <a href="/" class="px-3 py-1.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors">
-      ← アプリに戻る
-    </a>
+  <div class="no-print max-w-4xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-3 pb-4 border-b border-gray-200 text-xs">
     <div class="flex items-center space-x-2">
-      <span id="slideCounter" class="font-mono text-gray-500 font-semibold">Slide 1 / 14</span>
+      <a href="/" class="px-3 py-1.5 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 transition-colors shadow-sm">
+        ← アプリに戻る
+      </a>
+      <!-- Deck Switcher -->
+      <div class="flex p-0.5 rounded-xl bg-gray-200 border border-gray-300">
+        <button id="clientTab" onclick="switchDeck('client')" class="px-3 py-1 rounded-lg font-bold bg-white text-blue-600 shadow-sm transition-all">
+          🏢 営業提案 (12枚)
+        </button>
+        <button id="partnerTab" onclick="switchDeck('partner')" class="px-3 py-1 rounded-lg font-bold text-gray-600 hover:text-gray-900 transition-all">
+          🤝 協業・提携 (7枚)
+        </button>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-2 self-end sm:self-auto">
+      <span id="slideCounter" class="font-mono text-gray-500 font-semibold">Slide 1 / 12</span>
       <button onclick="window.print()" class="px-4 py-1.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors shadow-sm">
         🖨 PDF保存 / 印刷
       </button>
@@ -29,44 +41,44 @@
   </div>
 
   <!-- Slide Container -->
-  <div class="max-w-4xl mx-auto w-full my-auto py-6">
-    <div id="slideContent" class="slide-page rounded-3xl bg-white border border-gray-200 p-8 sm:p-14 shadow-xl min-h-[520px] flex flex-col justify-between transition-all">
+  <div class="max-w-4xl mx-auto w-full my-auto py-4 sm:py-6">
+    <div id="slideContent" class="slide-page rounded-3xl bg-white/95 backdrop-blur-xl border border-gray-200/80 p-8 sm:p-14 shadow-2xl min-h-[520px] flex flex-col justify-between transition-all relative overflow-hidden">
       <!-- Dynamic slide injected here -->
     </div>
   </div>
 
   <!-- Footer Navigation -->
-  <div class="no-print max-w-4xl mx-auto w-full flex items-center justify-between pt-4">
-    <button id="prevBtn" onclick="prevSlide()" class="px-5 py-2.5 rounded-2xl bg-white border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all shadow-sm">
+  <div class="no-print max-w-4xl mx-auto w-full flex items-center justify-between pt-2">
+    <button id="prevBtn" onclick="prevSlide()" class="px-5 py-2.5 rounded-2xl bg-white border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-40">
       ← 前へ
     </button>
     <div id="dotContainer" class="flex space-x-1.5"></div>
-    <button id="nextBtn" onclick="nextSlide()" class="px-5 py-2.5 rounded-2xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all shadow-sm">
+    <button id="nextBtn" onclick="nextSlide()" class="px-5 py-2.5 rounded-2xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all shadow-sm disabled:opacity-40">
       次へ →
     </button>
   </div>
 
   <script>
-    const slidesData = [
+    const clientDeck = [
       {
         badge: "Product Pitch Deck 2026",
         title: "AI人脈コンシェルジュ",
         subtitle: "人を忘れず、大事にし続けるための次世代AI専属パートナー",
         html: `
-          <div class="text-center space-y-6 my-auto py-8">
-            <span class="inline-block px-4 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
+          <div class="text-center space-y-6 my-auto py-6">
+            <span class="inline-block px-4 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold border border-blue-200">
               ✨ BNI 1to1 & ビジネス人脈特化型 AI SaaS
             </span>
-            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-              AI人脈<span class="text-blue-600">コンシェルジュ</span>
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 leading-tight">
+              AI人脈<span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">コンシェルジュ</span>
             </h1>
-            <p class="text-base text-gray-600 max-w-lg mx-auto">
+            <p class="text-sm sm:text-base text-gray-600 max-w-lg mx-auto">
               単なる録音アプリでも、名刺管理でもありません。<br>
-              会話を出典つきで記憶し、約束を守り、最高の紹介を生み出します。
+              <strong>会話を高精度に要約し、人脈の潜在的な親和性を発掘</strong>して最高の紹介を生み出します。
             </p>
-            <div class="pt-4 flex flex-wrap justify-center gap-2 text-xs text-gray-500">
+            <div class="pt-2 flex flex-wrap justify-center gap-2 text-xs text-gray-500">
               <span class="px-3 py-1.5 rounded-xl bg-gray-100">⚡️ 招待文を貼るだけ「3秒予定登録」</span>
-              <span class="px-3 py-1.5 rounded-xl bg-gray-100">🤝 2Dインタラクティブ相関図</span>
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">🧠 文字起こし要約 × 親和性発掘AI</span>
               <span class="px-3 py-1.5 rounded-xl bg-gray-100">🔒 厳格な同意 & 90日自動消去</span>
             </div>
           </div>
@@ -97,9 +109,33 @@
         `
       },
       {
+        badge: "Market Comparison",
+        title: "なぜ従来のツールでは解決できなかったのか？",
+        subtitle: "名刺アプリ・議事録AI・一般的なCRMには「決定的な隙間」がありました",
+        html: `
+          <div class="space-y-3 my-auto py-2 text-xs">
+            <div class="p-3.5 rounded-xl bg-gray-50 border border-gray-200 flex items-start space-x-3">
+              <span class="px-2 py-1 rounded bg-gray-200 font-bold shrink-0">名刺管理</span>
+              <div><strong>会社名と肩書きしか残らない:</strong> 何を話し、誰を求めているかが記録されず紹介に結びつかない。</div>
+            </div>
+            <div class="p-3.5 rounded-xl bg-gray-50 border border-gray-200 flex items-start space-x-3">
+              <span class="px-2 py-1 rounded bg-gray-200 font-bold shrink-0">文字起こしAI</span>
+              <div><strong>長大なテキストの山になる:</strong> 会話が「人物カルテ」に自動要約されないため、次の面談で活かせない。</div>
+            </div>
+            <div class="p-3.5 rounded-xl bg-gray-50 border border-gray-200 flex items-start space-x-3">
+              <span class="px-2 py-1 rounded bg-gray-200 font-bold shrink-0">一般SFA/CRM</span>
+              <div><strong>入力が重すぎて続かない:</strong> 項目が多すぎて破綻。プライベートな信頼関係やチャプター履歴に対応していない。</div>
+            </div>
+            <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 font-bold">
+              ✨ AI人脈コンシェルジュは「招待文を貼るだけ」「要約カルテと潜在親和性の自動発掘」で完全解決します
+            </div>
+          </div>
+        `
+      },
+      {
         badge: "Core Concept",
         title: "「信頼を資産に変える」自律型AIループ",
-        subtitle: "予定登録から面談、カルテ更新、紹介推薦までが自動でループする",
+        subtitle: "予定登録から面談、要約カルテ更新、親和性発掘までが自動でループする",
         html: `
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-auto py-6 text-center">
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
@@ -111,11 +147,11 @@
               <p class="text-[11px] text-gray-500 mt-1">お互いの合意のもと、安心安全な文字起こしを取得</p>
             </div>
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
-              <div class="text-amber-600 font-bold text-sm">03. 出典付きカルテ</div>
-              <p class="text-[11px] text-gray-500 mt-1">発言エビデンス・約束・強みを自動アップデート</p>
+              <div class="text-amber-600 font-bold text-sm">03. 高精度要約</div>
+              <p class="text-[11px] text-gray-500 mt-1">決定事項・約束タスク・最新オファリングを即時抽出</p>
             </div>
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
-              <div class="text-purple-600 font-bold text-sm">04. 根拠ある紹介</div>
+              <div class="text-purple-600 font-bold text-sm">04. 潜在親和性発掘</div>
               <p class="text-[11px] text-gray-500 mt-1">相関図と紹介状ドラフトで高成約なGivers Gain</p>
             </div>
           </div>
@@ -126,12 +162,12 @@
         title: "招待文を貼るだけ「3秒予定登録」",
         subtitle: "URLだけでなく日時・相手名・面談種別をAIが自動抽出。重複登録も防止",
         html: `
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4 items-center">
-            <div class="p-4 rounded-2xl bg-gray-100 font-mono text-xs text-gray-600">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4 items-center text-xs">
+            <div class="p-4 rounded-2xl bg-gray-100 font-mono text-gray-600">
               <div class="text-[10px] text-gray-400 font-bold mb-1">貼り付けたテキスト例:</div>
               「明後日14時から1to1よろしくお願いします！<br>https://us02web.zoom.us/j/81234567890<br>ID: 812 3456 7890」
             </div>
-            <div class="space-y-2 text-xs">
+            <div class="space-y-2">
               <div class="text-green-600 font-bold">✅ AIが自動抽出・構造化</div>
               <div class="p-3 rounded-xl bg-white border border-gray-200 space-y-1">
                 <div>📅 日時: 明後日 14:00〜15:00</div>
@@ -144,11 +180,50 @@
         `
       },
       {
+        badge: "Core Superpower",
+        title: "文字起こし要約 × 潜在親和性（シナジー）発掘AI",
+        subtitle: "60分の会話を「30秒要約」と「約束タスク」に圧縮し、ネットワーク全体からベストな紹介先を発掘",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-2 text-xs">
+            <div class="p-4 rounded-2xl bg-gray-900 text-white space-y-2.5">
+              <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                <span class="text-green-400 font-bold text-[11px]">🎙 1to1面談 音声解析完了 (48分)</span>
+                <span class="px-2 py-0.5 rounded bg-green-500/20 text-green-300 text-[10px]">高精度文字起こし</span>
+              </div>
+              <div class="p-2.5 rounded-xl bg-gray-800/80 space-y-1">
+                <div class="text-[10px] text-gray-400 font-bold">💡 30秒エグゼクティブ要約</div>
+                <p class="text-gray-200 text-[11px]">「飲食店経営のA氏。来春オープン予定の2号店で古民家再生・町家風の内装と補助金活用を模索中。」</p>
+              </div>
+              <div class="p-2.5 rounded-xl bg-gray-800/80 space-y-1">
+                <div class="text-[10px] text-amber-400 font-bold">🤝 約束事項（自動トラッキング）</div>
+                <p class="text-gray-200 text-[11px]">・田中税理士への事業承継の相談打診（期限: 今週金曜まで）</p>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 text-gray-900 space-y-2.5">
+              <div class="flex justify-between items-center border-b border-indigo-200 pb-2">
+                <span class="text-indigo-700 font-bold text-[11px]">✨ 人脈横断 親和性検出</span>
+                <span class="px-2 py-0.5 rounded bg-indigo-600 text-white font-bold text-[10px]">親和性 94%</span>
+              </div>
+              <div class="p-2.5 rounded-xl bg-white border border-indigo-100 space-y-1">
+                <div class="text-[10px] text-indigo-600 font-bold">🎯 自動検出されたシナジー</div>
+                <p class="text-[11px] text-gray-800"><strong>A氏（カフェ出店希望）</strong> × <strong>山田社長（京町家・耐震リノベ）</strong></p>
+                <p class="text-[10px] text-gray-500">『町家再生の施工実績』と『補助金申請サポート』がA氏の求めるニーズと100%合致。</p>
+              </div>
+              <div class="p-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-bold text-[11px] flex justify-between">
+                <span>双方への紹介状ドラフト自動生成</span>
+                <span>即送信可能 →</span>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
         badge: "Feature 02",
         title: "発言の「出典」を保持する人物カルテ",
         subtitle: "いつ誰が言った事実なのかを記録。3回目の面談前でも会話が弾む",
         html: `
-          <div class="space-y-3 my-auto py-4 text-xs">
+          <div class="space-y-3 my-auto py-2 text-xs">
             <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center">
               <span>📍 「京都・滋賀の古民家再生に特化（補助金申請も対応）」</span>
               <span class="text-[10px] text-gray-400">2026/10/12 面談録音より確定</span>
@@ -161,7 +236,7 @@
               <span>🤝 「約束: 税理士の田中さんを紹介すると約束済み」</span>
               <span class="text-[10px] text-amber-600 font-bold">未完了タスクとしてトラッキング</span>
             </div>
-            <p class="text-[11px] text-gray-500 pt-2">架空の生成（ハルシネーション）を防ぐため、すべての事実に出典タイムスタンプを付与します。</p>
+            <p class="text-[11px] text-gray-500 pt-1">架空の生成（ハルシネーション）を防ぐため、すべての事実に出典タイムスタンプを付与します。</p>
           </div>
         `
       },
@@ -205,23 +280,6 @@
         `
       },
       {
-        badge: "Feature 05",
-        title: "複数事業・BNI移籍履歴の永続保持",
-        subtitle: "1人が複数の顔を持つ時代。過去のチャプターや役職を上書き消去しません",
-        html: `
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4 text-xs">
-            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1">
-              <h4 class="font-bold text-gray-900">複数事業の同時管理</h4>
-              <p class="text-gray-500">本業の税理士法人、共同創業の飲食事業など、事業ごとに得意分野や対応エリアを分けて管理。</p>
-            </div>
-            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1">
-              <h4 class="font-bold text-gray-900">移籍履歴のタイムライン</h4>
-              <p class="text-gray-500">チャプターを移籍しても、過去の役職履歴（前チャプター書記兼会計など）を消さずに蓄積。</p>
-            </div>
-          </div>
-        `
-      },
-      {
         badge: "Security & Trust",
         title: "信頼を守る「4重の安全壁」とコンプライアンス",
         subtitle: "ビジネス人脈における信用毀損は最大の致命傷。最高水準のプライバシー設計",
@@ -242,23 +300,6 @@
             <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
               <div class="font-bold text-purple-600 mb-1">④ AI学習への流用ゼロ</div>
               <p class="text-gray-500 text-[11px]">入力された面談内容や名刺データがAIの学習データに使われることはありません。</p>
-            </div>
-          </div>
-        `
-      },
-      {
-        badge: "Before / After",
-        title: "毎月30回1to1を行う経営者 Aさんの1日",
-        subtitle: "面談の質が変わり、フォローアップの速度が3倍になる",
-        html: `
-          <div class="space-y-3 my-auto py-2 text-xs">
-            <div class="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-gray-50 border border-gray-200">
-              <div><strong class="text-red-500">Before:</strong> 面談直前に過去メモやLINEを必死に検索。結局見つからず「初めまして」のように開始。</div>
-              <div><strong class="text-green-600">After:</strong> カルテ1タップ。前回の話題・最新の強み・求める顧客が1分で頭に入り即座に本題へ。</div>
-            </div>
-            <div class="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-gray-50 border border-gray-200">
-              <div><strong class="text-red-500">Before:</strong> 「〇〇さん紹介しますね！」と盛り上がるも、翌日には忘れてしまい約束未達に。</div>
-              <div><strong class="text-green-600">After:</strong> AIが約束タスクと紹介状ドラフトを自動生成。終了後3分で双方へのフォロー完了。</div>
             </div>
           </div>
         `
@@ -288,42 +329,12 @@
         `
       },
       {
-        badge: "Implementation",
-        title: "アプリストア審査待ちゼロ。最短当日から利用開始",
-        subtitle: "iPhone / Android / PC 全対応。ホーム画面に追加するだけ",
-        html: `
-          <div class="space-y-4 my-auto py-2 text-xs">
-            <div class="grid grid-cols-3 gap-2 text-center">
-              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                <span class="text-[10px] text-blue-600 font-bold">STEP 1</span>
-                <div class="font-bold text-xs mt-1">URLアクセス</div>
-                <div class="text-[10px] text-gray-400">即日アカウント発行</div>
-              </div>
-              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                <span class="text-[10px] text-blue-600 font-bold">STEP 2</span>
-                <div class="font-bold text-xs mt-1">ホーム画面追加</div>
-                <div class="text-[10px] text-gray-400">PWAネイティブ動作</div>
-              </div>
-              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                <span class="text-[10px] text-blue-600 font-bold">STEP 3</span>
-                <div class="font-bold text-xs mt-1">面談登録スタート</div>
-                <div class="text-[10px] text-gray-400">名刺撮影・Zoom貼付</div>
-              </div>
-            </div>
-            <div class="p-3.5 rounded-2xl bg-white border border-gray-200 space-y-1">
-              <p><strong>Q: Google Meetや対面面談でも使えますか？</strong><br>A: はい、対面のスマホ録音やGoogle Meetの招待文にも完全対応しています。</p>
-              <p><strong>Q: 相手に怪しまれませんか？</strong><br>A: 「約束を確実に守るための誠実な事前同意」を前提としており、むしろ信頼向上に繋がります。</p>
-            </div>
-          </div>
-        `
-      },
-      {
         badge: "Get Started",
         title: "信頼されるビジネスリーダーのための第一歩を、いま。",
         subtitle: "人を忘れず、大事にし続けるためのAI専属パートナー",
         html: `
-          <div class="text-center space-y-6 my-auto py-6">
-            <div class="w-16 h-16 mx-auto rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl">
+          <div class="text-center space-y-5 my-auto py-6">
+            <div class="w-16 h-16 mx-auto rounded-3xl bg-blue-600 text-white flex items-center justify-center text-3xl shadow-lg">
               ✨
             </div>
             <div>
@@ -335,36 +346,262 @@
                 サービス本番環境を開く →
               </a>
             </div>
-            <p class="text-[11px] text-gray-400">URL: https://ai-network-concierge.vercel.app</p>
+            <p class="text-[11px] text-gray-400 font-mono">URL: https://ai-network-concierge.vercel.app</p>
           </div>
         `
       }
     ];
 
+    const partnerDeck = [
+      {
+        badge: "Partnership & Alliance 2026",
+        title: "AI人脈コンシェルジュ 協業アライアンス提案",
+        subtitle: "信頼資本を最大化する次世代エコシステムの共創",
+        html: `
+          <div class="text-center space-y-6 my-auto py-6">
+            <span class="inline-block px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-200">
+              🤝 ビジネスパートナー・代理店・コミュニティ主催者様向け
+            </span>
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 leading-tight">
+              顧客の成約成果を倍増させ、<br>
+              <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">継続ストック収益</span>を共創する
+            </h1>
+            <p class="text-sm text-gray-600 max-w-lg mx-auto">
+              貴社の受講生・クライアント・チャプター会員に「AI人脈コンシェルジュ」を提供し、1to1成果の最大化と高還元レベニューシェアを実現します。
+            </p>
+            <div class="pt-2 flex flex-wrap justify-center gap-2 text-xs text-gray-500">
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">💰 継続レベニューシェア 20%〜30%</span>
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">📈 クライアントの面談成果3倍</span>
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">🤝 共同ウェビナー & 販促支援完備</span>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Partner Challenges",
+        title: "研修・コンサル・コミュニティ運営の「3大ボトルネック」",
+        subtitle: "ノウハウを提供しても、現場での実践継続と受講生の成果に限界がある",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-auto py-4 text-xs">
+            <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+              <div class="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold">1</div>
+              <h4 class="font-bold text-sm">実践継続が定着しない</h4>
+              <p class="text-gray-500">メモの整理や約束の履行が受講生任せになり、コンサル後の成果が長続きしない。</p>
+            </div>
+            <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold">2</div>
+              <h4 class="font-bold text-sm">手動マッチングの限界</h4>
+              <p class="text-gray-500">会員が50人、100人と増えるにつれ、主催者の記憶だけでは紹介機会を見落としてしまう。</p>
+            </div>
+            <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+              <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold">3</div>
+              <h4 class="font-bold text-sm">ストック収益の不足</h4>
+              <p class="text-gray-500">単発の受講料やコンサル報酬だけではフロー営業が続き、LTVが伸び悩む。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Product Engine",
+        title: "会話から「紹介成約の親和性」を発掘するAIエンジン",
+        subtitle: "単なる文字起こしではなく、会員のニーズと強みを自動マッチングして成果を可視化",
+        html: `
+          <div class="p-5 rounded-2xl bg-gray-900 text-white space-y-4 my-auto text-xs">
+            <div class="grid grid-cols-3 gap-3 text-center border-b border-gray-800 pb-3">
+              <div>
+                <div class="font-bold text-green-400 text-sm">① 高精度要約</div>
+                <p class="text-[11px] text-gray-400 mt-1">60分の1to1を30秒の重要決定・約束に即座に凝縮</p>
+              </div>
+              <div>
+                <div class="font-bold text-indigo-400 text-sm">② 潜在親和性検出</div>
+                <p class="text-[11px] text-gray-400 mt-1">会員Aの悩み × 会員Bの得意分野をAIが自動検知</p>
+              </div>
+              <div>
+                <div class="font-bold text-blue-400 text-sm">③ 紹介状ドラフト</div>
+                <p class="text-[11px] text-gray-400 mt-1">断られない打診文を自動生成し成約率を最大化</p>
+              </div>
+            </div>
+            <div class="p-3 rounded-xl bg-gray-800 flex items-center justify-between">
+              <span class="text-gray-200">
+                💡 貴社の受講生が使うことで、<strong>「教えたノウハウが勝手に実践され、紹介成果が出る状態」</strong>が実現します。
+              </span>
+              <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] shrink-0">
+                リテンション向上
+              </span>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "3 Collaboration Models",
+        title: "貴社に合わせて選べる3つの提携スキーム",
+        subtitle: "紹介のみの手軽なモデルから、自社プログラムへの同梱・チャプター導入まで",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 my-auto py-2 text-xs">
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1.5">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">① 認定紹介・代理店</span>
+              <h4 class="font-bold text-sm">リファラルパートナー</h4>
+              <p class="text-gray-500">貴社クライアントへご紹介。<strong>月額利用料の20%〜30%を永続レベニューシェア還元</strong>。工数ゼロ。</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1.5">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">② 研修・コンサル同梱</span>
+              <h4 class="font-bold text-sm">カリキュラムバンドル</h4>
+              <p class="text-gray-500">営業研修・コミュニティ会費に公式ツールとして同梱。卸価格で提供し貴社粗利を拡大。</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1.5">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-700 font-bold">③ チャプター・団体一括</span>
+              <h4 class="font-bold text-sm">グループ専用導入</h4>
+              <p class="text-gray-500">チャプターや交流会全体（30〜100名規模）への一括導入。メンバー間の相関図を可視化。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Revenue Share",
+        title: "継続ストック収益シミュレーション",
+        subtitle: "解約率の極めて低い人脈SaaSのため、積み上がるほど強固な月額ストック収益に",
+        html: `
+          <div class="space-y-4 my-auto py-2 text-xs">
+            <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 flex justify-between items-center">
+              <div>
+                <span class="font-bold text-emerald-900">還元条件例: レベニューシェア 25%</span>
+                <p class="text-gray-600 mt-0.5">月額4,980円の標準プランにつき、<strong>1アカウントあたり月額 約1,245円</strong> を永続還元</p>
+              </div>
+              <span class="px-3 py-1 rounded-full bg-emerald-600 text-white font-bold text-xs shrink-0">毎月自動振込</span>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="p-4 rounded-2xl bg-white border border-gray-200 space-y-1">
+                <span class="text-[10px] text-gray-400 font-bold">30名（1チャプター）</span>
+                <div class="text-xl font-bold text-emerald-600">¥37,350<span class="text-xs font-normal text-gray-400">/月</span></div>
+                <p class="text-[10px] text-gray-500">年間 約45万円</p>
+              </div>
+              <div class="p-4 rounded-2xl bg-white border border-gray-200 space-y-1">
+                <span class="text-[10px] text-gray-400 font-bold">100名（受講生規模）</span>
+                <div class="text-xl font-bold text-emerald-600">¥124,500<span class="text-xs font-normal text-gray-400">/月</span></div>
+                <p class="text-[10px] text-gray-500">年間 約150万円</p>
+              </div>
+              <div class="p-4 rounded-2xl bg-white border border-gray-200 space-y-1">
+                <span class="text-[10px] text-gray-400 font-bold">300名（複数チャプター）</span>
+                <div class="text-xl font-bold text-emerald-600">¥373,500<span class="text-xs font-normal text-gray-400">/月</span></div>
+                <p class="text-[10px] text-gray-500">年間 約450万円</p>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Partner Support",
+        title: "パートナー企業様への万全のサポート体制",
+        subtitle: "貴社が販売しやすいよう、営業ツール・共催セミナー・導入支援をすべて無償提供",
+        html: `
+          <div class="grid grid-cols-2 gap-3 my-auto py-2 text-xs">
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-blue-600 mb-1">① パートナー無償アカウント</div>
+              <p class="text-gray-500 text-[11px]">貴社自身が効果を体感し自社の人脈管理にフル活用できる本番アカウントを付与。</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-amber-600 mb-1">② 販促資料・スライド提供</div>
+              <p class="text-gray-500 text-[11px]">提案用スライド（本資料 / PDF）、デモ手順書、案内テンプレートをすべて無償提供。</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-emerald-600 mb-1">③ 共同ウェビナー共催</div>
+              <p class="text-gray-500 text-[11px]">「1to1の成約率を3倍にするAI人脈術」など、集客に直結するセミナーを共催。</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-purple-600 mb-1">④ 専任オンボーディング支援</div>
+              <p class="text-gray-500 text-[11px]">クライアントへの導入時、初期設定や操作のカスタマーサポートは弊社が全面バックアップ。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Next Steps",
+        title: "提携開始までのステップ（最短2週間）",
+        subtitle: "まずは30分のオンラインミーティングにて、最適な協業スキームをご相談ください",
+        html: `
+          <div class="space-y-5 my-auto py-4 text-xs">
+            <div class="grid grid-cols-4 gap-2 text-center">
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-emerald-600 font-bold">STEP 1</span>
+                <div class="font-bold text-xs mt-1">30分相談</div>
+                <p class="text-[10px] text-gray-400">デモ & スキーム選定</p>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-emerald-600 font-bold">STEP 2</span>
+                <div class="font-bold text-xs mt-1">アカウント発行</div>
+                <p class="text-[10px] text-gray-400">実機検証 & 資料提供</p>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-emerald-600 font-bold">STEP 3</span>
+                <div class="font-bold text-xs mt-1">パイロット導入</div>
+                <p class="text-[10px] text-gray-400">限定5〜10社で検証</p>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-emerald-600 font-bold">STEP 4</span>
+                <div class="font-bold text-xs mt-1">本格展開</div>
+                <p class="text-[10px] text-gray-400">毎月ストック収益還元</p>
+              </div>
+            </div>
+            <div class="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-transparent border border-emerald-300 text-center space-y-1.5">
+              <h3 class="text-sm font-bold text-emerald-950">
+                貴社のお客様の成約成果と信頼関係を、共に最大化しませんか？
+              </h3>
+              <p class="text-[11px] text-gray-500">
+                担当窓口: AI人脈コンシェルジュ アライアンス推進部（URL: https://ai-network-concierge.vercel.app）
+              </p>
+            </div>
+          </div>
+        `
+      }
+    ];
+
+    let currentDeckType = 'client';
     let currentSlide = 0;
 
+    function getActiveDeck() {
+      return currentDeckType === 'client' ? clientDeck : partnerDeck;
+    }
+
+    function switchDeck(type) {
+      currentDeckType = type;
+      currentSlide = 0;
+
+      const clientTab = document.getElementById('clientTab');
+      const partnerTab = document.getElementById('partnerTab');
+
+      if (type === 'client') {
+        clientTab.className = "px-3 py-1 rounded-lg font-bold bg-white text-blue-600 shadow-sm transition-all";
+        partnerTab.className = "px-3 py-1 rounded-lg font-bold text-gray-600 hover:text-gray-900 transition-all";
+      } else {
+        clientTab.className = "px-3 py-1 rounded-lg font-bold text-gray-600 hover:text-gray-900 transition-all";
+        partnerTab.className = "px-3 py-1 rounded-lg font-bold bg-white text-emerald-600 shadow-sm transition-all";
+      }
+      renderSlide();
+    }
+
     function renderSlide() {
-      const slide = slidesData[currentSlide];
-      document.getElementById('slideCounter').textContent = `Slide ${currentSlide + 1} / ${slidesData.length}`;
+      const deck = getActiveDeck();
+      const slide = deck[currentSlide] || deck[0];
+      document.getElementById('slideCounter').textContent = `Slide ${currentSlide + 1} / ${deck.length}`;
       document.getElementById('prevBtn').disabled = currentSlide === 0;
-      document.getElementById('nextBtn').disabled = currentSlide === slidesData.length - 1;
+      document.getElementById('nextBtn').disabled = currentSlide === deck.length - 1;
 
       document.getElementById('slideContent').innerHTML = `
         <div>
-          <span class="inline-block px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold">${slide.badge}</span>
-          <h2 class="text-2xl font-bold text-gray-900 mt-2">${slide.title}</h2>
+          <span class="inline-block px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold border border-gray-200">${slide.badge}</span>
+          <h2 class="text-2xl font-extrabold text-gray-900 mt-2 tracking-tight">${slide.title}</h2>
           <p class="text-xs text-gray-500 mt-1">${slide.subtitle}</p>
         </div>
         <div>${slide.html}</div>
-        <div class="pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
-          <span>AI人脈コンシェルジュ — 営業提案資料</span>
-          <span class="font-mono">${currentSlide + 1} / ${slidesData.length}</span>
+        <div class="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
+          <span>AI人脈コンシェルジュ — ${currentDeckType === 'client' ? 'クライアント営業提案資料' : '協業・アライアンス提案資料'}</span>
+          <span class="font-mono font-bold">${currentSlide + 1} / ${deck.length}</span>
         </div>
       `;
 
       // Render dots
-      const dots = slidesData.map((_, i) => `
-        <button onclick="goToSlide(${i})" class="h-2 rounded-full transition-all ${i === currentSlide ? 'w-6 bg-blue-600' : 'w-2 bg-gray-300 hover:bg-gray-400'}"></button>
+      const dots = deck.map((_, i) => `
+        <button onclick="goToSlide(${i})" class="h-2 rounded-full transition-all ${i === currentSlide ? (currentDeckType === 'client' ? 'w-6 bg-blue-600' : 'w-6 bg-emerald-600') : 'w-2 bg-gray-300 hover:bg-gray-400'}"></button>
       `).join('');
       document.getElementById('dotContainer').innerHTML = dots;
     }
@@ -373,7 +610,8 @@
       if (currentSlide > 0) { currentSlide--; renderSlide(); }
     }
     function nextSlide() {
-      if (currentSlide < slidesData.length - 1) { currentSlide++; renderSlide(); }
+      const deck = getActiveDeck();
+      if (currentSlide < deck.length - 1) { currentSlide++; renderSlide(); }
     }
     function goToSlide(i) {
       currentSlide = i; renderSlide();
