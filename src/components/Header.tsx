@@ -1,6 +1,7 @@
 import React from 'react';
-import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard } from 'lucide-react';
+import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard, RotateCw } from 'lucide-react';
 import { Tenant } from '../types';
+import { store } from '../services/store';
 
 interface HeaderProps {
   currentTenant: Tenant;
@@ -31,7 +32,14 @@ export const Header: React.FC<HeaderProps> = ({
   const isBudgetWarning = budgetRatio >= 0.8;
 
   return (
-    <header className="sticky top-0 z-30 apple-glass border-b border-apple-border dark:border-apple-darkBorder h-14 flex items-center justify-between px-3 sm:px-6 overflow-hidden">
+    <header
+      className="sticky top-0 z-30 apple-glass border-b border-apple-border dark:border-apple-darkBorder flex items-center justify-between px-3 sm:px-6 shrink-0 transition-all"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top), 0.75rem)',
+        paddingBottom: '0.625rem',
+        minHeight: 'calc(3.75rem + env(safe-area-inset-top, 0px))',
+      }}
+    >
       {/* 検索トリガー (Cmd+K 風) */}
       <div className="flex items-center space-x-2 flex-1 min-w-0 mr-2 max-w-md">
         <button
@@ -47,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* 右側アクション群 */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+      <div className="flex items-center space-x-1 sm:space-x-2.5 shrink-0">
         {/* テナント切替（PC表示・スマホでは非表示にして見切れ防止） */}
         <select
           value={currentTenant.id}
@@ -83,15 +91,28 @@ export const Header: React.FC<HeaderProps> = ({
             title={`${reviewCount}件の確認待ちがあります`}
           >
             <span className="w-2 h-2 rounded-full bg-apple-amber dark:bg-apple-darkAmber animate-pulse"></span>
-            <span>確認待ち {reviewCount}</span>
+            <span className="hidden sm:inline">確認待ち</span>
+            <span>{reviewCount}</span>
           </button>
         )}
+
+        {/* PWA/キャッシュ再読み込みボタン（ホーム画面追加時に1タップで最新化） */}
+        <button
+          onClick={() => {
+            store.purgeSamplePersons();
+            window.location.reload();
+          }}
+          title="最新版に再読み込み"
+          className="p-1.5 rounded-lg text-neutral-500 hover:text-apple-blue hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
+        >
+          <RotateCw className="w-4 h-4" />
+        </button>
 
         {/* シンプル / ダッシュボード切替 */}
         <button
           onClick={onToggleSimpleMode}
           title={isSimpleMode ? 'ダッシュボードモードへ切替' : 'シンプルモードへ切替'}
-          className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
         >
           {isSimpleMode ? <LayoutDashboard className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
         </button>
@@ -100,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onToggleDarkMode}
           title={isDarkMode ? 'ライトモードへ' : 'ダークモードへ'}
-          className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
         >
           {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
         </button>
