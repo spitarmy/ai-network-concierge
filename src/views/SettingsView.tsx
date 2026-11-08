@@ -18,6 +18,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const oauthConfig = store.getOAuthConfig();
+  const [zoomAccountId, setZoomAccountId] = useState(oauthConfig.zoom.account_id || '');
   const [zoomClientId, setZoomClientId] = useState(oauthConfig.zoom.client_id || '');
   const [zoomClientSecret, setZoomClientSecret] = useState(oauthConfig.zoom.client_secret || '');
   const [zoomWebhookSecret, setZoomWebhookSecret] = useState(oauthConfig.zoom.webhook_secret_token || '');
@@ -46,6 +47,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
   const handleSaveZoom = (e: React.FormEvent) => {
     e.preventDefault();
     store.updateZoomConfig({
+      account_id: zoomAccountId,
       client_id: zoomClientId,
       client_secret: zoomClientSecret,
       webhook_secret_token: zoomWebhookSecret,
@@ -390,6 +392,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
               }`}>
                 {oauthConfig.zoom.is_connected ? '● 認可有効' : '○ 未接続'}
               </span>
+            </div>
+
+            <div>
+              <label className="block mb-1 font-medium text-neutral-500">Account ID (Server-to-Server)</label>
+              <input
+                type="text"
+                placeholder="Zoom Marketplaceの Account ID"
+                value={zoomAccountId}
+                onChange={(e) => setZoomAccountId(e.target.value)}
+                className="w-full p-2 rounded-xl bg-white dark:bg-neutral-700 border border-apple-border dark:border-apple-darkBorder font-mono text-[11px]"
+              />
             </div>
 
             <div>
