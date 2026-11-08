@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { store } from '../services/store';
 import { MeetingType, MeetingProvider } from '../types';
 
@@ -14,12 +14,13 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   onClose,
   onRefresh,
 }) => {
-  const [activeTab, setActiveTab] = useState<'paste' | 'card' | 'person' | 'voice'>('paste');
+  const [activeTab, setActiveTab] = useState<'paste' | 'voice' | 'card' | 'person'>('paste');
 
   // 予定貼り付け・入力状態
   const [pasteText, setPasteText] = useState('');
   const [participantName, setParticipantName] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('');
+  const [transcriptInput, setTranscriptInput] = useState('');
   const [scheduledTime, setScheduledTime] = useState(() => {
     const d = new Date();
     d.setHours(d.getHours() + 1, 0, 0, 0);
@@ -142,6 +143,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         {/* タブバー */}
         <div className="flex border-b border-apple-border dark:border-apple-darkBorder p-1.5 bg-neutral-100/50 dark:bg-neutral-800/40 text-xs">
           <button
+            onClick={() => setActiveTab('voice')}
+            className={`flex-1 py-2 rounded-xl flex items-center justify-center space-x-1.5 font-medium transition-all ${
+              activeTab === 'voice' ? 'bg-white dark:bg-neutral-700 shadow-sm text-purple-600 dark:text-purple-400 font-bold' : 'text-neutral-500'
+            }`}
+          >
+            <Mic className="w-3.5 h-3.5" />
+            <span>録音から登録</span>
+          </button>
+          <button
             onClick={() => setActiveTab('paste')}
             className={`flex-1 py-2 rounded-xl flex items-center justify-center space-x-1.5 font-medium transition-all ${
               activeTab === 'paste' ? 'bg-white dark:bg-neutral-700 shadow-sm text-apple-blue dark:text-apple-darkBlue' : 'text-neutral-500'
@@ -167,15 +177,6 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>人物を追加</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('voice')}
-            className={`flex-1 py-2 rounded-xl flex items-center justify-center space-x-1.5 font-medium transition-all ${
-              activeTab === 'voice' ? 'bg-white dark:bg-neutral-700 shadow-sm text-apple-blue dark:text-apple-darkBlue' : 'text-neutral-500'
-            }`}
-          >
-            <Mic className="w-3.5 h-3.5" />
-            <span>音声メモ</span>
           </button>
         </div>
 
@@ -444,43 +445,62 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
             </form>
           )}
 
-          {/* 4. 音声メモ */}
+          {/* 録音・文字起こしから事後AI一括自動登録 */}
           {activeTab === 'voice' && (
-            <div className="space-y-4 text-center py-6">
-              <div className="w-16 h-16 mx-auto rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-apple-blue dark:text-apple-darkBlue">
-                <Mic className="w-8 h-8 animate-pulse" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">対面面談後の音声メモ</h3>
-                <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
-                  「山田さんとランチ面談。来月カフェオープンの話で盛り上がった」など話しかけるだけで、事実を出典付きでカルテに記録します。
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs text-purple-900 dark:text-purple-200 leading-relaxed">
+                <strong>🎙️ 事前入力は不要です（事後全自動）:</strong>
+                <p className="mt-1">
+                  面談後にZoomの録音や文字起こし、音声メモを渡すだけで、相手の本名・会社名・BNI所属・事業内容・話題・次回約束をAIがすべて自動抽出してカルテを作成します。
                 </p>
               </div>
+
+              <div>
+                <label className="block text-neutral-500 mb-1 text-xs font-medium">
+                  文字起こしテキスト または 面談メモ
+                </label>
+                <textarea
+                  value={transcriptInput}
+                  onChange={(e) => setTranscriptInput(e.target.value)}
+                  placeholder="Zoomの文字起こしや面談メモを貼り付けてください。下のボタンから自己紹介の実演サンプルを一発挿入できます。"
+                  rows={6}
+                  className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTranscriptInput(`高橋: はじめまして！本日は面談のお時間ありがとうございます。株式会社タカハシ看板デザイン 代表取締役の高橋誠治です。
+自分: はじめまして、よろしくお願いします！
+高橋: 私はBNI京都南チャプターに所属しておりまして、カテゴリーは屋外広告・看板施工です。最近は新規出店される町家カフェやクリニックのLED電飾看板を多く手掛けています。
+自分: 素晴らしいですね！どんな方をご紹介すると喜ばれますか？
+高橋: これから京都市内で新規開業やリニューアルオープンを控えている飲食店オーナー様がいらっしゃれば是非ご紹介いただきたいです。
+自分: わかりました。来週、心当たりのカフェオーナーの佐藤さんに声をかけてみますね。
+高橋: 本当にありがとうございます！次回までに当社の施工実績カタログと事例集をお送りしますね。`)}
+                  className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline flex items-center space-x-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>＋高橋様の自己紹介・看板業・約束サンプル文面を挿入</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
-                  store.addFact({
-                    person_id: 'p-yamada',
-                    fact_category: 'topic',
-                    fact_key: '音声メモによる記録',
-                    fact_value: '町家カフェのオープン予定時期が来春に決定',
-                    source_type: 'manual_edit',
-                    source_evidence: '面談後の音声メモ入力',
-                    confidence: 1.0,
-                    verification_status: 'verified',
-                    visibility: 'referral_eligible',
-                    valid_from: new Date().toISOString(),
-                  });
+                  store.autoRegisterFromPostMeetingTranscript(transcriptInput);
                   setIsSuccess(true);
                   setTimeout(() => {
                     setIsSuccess(false);
+                    setTranscriptInput('');
                     onRefresh();
                     onClose();
-                  }, 1000);
+                  }, 800);
                 }}
-                className="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-medium hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 active:scale-[0.98]"
               >
-                テスト音声メモ（町家カフェ来春オープン）を記録
+                <Sparkles className="w-4 h-4" />
+                <span>AIで面談と相手カルテを一括自動生成</span>
               </button>
             </div>
           )}

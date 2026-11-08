@@ -135,15 +135,27 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({ onOpenQuickAdd, onOp
                     <Calendar className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">{m.title}</h3>
+                      {m.recording_status !== 'completed' && (
+                        <button
+                          onClick={() => {
+                            store.processMeetingRecordingAndAutoRegister(m.id);
+                            setRefreshKey(k => k + 1);
+                          }}
+                          className="px-2.5 py-0.5 rounded-lg bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/50 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-[11px] font-semibold transition-colors flex items-center space-x-1"
+                          title="面談後の録音から相手本名・会社・BNI所属・話題・約束をAIがすべて自動登録"
+                        >
+                          <span>🎙️ 録音から自動登録</span>
+                        </button>
+                      )}
                       {onOpenIdentify && (
                         <button
                           onClick={() => onOpenIdentify(m.id)}
-                          className="px-2.5 py-0.5 rounded-lg bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue dark:text-apple-darkBlue text-[11px] font-medium transition-colors flex items-center space-x-1"
-                          title="Zoom中に判明した本名・所属を確定"
+                          className="px-2 py-0.5 rounded-lg bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue dark:text-apple-darkBlue text-[11px] font-medium transition-colors flex items-center space-x-1"
+                          title="手動で本名・所属を確定"
                         >
-                          <span>🎯 Zoom中本名特定</span>
+                          <span>手動入力</span>
                         </button>
                       )}
                     </div>

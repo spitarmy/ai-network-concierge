@@ -1,5 +1,5 @@
-import React from 'react';
-import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic } from 'lucide-react';
 import { store } from '../services/store';
 import { Person } from '../types';
 
@@ -18,10 +18,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenQuickAdd,
   onOpenIdentify,
 }) => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
+
   const persons = store.getPersons();
   const meetings = store.getMeetings();
   const reviewQueue = store.getReviewQueue();
   const referrals = store.getReferrals();
+
+  const handleRunAutoTranscript = (meetingId: string) => {
+    setIsAnalyzing(true);
+    setTimeout(() => {
+      store.processMeetingRecordingAndAutoRegister(meetingId);
+      setIsAnalyzing(false);
+      setAnalyzeSuccess('🎙️ 録音から高橋 誠治様のカルテ・会社・BNI所属・話題・約束をすべて自動生成しました！');
+      setTimeout(() => setAnalyzeSuccess(null), 6000);
+    }, 900);
+  };
 
   // 直近の予定（本日以降、または直近の会議）
   const upcomingMeeting = meetings.find(m => new Date(m.scheduled_start_at).getTime() >= Date.now() - 3600 * 1000 * 2) || meetings[0];
@@ -134,38 +147,69 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </div>
 
-          {/* Zoom中の相手特定バナー (事前LINEの仮名から本名・会社名をワンタップ昇格) */}
-          {(!upcomingParticipant || upcomingParticipant.status === 'provisional') ? (
-            <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-r from-blue-50/90 to-indigo-50/90 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/90 dark:border-blue-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
-              <div className="flex items-start space-x-2.5">
-                <div className="w-7 h-7 rounded-xl bg-apple-blue/15 text-apple-blue dark:text-apple-darkBlue flex items-center justify-center shrink-0 mt-0.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-apple-blue dark:text-apple-darkBlue">
-                    Zoom中に相手の本名や会社名が判明したら
+          {/* 録音解析成功トーストメッセージ */}
+          {analyzeSuccess && (
+            <div className="mt-4 p-3 bg-apple-green/10 text-apple-green border border-apple-green/20 rounded-2xl text-xs flex items-center space-x-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span className="font-semibold">{analyzeSuccess}</span>
+            </div>
+          )}
+
+          {/* AI録音事後自動登録バナー（本命のコア体験） */}
+          {upcomingMeeting.recording_status !== 'completed' ? (
+            <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-indigo-500/10 dark:from-purple-950/30 dark:via-blue-950/30 dark:to-indigo-950/30 border border-purple-200/80 dark:border-purple-800/50 space-y-3 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <Mic className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed">
-                    現在はLINE名・仮名で登録されています。Zoom中の名乗りや自己紹介から、1タップで正式カルテへ昇格・確定できます。
-                  </p>
+                  <div>
+                    <div className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
+                      <span>🎙️ 面談終了後にAIが録音から自動登録</span>
+                      <span className="text-[10px] px-2 py-0.2 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-normal">
+                        推奨・全自動
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed">
+                      事前入力は不要です。Zoom終了後に録音から相手の本名・会社名・BNI所属・話題・次回約束をAIがすべて自動登録します。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+                  <button
+                    onClick={() => handleRunAutoTranscript(upcomingMeeting.id)}
+                    disabled={isAnalyzing}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 active:scale-95 disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{isAnalyzing ? '録音解析・カルテ生成中...' : '録音をAI解析して自動登録（実演）'}</span>
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={() => onOpenIdentify(upcomingMeeting.id)}
-                className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm shrink-0 flex items-center justify-center space-x-1"
-              >
-                <span>本名・会社名を確定</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
+
+              {/* 手動入力したい場合の折りたたみリンク */}
+              <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 flex items-center justify-between text-[11px] text-neutral-500">
+                <span>※事前に分かっている情報があれば手動入力も可能です</span>
+                <button
+                  onClick={() => onOpenIdentify(upcomingMeeting.id)}
+                  className="text-apple-blue dark:text-apple-darkBlue hover:underline font-medium"
+                >
+                  手動で本名・会社を入力する →
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="mt-3 flex justify-end">
+            <div className="mt-3 flex items-center justify-between p-2.5 rounded-xl bg-apple-green/10 text-apple-green text-xs font-medium">
+              <span className="flex items-center space-x-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>録音のAI文字起こし解析・カルテ自動生成完了済み</span>
+              </span>
               <button
                 onClick={() => onOpenIdentify(upcomingMeeting.id)}
-                className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline flex items-center space-x-1"
+                className="text-[11px] text-neutral-600 dark:text-neutral-300 hover:underline flex items-center space-x-1"
               >
-                <Sparkles className="w-3 h-3" />
-                <span>Zoom中の相手情報を再特定・編集</span>
+                <span>情報を確認・編集</span>
               </button>
             </div>
           )}

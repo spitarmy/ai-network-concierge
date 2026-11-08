@@ -414,5 +414,47 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       const consents = store.getConsentsForMeeting(unknownMeeting.id);
       expect(consents[0].person_name).toBe('高橋 誠治');
     });
+
+    it('事前の入力一切なしで、面談後に録音・文字起こしを渡すだけでAIが相手カルテ・会社・BNI所属・話題・約束を全自動登録すること', () => {
+      store.resetToProductionEmptyState();
+      expect(store.getPersons().length).toBe(0);
+      expect(store.getMeetings().length).toBe(0);
+
+      const transcript = `
+高橋: はじめまして！本日は面談のお時間ありがとうございます。株式会社タカハシ看板デザイン 代表取締役の高橋誠治です。
+自分: はじめまして、よろしくお願いします！
+高橋: BNI京都南チャプターで屋外広告・看板施工のカテゴリーを担当しています。最近は新規出店される町家カフェやクリニックのLED電飾看板を多く手掛けています。
+自分: 素晴らしいですね！
+高橋: 次回までに当社の施工実績カタログと事例集をお送りしますね。
+      `.trim();
+
+      // 事後文字起こしからAI自動登録を実行
+      const result = store.autoRegisterFromPostMeetingTranscript(transcript);
+
+      // 面談が作成されていること
+      expect(result.meeting).toBeDefined();
+      expect(result.meeting.recording_status).toBe('completed');
+
+      // 本名カルテが生成されていること
+      expect(result.person).toBeDefined();
+      expect(result.person.display_name).toBe('高橋 誠治');
+      expect(result.person.status).toBe('active');
+
+      // 会社情報とBNI所属が自動紐付けされていること
+      const orgs = store.getOrgMembershipsForPerson(result.person.id);
+      expect(orgs.some(o => o.organization_name.includes('タカハシ看板'))).toBe(true);
+
+      const bni = store.getBNIMembershipsForPerson(result.person.id);
+      expect(bni.some(b => b.chapter_name.includes('京都南'))).toBe(true);
+
+      // 話題と約束がFactsとして自動記録されていること
+      const facts = store.getFactsForPerson(result.person.id);
+      expect(facts.some(f => f.fact_category === 'topic' && f.fact_value.includes('看板'))).toBe(true);
+      expect(facts.some(f => f.fact_category === 'promise' && f.fact_value.includes('カタログ'))).toBe(true);
+
+      // AI利用コスト（原価台帳）が自動計上されていること
+      const costs = store.getCostLedger();
+      expect(costs.some(c => c.service_category === 'audio_transcribe')).toBe(true);
+    });
   });
 });
