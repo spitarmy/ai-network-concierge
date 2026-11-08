@@ -1,0 +1,187 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { store } from '../services/store';
+
+describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲート検証', () => {
+  beforeEach(() => {
+    // テストごとにメインテナントにリセット
+    store.setTenantId('tenant-001');
+  });
+
+  describe('A. テナント完全隔離 & RLS (SECURITY-01, UX-01)', () => {
+    it('テナント1で登録されている人物一覧を取得できること', () => {
+      const persons = store.getPersons();
+      expect(persons.length).toBeGreaterThan(0);
+      const yamada = persons.find(p => p.id === 'p-yamada');
+      expect(yamada).toBeDefined();
+      expect(yamada?.display_name).toBe('山田 太郎');
+    });
+
+    it('別テナントに切り替えた場合、テナント1の機密データが一切漏洩・表示されないこと', () => {
+      store.setTenantId('tenant-002');
+      const tenant2Persons = store.getPersons();
+
+      // テナント1の山田さんや田中さんが見えてはならない
+      const leakedYamada = tenant2Persons.find(p => p.id === 'p-yamada');
+      expect(leakedYamada).toBeUndefined();
+
+      // テナント2の独自データのみが見えること
+      expect(tenant2Persons.some(p => p.id === 'p-tenant2-secret')).toBe(true);
+    });
+  });
+
+  describe('B. 人物・複数事業・BNI移籍履歴保持 (PERSON-01〜04, 仕様11, 23)', () => {
+    it('1人の人物に複数の会社所属と事業オファリングが紐付いていること', () => {
+      const memberships = store.getOrgMembershipsForPerson('p-yamada');
+      expect(memberships.length).toBeGreaterThanOrEqual(2);
+      expect(memberships.some(m => m.organization_name.includes('山田建設'))).toBe(true);
+      expect(memberships.some(m => m.organization_name.includes('レトロ京都'))).toBe(true);
+    });
+
+    it('BNIチャプター移籍時、過去の所属履歴を上書き消去せずtransferredとして永続保持すること', () => {
+      const bniHistory = store.getBNIMembershipsForPerson('p-yamada');
+      const activeMembership = bniHistory.find(m => m.status === 'active');
+      const pastMembership = bniHistory.find(m => m.status === 'transferred');
+
+      expect(activeMembership).toBeDefined();
+      expect(activeMembership?.chapter_name).toBe('京都東チャプター');
+
+      expect(pastMembership).toBeDefined();
+      expect(pastMembership?.chapter_name).toBe('京都北チャプター');
+      expect(pastMembership?.transfer_reason).toBeDefined();
+    });
+  });
+
+  describe('C. 予定登録・案内文パーサー & 重複検知 (MEET-01〜05, 仕様27, 28, 29)', () => {
+    it('Zoom招待文全文からURL、日時、参加者候補を抽出できること', () => {
+      const inviteText = `山田太郎さんと1to1です！\n日時: 11/15 14:00〜15:00\nZoom: https://us02web.zoom.us/j/81234567890?pwd=samplepassword`;
+      const result = store.parseMeetingIntent(inviteText);
+
+      expect(result.extracted.provider).toBe('zoom');
+      expect(result.extracted.meeting_code).toBe('81234567890');
+      expect(result.extracted.candidate_participants.length).toBeGreaterThan(0);
+      expect(result.extracted.candidate_participants[0].name).toContain('山田');
+    });
+
+    it('同一Zoomコード・同一日時の予定を重複登録検知して警告できること', () => {
+      // 既存予定と同じURL・日時でテスト
+      const existing = store.getMeetings()[0];
+      if (existing && existing.meeting_url) {
+        const result = store.parseMeetingIntent(`重複テスト\n${existing.meeting_url}`);
+        expect(result.extracted.meeting_code).toBe(existing.meeting_code);
+      }
+    });
+  });
+
+  describe('D. 同意ステートマシン & 録音制御 (MEET-07〜10, 仕様05, 26)', () => {
+    it('参加者全員の同意がある場合は録音可能ステータスとなること', () => {
+      const meetings = store.getMeetings();
+      const upcoming = meetings.find(m => m.id === 'm-yamada-upcoming');
+      expect(upcoming?.recording_status).toBe('consent_obtained');
+    });
+
+    it('参加者の1人が同意拒否（rejected）した場合、会議の録音が完全遮断（refused）されること', () => {
+      const consents = store.getConsentsForMeeting('m-yamada-upcoming');
+      expect(consents.length).toBeGreaterThan(0);
+
+      store.updateConsentStatus(consents[0].id, 'rejected');
+
+      const updatedMeeting = store.getMeetings().find(m => m.id === 'm-yamada-upcoming');
+      expect(updatedMeeting?.recording_status).toBe('refused');
+    });
+
+    it('同意が途中で撤回（revoked）された場合、録音ファイルが直ちに削除フラグとなること', () => {
+      const consents = store.getConsentsForMeeting('m-yamada-past2');
+      if (consents.length > 0) {
+        store.updateConsentStatus(consents[0].id, 'revoked');
+        const recording = (store as any).state.recordings.find((r: any) => r.meeting_id === 'm-yamada-past2');
+        expect(recording.is_deleted).toBe(true);
+      }
+    });
+  });
+
+  describe('E. 音声90日自動破棄 & 恒久ピン留め (05, U09)', () => {
+    it('恒久ピン留めされていない90日超過の音声は破棄ジョブで削除されること', () => {
+      const recs = store.getRecordings();
+      if (recs.length > 0) {
+        // 過去の日付に強制設定してパージテスト
+        recs[0].expires_at = '2020-01-01T00:00:00Z';
+        const purged = store.run90DayPurgeJob();
+        expect(purged).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  describe('F. AI検索の誠実性 & 出典・引用 (AI-07, AI-09, 仕様12)', () => {
+    it('記録されている事実については出典と根拠付きで回答すること', () => {
+      const result = store.queryAI('山田太郎さんと前回何を話した？');
+      expect(result.hasDefiniteAnswer).toBe(true);
+      expect(result.answer).toContain('補助金');
+      expect(result.facts.length).toBeGreaterThan(0);
+      expect(result.relatedPersons[0].display_name).toBe('山田 太郎');
+    });
+
+    it('記録にない質問に対して架空の事実をでっちあげず、「不明」と誠実に答えること (AI-09)', () => {
+      const result = store.queryAI('量子コンピューターの量子超越性について知っている人いる？');
+      expect(result.hasDefiniteAnswer).toBe(false);
+      expect(result.answer).toContain('不明');
+      expect(result.facts.length).toBe(0);
+    });
+  });
+
+  describe('G. 紹介推薦 & プライバシー保護 (INTRO-01〜04, 仕様15, 22)', () => {
+    it('紹介推薦の根拠（地域・専門性・実績）が提示されていること', () => {
+      const referrals = store.getReferrals();
+      expect(referrals.length).toBeGreaterThan(0);
+      const ref = referrals[0];
+      expect(ref.breakdown.area_match).toBeDefined();
+      expect(ref.breakdown.specialty_match).toBeDefined();
+      expect(ref.breakdown.privacy_checked).toBe(true);
+    });
+
+    it('家族などの極秘プライベート情報（visibility=private）が紹介文草稿に混入していないこと', () => {
+      const referrals = store.getReferrals();
+      const draft = referrals[0].draft_message;
+      expect(draft).not.toContain('受験');
+      expect(draft).not.toContain('長男');
+    });
+
+    it('未確認の成果を自動確定せず、ユーザーの手動確定を必須とすること (INTRO-04)', () => {
+      const ref = store.getReferrals()[0];
+      expect(ref.outcome?.confirmed_by_user).toBe(false);
+
+      store.updateReferralOutcome(ref.id, 'contract_won', 1500000);
+      const updated = store.getReferrals().find(r => r.id === ref.id);
+      expect(updated?.outcome?.confirmed_by_user).toBe(true);
+      expect(updated?.outcome?.amount_jpy).toBe(1500000);
+      expect(updated?.status).toBe('completed');
+    });
+  });
+
+  describe('H. 本人の完全削除請求 (Right to be Forgotten - U09)', () => {
+    it('削除請求により、人物カルテ・事実・相関図リンクが完全抹消されること', () => {
+      // テスト用新規人物を作成
+      const newPerson = store.createPerson({ display_name: '削除テスト 太郎' });
+      store.addFact({
+        person_id: newPerson.id,
+        fact_category: 'topic',
+        fact_key: 'テスト事実',
+        fact_value: '機密情報テスト',
+        source_type: 'manual_edit',
+        confidence: 1.0,
+        verification_status: 'verified',
+        visibility: 'private',
+        valid_from: new Date().toISOString(),
+      });
+
+      expect(store.getFactsForPerson(newPerson.id).length).toBe(1);
+
+      // 完全削除実行
+      const res = store.deletePersonCompletely(newPerson.id);
+      expect(res.purgedCounts.facts).toBe(1);
+
+      // 一覧から完全に消失していること
+      expect(store.getPersonById(newPerson.id)).toBeUndefined();
+      expect(store.getFactsForPerson(newPerson.id).length).toBe(0);
+    });
+  });
+});

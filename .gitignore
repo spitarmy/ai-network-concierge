@@ -1,0 +1,28 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Production build outputs
+dist
+dist-ssr
+
+# Environment and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+*.log
+*.zip
+
+# Seed extracts
+ai_network_concierge_package
+Antigravity_project_seed

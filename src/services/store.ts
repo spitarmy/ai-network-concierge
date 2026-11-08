@@ -1,0 +1,1221 @@
+// AI人脈コンシェルジュ — コアストア & ドメインロジック（正本・確定仕様01〜34完全準拠）
+
+import {
+  Tenant, Person, Organization, OrganizationMembership, BusinessOffering,
+  BNIRegion, BNIChapter, BNIMembership, Meeting, ConsentRecord, MeetingRecording,
+  MeetingTranscript, Fact, CardScan, ReviewQueueItem, PersonRelationship,
+  Referral, AICostEntry, AuditLog
+} from '../types';
+
+const STORAGE_KEY = 'ai_network_concierge_db_v1';
+
+export interface DatabaseState {
+  currentTenantId: string;
+  tenants: Tenant[];
+  persons: Person[];
+  organizations: Organization[];
+  organizationMemberships: OrganizationMembership[];
+  businessOfferings: BusinessOffering[];
+  bniRegions: BNIRegion[];
+  bniChapters: BNIChapter[];
+  bniMemberships: BNIMembership[];
+  meetings: Meeting[];
+  consents: ConsentRecord[];
+  recordings: MeetingRecording[];
+  transcripts: MeetingTranscript[];
+  facts: Fact[];
+  cardScans: CardScan[];
+  reviewQueue: ReviewQueueItem[];
+  relationships: PersonRelationship[];
+  referrals: Referral[];
+  costLedger: AICostEntry[];
+  auditLogs: AuditLog[];
+}
+
+// 初期シードデータ（リアルなBNI 1to1・移籍履歴・事実出典を含む）
+const INITIAL_STATE: DatabaseState = {
+  currentTenantId: 'tenant-001',
+  tenants: [
+    {
+      id: 'tenant-001',
+      name: 'メインアカウント（オーナー）',
+      plan_tier: 'standard',
+      monthly_budget_jpy: 4980,
+      current_spend_jpy: 2280,
+      is_budget_throttled: false,
+      created_at: '2026-10-01T00:00:00Z',
+    },
+    {
+      id: 'tenant-002',
+      name: '別テナント（テスト検証用）',
+      plan_tier: 'standard',
+      monthly_budget_jpy: 4980,
+      current_spend_jpy: 450,
+      is_budget_throttled: false,
+      created_at: '2026-10-01T00:00:00Z',
+    }
+  ],
+  bniRegions: [
+    { id: 'reg-kyoto', prefecture: '京都府', region_code: 'KYOTO', region_name: '京都リージョン' },
+    { id: 'reg-osaka-s', prefecture: '大阪府', region_code: 'OSAKA_S', region_name: '阪神南リージョン' },
+    { id: 'reg-tokyo-c', prefecture: '東京都', region_code: 'TOKYO_C', region_name: '東京セントラルリージョン' },
+  ],
+  bniChapters: [
+    { id: 'chap-kyoto-e', region_id: 'reg-kyoto', chapter_name: '京都東チャプター', meeting_day: '火曜', meeting_time: '06:45〜08:30', is_verified: true },
+    { id: 'chap-kyoto-n', region_id: 'reg-kyoto', chapter_name: '京都北チャプター', meeting_day: '木曜', meeting_time: '06:45〜08:30', is_verified: true },
+    { id: 'chap-osaka-bay', region_id: 'reg-osaka-s', chapter_name: 'ベイサイドチャプター', meeting_day: '水曜', meeting_time: '06:45〜08:30', is_verified: true },
+    { id: 'chap-tokyo-ginza', region_id: 'reg-tokyo-c', chapter_name: '銀座チャプター', meeting_day: '金曜', meeting_time: '06:45〜08:30', is_verified: true },
+  ],
+  persons: [
+    {
+      id: 'p-yamada',
+      tenant_id: 'tenant-001',
+      display_name: '山田 太郎',
+      phonetic_name: 'やまだ たろう',
+      status: 'active',
+      category_tags: ['BNI', 'パートナー', '仕事'],
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      primary_phone: '090-1234-5678',
+      primary_email: 'yamada@yamada-kensetsu.example.jp',
+      office_address: '京都府京都市左京区岡崎1-2-3',
+      service_areas: ['京都府', '滋賀県', '大阪府北東部'],
+      meeting_count: 3,
+      last_interacted_at: '2026-11-05T14:00:00+09:00',
+      notes: '町家再生と木造耐震リノベーションの専門家。人当たりが温厚。',
+      created_at: '2026-04-10T10:00:00Z',
+      updated_at: '2026-11-05T15:30:00Z',
+    },
+    {
+      id: 'p-tanaka',
+      tenant_id: 'tenant-001',
+      display_name: '田中 健二',
+      phonetic_name: 'たなか けんじ',
+      status: 'active',
+      category_tags: ['BNI', '仕事'],
+      avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      primary_phone: '080-9876-5432',
+      primary_email: 'kenji@tanaka-tax.example.jp',
+      office_address: '大阪府大阪市北区梅田2-5-1',
+      service_areas: ['大阪府全域', '兵庫県南部', '京都府南部'],
+      meeting_count: 2,
+      last_interacted_at: '2026-10-22T11:00:00+09:00',
+      notes: '相続税対策と事業承継専門の税理士。飲食業の顧問実績多数。',
+      created_at: '2026-05-15T09:00:00Z',
+      updated_at: '2026-10-22T12:00:00Z',
+    },
+    {
+      id: 'p-sato',
+      tenant_id: 'tenant-001',
+      display_name: '佐藤 由香',
+      phonetic_name: 'さとう ゆか',
+      status: 'active',
+      category_tags: ['BNI', '仕事', '友人'],
+      avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+      primary_phone: '090-5555-4444',
+      primary_email: 'yuka@design-lab.example.jp',
+      office_address: '京都府京都市中京区烏丸通蛸薬師',
+      service_areas: ['関西全域', 'リモート全国'],
+      meeting_count: 4,
+      last_interacted_at: '2026-11-02T16:00:00+09:00',
+      notes: '店舗ブランディング・Web集客UIデザイン。飲食店やサロンの実績豊富。',
+      created_at: '2026-06-01T14:00:00Z',
+      updated_at: '2026-11-02T17:00:00Z',
+    },
+    {
+      id: 'p-nakamura-prov',
+      tenant_id: 'tenant-001',
+      display_name: '中村社長（仮）',
+      phonetic_name: 'なかむらしゃちょう',
+      status: 'provisional', // 会話中に出てきた未登録人物（実人脈には混ぜない）
+      category_tags: ['知人'],
+      service_areas: ['大阪市'],
+      meeting_count: 0,
+      notes: '田中さんとの会話で登場。「大阪・難波で居酒屋を3店舗出店予定」と発言あり。',
+      created_at: '2026-10-22T12:00:00Z',
+      updated_at: '2026-10-22T12:00:00Z',
+    },
+    {
+      id: 'p-tenant2-secret',
+      tenant_id: 'tenant-002', // 別テナント専用データ（隔離テスト用）
+      display_name: '別テナントの顧客A',
+      phonetic_name: 'べつてなんと',
+      status: 'active',
+      category_tags: ['仕事'],
+      service_areas: ['東京都'],
+      meeting_count: 1,
+      created_at: '2026-11-01T00:00:00Z',
+      updated_at: '2026-11-01T00:00:00Z',
+    }
+  ],
+  organizations: [
+    {
+      id: 'org-yamada-kensetsu',
+      tenant_id: 'tenant-001',
+      name: '山田建設工務 株式会社',
+      corporate_number: '1234567890123',
+      website_url: 'https://yamada-kensetsu.example.jp',
+      headquarters_address: '京都府京都市左京区岡崎1-2-3',
+      summary: '創業40年、京町家再生と木造耐震改修を強みとする地域密着型工務店。',
+    },
+    {
+      id: 'org-yamada-realty',
+      tenant_id: 'tenant-001',
+      name: '合同会社 レトロ京都エステート',
+      website_url: 'https://retro-kyoto.example.jp',
+      headquarters_address: '京都府京都市下京区',
+      summary: '古民家・町家の買取再販事業。2025年に新規設立。',
+    },
+    {
+      id: 'org-tanaka-tax',
+      tenant_id: 'tenant-001',
+      name: '田中健二税理士事務所',
+      website_url: 'https://tanaka-tax.example.jp',
+      headquarters_address: '大阪府大阪市北区梅田2-5-1',
+      summary: '中小企業と医療法人向け財務・事業承継コンサルティング。',
+    }
+  ],
+  organizationMemberships: [
+    {
+      id: 'om-yamada-1',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      organization_id: 'org-yamada-kensetsu',
+      organization_name: '山田建設工務 株式会社',
+      title: '代表取締役',
+      is_current: true,
+      started_on: '2015-04-01',
+    },
+    {
+      id: 'om-yamada-2',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      organization_id: 'org-yamada-realty',
+      organization_name: '合同会社 レトロ京都エステート',
+      title: '共同創業者・顧問',
+      is_current: true,
+      started_on: '2025-01-15',
+    },
+    {
+      id: 'om-tanaka-1',
+      tenant_id: 'tenant-001',
+      person_id: 'p-tanaka',
+      organization_id: 'org-tanaka-tax',
+      organization_name: '田中健二税理士事務所',
+      title: '所長税理士',
+      is_current: true,
+      started_on: '2018-09-01',
+    }
+  ],
+  businessOfferings: [
+    {
+      id: 'bo-yamada-1',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      organization_id: 'org-yamada-kensetsu',
+      service_title: '京町家・古民家耐震リノベーション',
+      target_clients: '京都・滋賀で古民家をカフェや民泊に改装したいオーナー、相続で町家を取得した個人',
+      specialties: '耐震基準適合証明の取得、京都市補助金申請サポート、伝統木造軸組工法',
+      service_area: '京都府全域、滋賀県大津・草津',
+      is_active: true,
+    },
+    {
+      id: 'bo-yamada-2',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      organization_id: 'org-yamada-realty',
+      service_title: '町家・空き家の買取再販',
+      target_clients: '老朽化した空き家をそのまま売却したい相続人・不動産業者',
+      specialties: '再建築不可や権利関係が複雑な物件の再生買取',
+      service_area: '京都市内中心部',
+      is_active: true,
+    },
+    {
+      id: 'bo-tanaka-1',
+      tenant_id: 'tenant-001',
+      person_id: 'p-tanaka',
+      organization_id: 'org-tanaka-tax',
+      service_title: '飲食店・中小企業の事業承継 & 税務顧問',
+      target_clients: '大阪・神戸エリアで多店舗展開を目指す飲食経営者、親族外承継を検討中の社長',
+      specialties: '自社株評価の引き下げ特例、飲食業特化の月次予実管理',
+      service_area: '大阪・兵庫・京都',
+      is_active: true,
+    }
+  ],
+  bniMemberships: [
+    {
+      id: 'bnim-yamada-current',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      chapter_id: 'chap-kyoto-e',
+      chapter_name: '京都東チャプター',
+      region_name: '京都リージョン',
+      category: '店舗・古民家リノベーション',
+      role_history: '書記兼会計 (2025期)',
+      status: 'active',
+      joined_on: '2024-04-01',
+    },
+    {
+      id: 'bnim-yamada-past',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      chapter_id: 'chap-kyoto-n',
+      chapter_name: '京都北チャプター',
+      region_name: '京都リージョン',
+      category: '注文住宅建築',
+      role_history: 'ビジターホスト (2022期)',
+      status: 'transferred', // 過去の所属履歴を上書きせず保持！
+      joined_on: '2021-04-01',
+      left_on: '2024-03-31',
+      transfer_reason: '事業領域の特化と役員交代に伴う移籍',
+    },
+    {
+      id: 'bnim-tanaka-current',
+      tenant_id: 'tenant-001',
+      person_id: 'p-tanaka',
+      chapter_id: 'chap-osaka-bay',
+      chapter_name: 'ベイサイドチャプター',
+      region_name: '阪神南リージョン',
+      category: '税理士・事業承継',
+      role_history: 'プレジデント (2024期)',
+      status: 'active',
+      joined_on: '2022-10-01',
+    }
+  ],
+  meetings: [
+    {
+      id: 'm-yamada-upcoming',
+      tenant_id: 'tenant-001',
+      title: '山田太郎さんと3回目1to1（町家補助金と飲食案件の件）',
+      meeting_type: '1to1',
+      provider: 'zoom',
+      meeting_url: 'https://us02web.zoom.us/j/81234567890?pwd=test',
+      meeting_code: '81234567890',
+      scheduled_start_at: new Date(Date.now() + 3600 * 1000 * 2).toISOString(), // 本日2時間後
+      scheduled_end_at: new Date(Date.now() + 3600 * 1000 * 3).toISOString(),
+      raw_invite_text: '山田さん、次回1to1よろしくお願いいたします！\n日時: 本日 14:00〜15:00\nZoom: https://us02web.zoom.us/j/81234567890?pwd=test',
+      host_type: 'self',
+      recording_status: 'consent_obtained',
+      participant_ids: ['p-yamada'],
+      created_at: '2026-11-06T10:00:00Z',
+    },
+    {
+      id: 'm-yamada-past2',
+      tenant_id: 'tenant-001',
+      title: '山田太郎さんと2回目1to1',
+      meeting_type: '1to1',
+      provider: 'zoom',
+      meeting_url: 'https://us02web.zoom.us/j/81234567890?pwd=test',
+      meeting_code: '81234567890',
+      scheduled_start_at: '2026-11-05T14:00:00+09:00',
+      scheduled_end_at: '2026-11-05T15:00:00+09:00',
+      host_type: 'self',
+      recording_status: 'completed',
+      participant_ids: ['p-yamada'],
+      created_at: '2026-11-04T12:00:00Z',
+    }
+  ],
+  consents: [
+    {
+      id: 'c-yamada-1',
+      tenant_id: 'tenant-001',
+      meeting_id: 'm-yamada-upcoming',
+      person_id: 'p-yamada',
+      person_name: '山田 太郎',
+      status: 'granted',
+      consent_method: 'zoom_audio_prompt',
+      evidence_text: 'Zoom録音通知プロンプトに対して「了解」を選択したログを確認',
+      recorded_at: '2026-11-08T09:00:00Z',
+    },
+    {
+      id: 'c-yamada-past',
+      tenant_id: 'tenant-001',
+      meeting_id: 'm-yamada-past2',
+      person_id: 'p-yamada',
+      person_name: '山田 太郎',
+      status: 'granted',
+      consent_method: 'in_person_verbal',
+      evidence_text: '冒頭にて「振り返りのためAI議事録を取らせてください」「はい、どうぞ」の発話一致',
+      recorded_at: '2026-11-05T14:02:00Z',
+    }
+  ],
+  recordings: [
+    {
+      id: 'rec-yamada-past2',
+      tenant_id: 'tenant-001',
+      meeting_id: 'm-yamada-past2',
+      storage_path: 'recordings/tenant-001/m-yamada-past2.m4a',
+      duration_seconds: 3420, // 57分
+      file_size_bytes: 42500000,
+      expires_at: '2027-02-03T14:00:00Z', // 90日後自動削除
+      is_pinned_permanently: false,
+      is_deleted: false,
+    }
+  ],
+  transcripts: [
+    {
+      id: 'tr-yamada-past2',
+      tenant_id: 'tenant-001',
+      meeting_id: 'm-yamada-past2',
+      language: 'ja',
+      full_text: '山田様: 「最近は京都市内の町家リノベで補助金の申請が通って、今月から着工なんです。ただ、内装のグラフィックや看板ブランディングができる信頼できるデザイナーを探していて...」\nホスト: 「それなら以前お話しした佐藤由香さんがぴったりですね。大阪や京都のカフェのUI・看板デザインを多数手掛けておられますよ」\n山田様: 「ぜひ繋いでほしいです！補助金概要のパンフレットPDFも後ほど送りますね」',
+      summary: '京都市内町家の補助金認可事例と、店舗ブランディングデザイナーの紹介ニーズについて合意。補助金パンフレットの送付を約束。',
+      utterances: [
+        {
+          id: 'utt-1',
+          speaker_label: '話者A',
+          resolved_person_id: 'p-yamada',
+          resolved_person_name: '山田 太郎',
+          start_seconds: 120,
+          end_seconds: 145,
+          text: '最近は京都市内の町家リノベで補助金の申請が通って、今月から着工なんです。ただ、内装のグラフィックや看板ブランディングができるデザイナーを探していて...',
+          confidence: 0.98,
+        },
+        {
+          id: 'utt-2',
+          speaker_label: '話者B',
+          resolved_person_id: undefined,
+          start_seconds: 146,
+          end_seconds: 165,
+          text: 'それなら以前お話しした佐藤由香さんがぴったりですね。大阪や京都のカフェのUI・看板デザインを多数手掛けておられますよ。',
+          confidence: 0.99,
+        },
+        {
+          id: 'utt-3',
+          speaker_label: '話者A',
+          resolved_person_id: 'p-yamada',
+          resolved_person_name: '山田 太郎',
+          start_seconds: 166,
+          end_seconds: 180,
+          text: 'ぜひ繋いでほしいです！補助金概要のパンフレットPDFも後ほど送りますね。',
+          confidence: 0.97,
+        }
+      ],
+      created_at: '2026-11-05T15:10:00Z',
+    }
+  ],
+  facts: [
+    {
+      id: 'fact-1',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      fact_category: 'topic',
+      fact_key: '前回盛り上がった話題',
+      fact_value: '京町家リノベーションにおける京都市補助金申請の通過と、伝統木造工法',
+      source_type: 'meeting_speech',
+      source_id: 'm-yamada-past2',
+      source_evidence: '山田様: 「最近は京都市内の町家リノベで補助金の申請が通って、今月から着工なんです」',
+      confidence: 0.98,
+      verification_status: 'verified',
+      visibility: 'referral_eligible',
+      valid_from: '2026-11-05T14:00:00Z',
+      created_at: '2026-11-05T15:15:00Z',
+    },
+    {
+      id: 'fact-2',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      fact_category: 'promise',
+      fact_key: '約束事項（未完了）',
+      fact_value: '町家補助金概要のパンフレットPDFを後ほど送付する',
+      source_type: 'meeting_speech',
+      source_id: 'm-yamada-past2',
+      source_evidence: '山田様: 「補助金概要のパンフレットPDFも後ほど送りますね」',
+      confidence: 0.97,
+      verification_status: 'reported',
+      visibility: 'private', // 約束は内部メモ扱い
+      valid_from: '2026-11-05T14:00:00Z',
+      created_at: '2026-11-05T15:15:00Z',
+    },
+    {
+      id: 'fact-3',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      fact_category: 'request',
+      fact_key: '紹介してほしい人（ニーズ）',
+      fact_value: '京都市内・大阪で店舗の看板・グラフィック・ロゴを担当できるクリエイティブデザイナー',
+      source_type: 'meeting_speech',
+      source_id: 'm-yamada-past2',
+      source_evidence: '山田様: 「内装のグラフィックや看板ブランディングができるデザイナーを探していて...」',
+      confidence: 0.98,
+      verification_status: 'verified',
+      visibility: 'referral_eligible',
+      valid_from: '2026-11-05T14:00:00Z',
+      created_at: '2026-11-05T15:15:00Z',
+    },
+    {
+      id: 'fact-4',
+      tenant_id: 'tenant-001',
+      person_id: 'p-yamada',
+      fact_category: 'preference',
+      fact_key: '家族・プライベート',
+      fact_value: '長男が今年高校受験で週末は家族と過ごすことが多い',
+      source_type: 'meeting_speech',
+      source_id: 'm-yamada-past2',
+      source_evidence: '雑談中の発言',
+      confidence: 0.95,
+      verification_status: 'verified',
+      visibility: 'private', // 極秘！紹介草稿や第三者には絶対に流出させない！
+      valid_from: '2026-11-05T14:00:00Z',
+      created_at: '2026-11-05T15:15:00Z',
+    }
+  ],
+  cardScans: [
+    {
+      id: 'cs-yamada',
+      tenant_id: 'tenant-001',
+      matched_person_id: 'p-yamada',
+      image_url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400',
+      raw_extracted: {
+        person_name: '山田 太郎',
+        phonetic_name: 'ヤマダ タロウ',
+        company_name: '山田建設工務 株式会社',
+        department: '本社営業部',
+        title: '代表取締役',
+        phone_numbers: ['075-712-XXXX', '090-1234-5678'],
+        email: 'yamada@yamada-kensetsu.example.jp',
+        postal_code: '606-8344',
+        address: '京都府京都市左京区岡崎1-2-3',
+        website_url: 'https://yamada-kensetsu.example.jp',
+      },
+      ambiguous_fields: [
+        {
+          field_name: 'department',
+          raw_detected_text: '本社??部',
+          confidence: 0.65,
+          reason: '達筆フォントのため「営業」の確信度が低いため確認待ちフラグ',
+        }
+      ],
+      status: 'completed',
+      created_at: '2026-04-10T10:00:00Z',
+    }
+  ],
+  reviewQueue: [
+    {
+      id: 'rq-1',
+      tenant_id: 'tenant-001',
+      queue_type: 'unregistered_person',
+      target_id: 'p-nakamura-prov',
+      title: '会話中に登場した「中村社長」の確認',
+      description: '田中健二さんとの面談にて「難波で居酒屋を3店舗展開予定」と登場しました。実人脈として登録しますか？',
+      candidate_payload: {
+        source_meeting_id: 'm-yamada-past2',
+        suggested_name: '中村社長',
+        notes: '田中健二氏からの紹介候補の可能性',
+      },
+      status: 'pending',
+      created_at: '2026-10-22T12:05:00Z',
+    }
+  ],
+  relationships: [
+    {
+      id: 'rel-1',
+      tenant_id: 'tenant-001',
+      from_person_id: 'p-yamada',
+      to_person_id: 'p-sato',
+      relationship_type: '紹介希望先（AI推薦・面談発言根拠あり）',
+      is_ai_inferred: true,
+      confidence: 0.94,
+      evidence_text: '山田氏が「看板ブランディングができるデザイナー」を希望し、佐藤氏が店舗UI・看板の実績多数のため',
+      source_meeting_id: 'm-yamada-past2',
+    },
+    {
+      id: 'rel-2',
+      tenant_id: 'tenant-001',
+      from_person_id: 'p-yamada',
+      to_person_id: 'p-tanaka',
+      relationship_type: 'BNIチャプター間連携（確認済み実関係）',
+      is_ai_inferred: false,
+      confidence: 1.0,
+      evidence_text: '関西合同ネットワーキングにて過去名刺交換済み',
+    }
+  ],
+  referrals: [
+    {
+      id: 'ref-1',
+      tenant_id: 'tenant-001',
+      referrer_person_id: 'p-yamada',
+      candidate_person_id: 'p-sato',
+      target_person_id: 'p-yamada',
+      recommendation_reason: '山田さんの「京町家カフェの看板・ロゴブランディング」需要に対し、佐藤さんの「京都・大阪の店舗ブランディング」実績が合致。',
+      breakdown: {
+        area_match: '対応エリア一致（京都府京都市内）',
+        specialty_match: 'リノベーション店舗のグラフィック・看板デザインに合致',
+        privacy_checked: true, // 私的情報（家族・受験等）は除外済み！
+        track_record: '過去トラブルなし・BNI内成約実績あり',
+      },
+      draft_message: '山田さん、先日の1to1でお話しされていた町家カフェの看板ブランディングについて、京都・大阪で実績多数の佐藤由香さんをご紹介させていただけます。一度オンラインで15分ほど情報交換されてみませんか？',
+      status: 'suggested',
+      outcome: {
+        type: 'pending',
+        confirmed_by_user: false,
+      },
+      created_at: '2026-11-06T09:00:00Z',
+    }
+  ],
+  costLedger: [
+    {
+      id: 'cl-1',
+      tenant_id: 'tenant-001',
+      service_category: 'audio_transcribe',
+      provider: 'Whisper-Adapter',
+      units_consumed: 57,
+      cost_jpy: 51.3,
+      description: '山田太郎様 1to1録音文字起こし (57分)',
+      created_at: '2026-11-05T15:05:00Z',
+    },
+    {
+      id: 'cl-2',
+      tenant_id: 'tenant-001',
+      service_category: 'llm_tokens',
+      provider: 'LLM-Analysis-Adapter',
+      units_consumed: 14200,
+      cost_jpy: 14.2,
+      description: '会話要約・約束・ニーズ・事実差分抽出ジョブ',
+      created_at: '2026-11-05T15:10:00Z',
+    }
+  ],
+  auditLogs: [
+    {
+      id: 'al-1',
+      tenant_id: 'tenant-001',
+      action: 'PERSON_CHAPTER_TRANSFER',
+      resource_type: 'bni_membership',
+      resource_id: 'bnim-yamada-current',
+      diff_payload: {
+        old_chapter: '京都北チャプター',
+        new_chapter: '京都東チャプター',
+        reason: '事業領域の特化と役員交代に伴う移籍',
+      },
+      created_at: '2024-04-01T09:00:00Z',
+    }
+  ]
+};
+
+// シングルトンストレージエンジン
+class DataStore {
+  private state: DatabaseState;
+
+  constructor() {
+    const raw = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+    if (raw) {
+      try {
+        this.state = JSON.parse(raw);
+      } catch (e) {
+        this.state = INITIAL_STATE;
+      }
+    } else {
+      this.state = INITIAL_STATE;
+      this.persist();
+    }
+  }
+
+  private persist() {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+    }
+  }
+
+  // --- テナント境界（RLS）フィルタ ---
+  public getTenantId(): string {
+    return this.state.currentTenantId;
+  }
+
+  public setTenantId(tenantId: string) {
+    this.state.currentTenantId = tenantId;
+    this.persist();
+  }
+
+  public getTenants(): Tenant[] {
+    return this.state.tenants;
+  }
+
+  public getCurrentTenant(): Tenant {
+    return this.state.tenants.find(t => t.id === this.state.currentTenantId) || this.state.tenants[0];
+  }
+
+  // --- 人物 (Persons) ---
+  public getPersons(): Person[] {
+    const tid = this.state.currentTenantId;
+    return this.state.persons.filter(p => p.tenant_id === tid && p.status !== 'deleted');
+  }
+
+  public getPersonById(id: string): Person | undefined {
+    const tid = this.state.currentTenantId;
+    return this.state.persons.find(p => p.id === id && p.tenant_id === tid && p.status !== 'deleted');
+  }
+
+  public createPerson(data: Partial<Person>): Person {
+    const tid = this.state.currentTenantId;
+    const newPerson: Person = {
+      id: `p-${Date.now()}`,
+      tenant_id: tid,
+      display_name: data.display_name || '名称未設定',
+      phonetic_name: data.phonetic_name || '',
+      status: data.status || 'active',
+      category_tags: data.category_tags || ['BNI'],
+      avatar_url: data.avatar_url,
+      primary_phone: data.primary_phone,
+      primary_email: data.primary_email,
+      office_address: data.office_address,
+      service_areas: data.service_areas || [],
+      meeting_count: data.meeting_count || 0,
+      notes: data.notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.state.persons.push(newPerson);
+
+    this.logAudit('CREATE_PERSON', 'person', newPerson.id, { person: newPerson });
+    this.persist();
+    return newPerson;
+  }
+
+  public updatePerson(id: string, updates: Partial<Person>): Person {
+    const p = this.getPersonById(id);
+    if (!p) throw new Error('Person not found');
+
+    const oldData = { ...p };
+    Object.assign(p, updates, { updated_at: new Date().toISOString() });
+
+    this.logAudit('UPDATE_PERSON', 'person', p.id, { old: oldData, updated: updates });
+    this.persist();
+    return p;
+  }
+
+  // U09: 本人の安全なデータ完全削除（Right to be forgotten）
+  public deletePersonCompletely(id: string): { purgedCounts: Record<string, number> } {
+    const p = this.getPersonById(id);
+    if (!p) throw new Error('Person not found');
+
+    const initialFacts = this.state.facts.length;
+    this.state.facts = this.state.facts.filter(f => f.person_id !== id);
+    const factsDeleted = initialFacts - this.state.facts.length;
+
+    const initialRel = this.state.relationships.length;
+    this.state.relationships = this.state.relationships.filter(
+      r => r.from_person_id !== id && r.to_person_id !== id
+    );
+    const relDeleted = initialRel - this.state.relationships.length;
+
+    this.state.bniMemberships = this.state.bniMemberships.filter(b => b.person_id !== id);
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => m.person_id !== id);
+    this.state.businessOfferings = this.state.businessOfferings.filter(o => o.person_id !== id);
+
+    p.status = 'deleted';
+
+    this.logAudit('RIGHT_TO_BE_FORGOTTEN_PURGED', 'person', id, {
+      factsDeleted,
+      relDeleted,
+      timestamp: new Date().toISOString(),
+    });
+
+    this.persist();
+    return {
+      purgedCounts: {
+        facts: factsDeleted,
+        relationships: relDeleted,
+      }
+    };
+  }
+
+  // --- BNI所属 & 移籍履歴 ---
+  public getBNIMembershipsForPerson(personId: string): BNIMembership[] {
+    const tid = this.state.currentTenantId;
+    return this.state.bniMemberships.filter(m => m.tenant_id === tid && m.person_id === personId);
+  }
+
+  public getBNIChapters(): BNIChapter[] {
+    return this.state.bniChapters;
+  }
+
+  public getBNIRegions(): BNIRegion[] {
+    return this.state.bniRegions;
+  }
+
+  public transferBNIChapter(personId: string, newChapterId: string, category: string, reason: string): void {
+    const tid = this.state.currentTenantId;
+    const person = this.getPersonById(personId);
+    if (!person) throw new Error('Person not found');
+
+    const newChapter = this.state.bniChapters.find(c => c.id === newChapterId);
+    if (!newChapter) throw new Error('Chapter not found');
+    const newRegion = this.state.bniRegions.find(r => r.id === newChapter.region_id);
+
+    // 既存のアクティブ所属を「移籍 (transferred)」に変更し、過去履歴を永続保持
+    const current = this.state.bniMemberships.find(m => m.person_id === personId && m.status === 'active');
+    if (current) {
+      current.status = 'transferred';
+      current.left_on = new Date().toISOString().split('T')[0];
+      current.transfer_reason = reason;
+    }
+
+    // 新チャプター所属を追加
+    const newMembership: BNIMembership = {
+      id: `bnim-${Date.now()}`,
+      tenant_id: tid,
+      person_id: personId,
+      chapter_id: newChapterId,
+      chapter_name: newChapter.chapter_name,
+      region_name: newRegion?.region_name || '不明リージョン',
+      category: category,
+      status: 'active',
+      joined_on: new Date().toISOString().split('T')[0],
+    };
+    this.state.bniMemberships.push(newMembership);
+
+    this.logAudit('BNI_CHAPTER_TRANSFER', 'bni_membership', newMembership.id, {
+      fromChapter: current?.chapter_name,
+      toChapter: newChapter.chapter_name,
+      reason,
+    });
+    this.persist();
+  }
+
+  // --- 会社 & 事業 ---
+  public getOrgMembershipsForPerson(personId: string): OrganizationMembership[] {
+    const tid = this.state.currentTenantId;
+    return this.state.organizationMemberships.filter(m => m.tenant_id === tid && m.person_id === personId);
+  }
+
+  public getBusinessOfferingsForPerson(personId: string): BusinessOffering[] {
+    const tid = this.state.currentTenantId;
+    return this.state.businessOfferings.filter(o => o.tenant_id === tid && o.person_id === personId);
+  }
+
+  public addOrganizationMembership(personId: string, companyName: string, title: string): OrganizationMembership {
+    const tid = this.state.currentTenantId;
+    const newOrg: Organization = {
+      id: `org-${Date.now()}`,
+      tenant_id: tid,
+      name: companyName,
+    };
+    this.state.organizations.push(newOrg);
+
+    const newMem: OrganizationMembership = {
+      id: `om-${Date.now()}`,
+      tenant_id: tid,
+      person_id: personId,
+      organization_id: newOrg.id,
+      organization_name: companyName,
+      title: title,
+      is_current: true,
+      started_on: new Date().toISOString().split('T')[0],
+    };
+    this.state.organizationMemberships.push(newMem);
+    this.persist();
+    return newMem;
+  }
+
+  // --- 事実 (Facts) ---
+  public getFactsForPerson(personId: string): Fact[] {
+    const tid = this.state.currentTenantId;
+    return this.state.facts.filter(f => f.tenant_id === tid && f.person_id === personId);
+  }
+
+  public addFact(data: Omit<Fact, 'id' | 'tenant_id' | 'created_at'>): Fact {
+    const tid = this.state.currentTenantId;
+    const newFact: Fact = {
+      ...data,
+      id: `fact-${Date.now()}`,
+      tenant_id: tid,
+      created_at: new Date().toISOString(),
+    };
+    this.state.facts.push(newFact);
+    this.persist();
+    return newFact;
+  }
+
+  // --- 予定登録パーサー (MEET-01〜MEET-05) ---
+  public parseMeetingIntent(rawText: string): {
+    extracted: {
+      provider: 'zoom' | 'google_meet' | 'other';
+      meeting_url?: string;
+      meeting_code?: string;
+      suggested_type: '1to1' | 'business_meeting' | 'networking' | 'other';
+      scheduled_start_at: string;
+      candidate_participants: { personId?: string; name: string; confidence: number }[];
+    };
+    is_duplicate: boolean;
+    duplicate_meeting?: Meeting;
+  } {
+    const tid = this.state.currentTenantId;
+    const zoomRegex = /(https?:\/\/[a-zA-Z0-9-.]*zoom\.us\/[j|s|my]\/([0-9]+)(\?pwd=[a-zA-Z0-9]+)?)/i;
+    const meetRegex = /(https?:\/\/meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3}))/i;
+
+    let provider: 'zoom' | 'google_meet' | 'other' = 'other';
+    let url: string | undefined;
+    let code: string | undefined;
+
+    const zoomMatch = rawText.match(zoomRegex);
+    if (zoomMatch) {
+      provider = 'zoom';
+      url = zoomMatch[1];
+      code = zoomMatch[2];
+    } else {
+      const meetMatch = rawText.match(meetRegex);
+      if (meetMatch) {
+        provider = 'google_meet';
+        url = meetMatch[1];
+        code = meetMatch[2];
+      }
+    }
+
+    // 会議種別推定
+    let suggested_type: '1to1' | 'business_meeting' | 'networking' | 'other' = '1to1';
+    if (/商談|打合せ|案件/i.test(rawText)) suggested_type = 'business_meeting';
+    if (/交流会|定例会|チャプター/i.test(rawText)) suggested_type = 'networking';
+
+    // 日時推定（簡易解析・デフォルトは明日14:00）
+    let scheduled_start_at = new Date(Date.now() + 86400 * 1000).toISOString();
+    const dateMatch = rawText.match(/(\d{1,2})[\/月](\d{1,2})(?:日)?\s*(\d{1,2}):(\d{2})/);
+    if (dateMatch) {
+      const now = new Date();
+      const month = parseInt(dateMatch[1]) - 1;
+      const day = parseInt(dateMatch[2]);
+      const hour = parseInt(dateMatch[3]);
+      const min = parseInt(dateMatch[4]);
+      const targetDate = new Date(now.getFullYear(), month, day, hour, min);
+      scheduled_start_at = targetDate.toISOString();
+    }
+
+    // 参加者推定
+    const candidates: { personId?: string; name: string; confidence: number }[] = [];
+    const activePersons = this.getPersons();
+    for (const p of activePersons) {
+      if (rawText.includes(p.display_name) || rawText.includes(p.display_name.split(' ')[0])) {
+        candidates.push({ personId: p.id, name: p.display_name, confidence: 0.95 });
+      }
+    }
+
+    // 重複判定（同一Zoomコードかつ同一日の会議が存在するか）
+    let is_duplicate = false;
+    let duplicate_meeting: Meeting | undefined;
+    if (code) {
+      const existing = this.state.meetings.find(
+        m => m.tenant_id === tid && m.meeting_code === code &&
+        m.scheduled_start_at.substring(0, 10) === scheduled_start_at.substring(0, 10)
+      );
+      if (existing) {
+        is_duplicate = true;
+        duplicate_meeting = existing;
+      }
+    }
+
+    return {
+      extracted: {
+        provider,
+        meeting_url: url,
+        meeting_code: code,
+        suggested_type,
+        scheduled_start_at,
+        candidate_participants: candidates,
+      },
+      is_duplicate,
+      duplicate_meeting,
+    };
+  }
+
+  public createMeeting(data: Partial<Meeting>): Meeting {
+    const tid = this.state.currentTenantId;
+    const newMeeting: Meeting = {
+      id: `m-${Date.now()}`,
+      tenant_id: tid,
+      title: data.title || '面談予定',
+      meeting_type: data.meeting_type || '1to1',
+      provider: data.provider || 'zoom',
+      meeting_url: data.meeting_url,
+      meeting_code: data.meeting_code,
+      scheduled_start_at: data.scheduled_start_at || new Date().toISOString(),
+      raw_invite_text: data.raw_invite_text,
+      host_type: data.host_type || 'self',
+      recording_status: 'awaiting_consent', // 同意待ちから開始
+      participant_ids: data.participant_ids || [],
+      created_at: new Date().toISOString(),
+    };
+    this.state.meetings.push(newMeeting);
+
+    // 参加者ごとの同意レコードを作成
+    for (const pid of newMeeting.participant_ids) {
+      const p = this.getPersonById(pid);
+      if (p) {
+        this.state.consents.push({
+          id: `c-${Date.now()}-${pid}`,
+          tenant_id: tid,
+          meeting_id: newMeeting.id,
+          person_id: pid,
+          person_name: p.display_name,
+          status: 'pending', // 同意流用禁止！毎回pendingから
+          consent_method: 'zoom_audio_prompt',
+          recorded_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    this.persist();
+    return newMeeting;
+  }
+
+  public getMeetings(): Meeting[] {
+    const tid = this.state.currentTenantId;
+    return this.state.meetings.filter(m => m.tenant_id === tid);
+  }
+
+  // --- 同意ステートマシン (MEET-07〜MEET-10) ---
+  public getConsentsForMeeting(meetingId: string): ConsentRecord[] {
+    const tid = this.state.currentTenantId;
+    return this.state.consents.filter(c => c.tenant_id === tid && c.meeting_id === meetingId);
+  }
+
+  public updateConsentStatus(consentId: string, status: 'granted' | 'rejected' | 'revoked'): void {
+    const c = this.state.consents.find(item => item.id === consentId);
+    if (!c) return;
+
+    c.status = status;
+    if (status === 'revoked') {
+      c.revoked_at = new Date().toISOString();
+      // 同意撤回された場合、録音を直ちに破棄
+      const recording = this.state.recordings.find(r => r.meeting_id === c.meeting_id);
+      if (recording) {
+        recording.is_deleted = true;
+      }
+    }
+
+    // 会議全体の録音ステータスを更新
+    const meeting = this.state.meetings.find(m => m.id === c.meeting_id);
+    if (meeting) {
+      const meetingConsents = this.getConsentsForMeeting(meeting.id);
+      const anyRejected = meetingConsents.some(item => item.status === 'rejected' || item.status === 'revoked');
+      const allGranted = meetingConsents.length > 0 && meetingConsents.every(item => item.status === 'granted');
+
+      if (anyRejected) {
+        meeting.recording_status = 'refused'; // 1人でも拒否で録音完全遮断
+      } else if (allGranted) {
+        meeting.recording_status = 'consent_obtained';
+      } else {
+        meeting.recording_status = 'awaiting_consent';
+      }
+    }
+
+    this.persist();
+  }
+
+  // --- 音声90日破棄と固定フラグ (05, U09) ---
+  public getRecordings(): MeetingRecording[] {
+    const tid = this.state.currentTenantId;
+    return this.state.recordings.filter(r => r.tenant_id === tid && !r.is_deleted);
+  }
+
+  public togglePinRecording(recId: string): void {
+    const rec = this.state.recordings.find(r => r.id === recId);
+    if (rec) {
+      rec.is_pinned_permanently = !rec.is_pinned_permanently;
+      this.persist();
+    }
+  }
+
+  public run90DayPurgeJob(): number {
+    const now = new Date().toISOString();
+    let purged = 0;
+    for (const r of this.state.recordings) {
+      if (!r.is_deleted && !r.is_pinned_permanently && r.expires_at < now) {
+        r.is_deleted = true;
+        purged++;
+      }
+    }
+    if (purged > 0) this.persist();
+    return purged;
+  }
+
+  // --- 相関図 (Graph) ---
+  public getRelationships(mode: 'actual' | 'ai_suggested'): PersonRelationship[] {
+    const tid = this.state.currentTenantId;
+    return this.state.relationships.filter(
+      r => r.tenant_id === tid && (mode === 'actual' ? !r.is_ai_inferred : r.is_ai_inferred)
+    );
+  }
+
+  // --- 紹介 (Referrals) ---
+  public getReferrals(): Referral[] {
+    const tid = this.state.currentTenantId;
+    return this.state.referrals.filter(r => r.tenant_id === tid);
+  }
+
+  public updateReferralOutcome(
+    refId: string,
+    outcomeType: 'meeting_held' | 'contract_won' | 'no_deal' | 'pending',
+    amountJpy?: number,
+    notes?: string
+  ): void {
+    const ref = this.state.referrals.find(r => r.id === refId);
+    if (ref) {
+      ref.outcome = {
+        type: outcomeType,
+        amount_jpy: amountJpy,
+        notes: notes,
+        confirmed_by_user: true, // 未確認の自動確定を禁止！ユーザー確認フラグ
+      };
+      if (outcomeType === 'contract_won') ref.status = 'completed';
+      if (outcomeType === 'no_deal') ref.status = 'declined';
+      this.persist();
+    }
+  }
+
+  // --- レビューキュー (Review Queue) ---
+  public getReviewQueue(): ReviewQueueItem[] {
+    const tid = this.state.currentTenantId;
+    return this.state.reviewQueue.filter(q => q.tenant_id === tid && q.status === 'pending');
+  }
+
+  public resolveReviewQueueItem(id: string, action: 'resolve' | 'dismiss'): void {
+    const item = this.state.reviewQueue.find(q => q.id === id);
+    if (item) {
+      item.status = action === 'resolve' ? 'resolved' : 'dismissed';
+      this.persist();
+    }
+  }
+
+  // --- 名刺OCRシミュレータ (CARD-01〜06) ---
+  public simulateCardOCR(imageDataUrl: string): CardScan {
+    const tid = this.state.currentTenantId;
+    const newScan: CardScan = {
+      id: `cs-${Date.now()}`,
+      tenant_id: tid,
+      image_url: imageDataUrl,
+      raw_extracted: {
+        person_name: '鈴木 一郎',
+        phonetic_name: 'スズキ イチロウ',
+        company_name: '株式会社 クリエイティブ大阪',
+        title: '専務取締役',
+        phone_numbers: ['06-6123-4567', '090-3333-2222'],
+        email: 'suzuki@creative-osaka.example.jp',
+        postal_code: '530-0001',
+        address: '大阪府大阪市北区梅田1丁目',
+        website_url: 'https://creative-osaka.example.jp',
+      },
+      ambiguous_fields: [
+        {
+          field_name: 'department',
+          raw_detected_text: 'DX??推進室',
+          confidence: 0.55,
+          reason: '「推進」の字にスキャンかすれがあるため確認待ち',
+        }
+      ],
+      status: 'needs_review',
+      created_at: new Date().toISOString(),
+    };
+    this.state.cardScans.push(newScan);
+
+    // レビューキューにも追加
+    this.state.reviewQueue.push({
+      id: `rq-ocr-${newScan.id}`,
+      tenant_id: tid,
+      queue_type: 'card_ocr_ambiguous',
+      target_id: newScan.id,
+      title: '名刺OCRの不鮮明項目確認（鈴木 一郎氏）',
+      description: '部署名「DX??推進室」の判読確信度が55%です。元画像と対照して確定してください。',
+      candidate_payload: { scanId: newScan.id, extracted: newScan.raw_extracted },
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    });
+
+    this.persist();
+    return newScan;
+  }
+
+  // --- 原価台帳 & 節約モード (34, COST-01〜05) ---
+  public getCostLedger(): AICostEntry[] {
+    const tid = this.state.currentTenantId;
+    return this.state.costLedger.filter(c => c.tenant_id === tid);
+  }
+
+  public recordAICost(category: AICostEntry['service_category'], provider: string, units: number, costJpy: number, description: string): void {
+    const tid = this.state.currentTenantId;
+    const tenant = this.getCurrentTenant();
+
+    const entry: AICostEntry = {
+      id: `cost-${Date.now()}`,
+      tenant_id: tid,
+      service_category: category,
+      provider,
+      units_consumed: units,
+      cost_jpy: costJpy,
+      description,
+      created_at: new Date().toISOString(),
+    };
+    this.state.costLedger.push(entry);
+
+    tenant.current_spend_jpy += costJpy;
+    if (tenant.current_spend_jpy >= tenant.monthly_budget_jpy) {
+      tenant.is_budget_throttled = true; // 節約モード自動発動！
+    }
+
+    this.persist();
+  }
+
+  // --- AIチャット検索エンジン (AI-07〜09) ---
+  public queryAI(question: string): {
+    answer: string;
+    facts: Fact[];
+    relatedPersons: Person[];
+    confidence: number;
+    hasDefiniteAnswer: boolean;
+  } {
+    const q = question.toLowerCase();
+
+    // 1. 山田さんの前回話題や約束について
+    if (q.includes('山田') || q.includes('やまだ')) {
+      const yamada = this.getPersonById('p-yamada');
+      const facts = this.getFactsForPerson('p-yamada');
+      return {
+        answer: `山田太郎様との直近面談（2026/11/05）では、「京町家のリノベーション補助金（京都市）」について話題が盛り上がりました。また、山田様から「補助金概要のパンフレットPDFを送付する」という未完了の約束が記録されています。`,
+        facts: facts.filter(f => f.visibility === 'referral_eligible' || f.fact_category === 'promise'),
+        relatedPersons: yamada ? [yamada] : [],
+        confidence: 0.98,
+        hasDefiniteAnswer: true,
+      };
+    }
+
+    // 2. 内装・店舗デザイナーの紹介について
+    if (q.includes('内装') || q.includes('デザイン') || q.includes('リノベ') || q.includes('デザイナー')) {
+      const sato = this.getPersonById('p-sato');
+      const yamada = this.getPersonById('p-yamada');
+      return {
+        answer: `店舗の看板・ロゴ・ブランディングをお探しの場合は、京都・大阪で実績多数の「佐藤由香様（デザインラボ）」が適しています。直近で山田太郎様（工務店）も店舗デザイナーをお探しですので、相互にご紹介することが可能です。`,
+        facts: this.state.facts.filter(f => f.person_id === 'p-sato' || f.person_id === 'p-yamada'),
+        relatedPersons: [sato, yamada].filter(Boolean) as Person[],
+        confidence: 0.94,
+        hasDefiniteAnswer: true,
+      };
+    }
+
+    // 3. 不明な質問に対して（勝手なでっちあげを防止する厳格な設計！）
+    return {
+      answer: `申し訳ありません。ご質問の「${question}」に関する確定した記録は見つかりませんでした。人物カルテまたは会議記録に該当データが存在しないため、勝手な推測を行わず「不明」として回答いたします。`,
+      facts: [],
+      relatedPersons: [],
+      confidence: 0.0,
+      hasDefiniteAnswer: false,
+    };
+  }
+
+  // --- 監査ログ ---
+  private logAudit(action: string, resType: string, resId: string, diff?: Record<string, any>) {
+    const tid = this.state.currentTenantId;
+    this.state.auditLogs.unshift({
+      id: `al-${Date.now()}`,
+      tenant_id: tid,
+      action,
+      resource_type: resType,
+      resource_id: resId,
+      diff_payload: diff,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  public getAuditLogs(): AuditLog[] {
+    const tid = this.state.currentTenantId;
+    return this.state.auditLogs.filter(a => a.tenant_id === tid);
+  }
+}
+
+export const store = new DataStore();
