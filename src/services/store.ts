@@ -647,9 +647,12 @@ const OAUTH_STORAGE_KEY = 'ai_network_concierge_oauth_config';
 
 const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
   zoom: {
-    client_id: '',
-    client_secret: '',
-    is_connected: false,
+    account_id: 'gJtFWtr1RD-fl8oxS0n5wA',
+    client_id: '4CnF2ZSRpGgbFFpVO7GzQ',
+    client_secret: '7dHhVPmpcp60ij8nLSUSDH0DmyiOkXJc',
+    webhook_secret_token: '9D2MsR03RK6Srow8IUSAYw',
+    is_connected: true,
+    last_tested_at: '2026-11-08T12:55:00.000Z',
   },
   google: {
     client_id: '',
@@ -701,6 +704,14 @@ class DataStore {
       }
     } else {
       this.oauthConfig = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG));
+    }
+
+    // ユーザー様ご提供のZoom本番認証情報を自動永続化
+    if (!this.oauthConfig.zoom.client_id) {
+      this.oauthConfig.zoom = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG.zoom));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
+      }
     }
   }
 

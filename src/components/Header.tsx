@@ -31,15 +31,15 @@ export const Header: React.FC<HeaderProps> = ({
   const isBudgetWarning = budgetRatio >= 0.8;
 
   return (
-    <header className="sticky top-0 z-30 apple-glass border-b border-apple-border dark:border-apple-darkBorder h-14 flex items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-30 apple-glass border-b border-apple-border dark:border-apple-darkBorder h-14 flex items-center justify-between px-3 sm:px-6 overflow-hidden">
       {/* 検索トリガー (Cmd+K 風) */}
-      <div className="flex items-center space-x-3 flex-1 max-w-md">
+      <div className="flex items-center space-x-2 flex-1 min-w-0 mr-2 max-w-md">
         <button
           onClick={onSearchClick}
-          className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl bg-neutral-200/50 dark:bg-neutral-800/80 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 text-xs sm:text-sm transition-all"
+          className="w-full flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-neutral-200/50 dark:bg-neutral-800/80 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 text-xs sm:text-sm transition-all truncate"
         >
-          <Search className="w-4 h-4 shrink-0" />
-          <span className="truncate">名前、話題、会社、チャプターを検索...</span>
+          <Search className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">人脈・面談・AI検索...</span>
           <kbd className="hidden sm:inline-block ml-auto px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-neutral-700 rounded border border-neutral-300 dark:border-neutral-600 text-neutral-500">
             ⌘K
           </kbd>
@@ -47,13 +47,13 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* 右側アクション群 */}
-      <div className="flex items-center space-x-2 sm:space-x-3 ml-2">
-        {/* テナント切替（RLS隔離検証用） */}
+      <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+        {/* テナント切替（PC表示・スマホでは非表示にして見切れ防止） */}
         <select
           value={currentTenant.id}
           onChange={(e) => onSelectTenant(e.target.value)}
           aria-label="テナント切り替え"
-          className="text-xs bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:outline-none"
+          className="hidden md:block text-xs bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:outline-none max-w-[130px] truncate"
         >
           {tenants.map(t => (
             <option key={t.id} value={t.id}>{t.name}</option>

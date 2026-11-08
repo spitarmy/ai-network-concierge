@@ -346,7 +346,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
           )}
 
           {/* タブナビゲーション */}
-          <div className="flex border-b border-apple-border dark:border-apple-darkBorder space-x-4 text-xs font-medium overflow-x-auto pb-1">
+          <div className="flex border-b border-apple-border dark:border-apple-darkBorder space-x-4 text-xs font-medium overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
             <button
               onClick={() => setDetailTab('overview')}
               className={`pb-2 border-b-2 transition-colors whitespace-nowrap ${
@@ -819,7 +819,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
               />
             </div>
 
-            <div className="flex space-x-1.5 overflow-x-auto pb-1 text-xs">
+            <div className="flex space-x-1.5 overflow-x-auto pb-1 text-xs -mx-4 px-4 sm:mx-0 sm:px-0">
               {['ALL', 'BNI', '仕事', '友人', 'PROVISIONAL'].map(t => (
                 <button
                   key={t}

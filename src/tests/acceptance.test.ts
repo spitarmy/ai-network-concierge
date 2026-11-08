@@ -290,6 +290,7 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
 
   describe('J. 外部OAuth認可アプリ設定検証 (Zoom & Google - 仕様05, 30)', () => {
     it('認証情報未入力時の接続テストが適切に拒否されること', () => {
+      store.updateZoomConfig({ client_id: '', client_secret: '' });
       const zoomRes = store.testOAuthConnection('zoom');
       expect(zoomRes.success).toBe(false);
       expect(zoomRes.message).toContain('未設定');
