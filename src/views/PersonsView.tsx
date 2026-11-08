@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Search, Shield, Building, Award, History,
-  Trash2, Plus, ArrowLeft, Tag, Edit3, X
+  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload
 } from 'lucide-react';
 import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
@@ -22,6 +22,17 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   const [detailTab, setDetailTab] = useState<'overview' | 'orgs' | 'bni' | 'facts' | 'delete'>('overview');
   const [internalSelectedId, setInternalSelectedId] = useState<string | undefined>();
 
+  // 顔写真アップロード・変更モーダル状態
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+  const avatarFileInputRef = useRef<HTMLInputElement>(null);
+
+  // カテゴリー管理・追加状態
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [quickNewCategoryInput, setQuickNewCategoryInput] = useState('');
+  const [isAddingQuickCategory, setIsAddingQuickCategory] = useState(false);
+
   // カルテ編集モーダル状態
   const [isEditingPerson, setIsEditingPerson] = useState(false);
   const [editName, setEditName] = useState('');
@@ -31,6 +42,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   const [editAddress, setEditAddress] = useState('');
   const [editServiceAreas, setEditServiceAreas] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editCategoryTags, setEditCategoryTags] = useState<string[]>([]);
 
   // 移籍モーダル状態
   const [isTransferring, setIsTransferring] = useState(false);
@@ -87,6 +99,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
     setEditAddress(selectedPerson.office_address || '');
     setEditServiceAreas(selectedPerson.service_areas.join(', '));
     setEditNotes(selectedPerson.notes || '');
+    setEditCategoryTags([...(selectedPerson.category_tags || [])]);
     setIsEditingPerson(true);
   };
 
@@ -102,9 +115,76 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
       office_address: editAddress || undefined,
       service_areas: editServiceAreas ? editServiceAreas.split(',').map(s => s.trim()).filter(Boolean) : [],
       notes: editNotes,
+      category_tags: editCategoryTags,
     });
 
     setIsEditingPerson(false);
+    onRefresh();
+  };
+
+  // カテゴリー割り当てトグル（1タップで追加・解除）
+  const handleTogglePersonCategory = (categoryName: string) => {
+    if (!selectedPerson) return;
+    const current = selectedPerson.category_tags || [];
+    let updated: string[];
+    if (current.includes(categoryName)) {
+      updated = current.filter(c => c !== categoryName);
+    } else {
+      updated = [...current, categoryName];
+    }
+    store.updatePersonCategories(selectedPerson.id, updated);
+    onRefresh();
+  };
+
+  // 新規カテゴリーを作成して現在の人物に即時割り振り
+  const handleCreateAndAssignCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = quickNewCategoryInput.trim();
+    if (!trimmed || !selectedPerson) return;
+    store.addCategory(trimmed);
+    const current = selectedPerson.category_tags || [];
+    if (!current.includes(trimmed)) {
+      store.updatePersonCategories(selectedPerson.id, [...current, trimmed]);
+    }
+    setQuickNewCategoryInput('');
+    setIsAddingQuickCategory(false);
+    onRefresh();
+  };
+
+  // グローバルに新規カテゴリー作成（一覧のヘッダーから）
+  const handleCreateGlobalCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    store.addCategory(trimmed);
+    setNewCategoryName('');
+    setShowAddCategoryModal(false);
+    onRefresh();
+  };
+
+  // 顔写真ファイル選択（カメラ / 写真ライブラリ）
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPerson) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        store.updatePersonAvatar(selectedPerson.id, dataUrl);
+        setIsAvatarModalOpen(false);
+        onRefresh();
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 顔写真URL登録
+  const handleSaveAvatarUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPerson || !customAvatarUrl.trim()) return;
+    store.updatePersonAvatar(selectedPerson.id, customAvatarUrl.trim());
+    setCustomAvatarUrl('');
+    setIsAvatarModalOpen(false);
     onRefresh();
   };
 
@@ -198,48 +278,198 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
           </button>
 
           {/* カルテヘッダー */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <img
-                src={selectedPerson.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                alt=""
-                className="w-16 h-16 rounded-2xl object-cover border border-apple-border dark:border-apple-darkBorder"
-              />
-              <div>
-                <div className="flex items-center space-x-2">
-                  <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
-                    {selectedPerson.display_name}
-                  </h1>
-                  <span className="text-xs text-neutral-400">
-                    {selectedPerson.phonetic_name}
-                  </span>
-                  {selectedPerson.status === 'provisional' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
-                      仮カルテ（会話内登場）
-                    </span>
-                  )}
+          <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder flex flex-col space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                {/* 顔写真（タップで変更・カメラ起動可能） */}
+                <div className="relative group cursor-pointer" onClick={() => setIsAvatarModalOpen(true)}>
+                  <img
+                    src={selectedPerson.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                    alt=""
+                    className="w-16 h-16 rounded-2xl object-cover border border-apple-border dark:border-apple-darkBorder group-hover:opacity-80 transition-opacity"
+                  />
+                  <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-[10px] font-medium flex-col space-y-0.5">
+                    <Camera className="w-4 h-4" />
+                    <span>変更</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {selectedPerson.category_tags.map(t => (
-                    <span key={t} className="text-[11px] px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-medium">
-                      #{t}
+
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      {selectedPerson.display_name}
+                    </h1>
+                    <span className="text-xs text-neutral-400">
+                      {selectedPerson.phonetic_name}
                     </span>
-                  ))}
-                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-apple-blue/10 text-apple-blue dark:text-apple-darkBlue font-medium">
-                    面談計 {selectedPerson.meeting_count}回
-                  </span>
+                    {selectedPerson.status === 'provisional' && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
+                        仮カルテ（会話内登場）
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-apple-blue/10 text-apple-blue dark:text-apple-darkBlue font-medium">
+                      面談計 {selectedPerson.meeting_count}回
+                    </span>
+                    <button
+                      onClick={() => setIsAvatarModalOpen(true)}
+                      className="text-[11px] text-neutral-500 hover:text-apple-blue flex items-center space-x-1 px-1.5 py-0.5 rounded transition-colors"
+                    >
+                      <Camera className="w-3 h-3" />
+                      <span>顔写真を変更</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleOpenEditModal}
+                className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center space-x-1.5 self-start sm:self-auto shadow-sm"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>カルテ情報を編集</span>
+              </button>
+            </div>
+
+            {/* カテゴリー手動割り振り・作成バー */}
+            <div className="pt-3 border-t border-apple-border dark:border-apple-darkBorder flex flex-col sm:flex-row sm:items-center gap-2 text-xs">
+              <span className="text-neutral-500 font-medium whitespace-nowrap flex items-center space-x-1">
+                <Tag className="w-3.5 h-3.5 text-apple-blue" />
+                <span>所属カテゴリー:</span>
+              </span>
+
+              <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                {store.getCategories().map(cat => {
+                  const isAssigned = (selectedPerson.category_tags || []).includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleTogglePersonCategory(cat)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center space-x-1 ${
+                        isAssigned
+                          ? 'bg-apple-blue text-white shadow-sm'
+                          : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                      }`}
+                      title={isAssigned ? 'クリックして解除' : 'クリックして割り振り'}
+                    >
+                      {isAssigned ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                      <span>{cat}</span>
+                    </button>
+                  );
+                })}
+
+                {/* 新規カテゴリー追加インラインフォーム */}
+                {isAddingQuickCategory ? (
+                  <form onSubmit={handleCreateAndAssignCategory} className="flex items-center space-x-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      required
+                      placeholder="新カテゴリー名 (例: 幹部)"
+                      value={quickNewCategoryInput}
+                      onChange={(e) => setQuickNewCategoryInput(e.target.value)}
+                      className="px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-apple-blue text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="px-2.5 py-1 rounded-lg bg-apple-blue text-white text-xs font-medium hover:opacity-90"
+                    >
+                      追加
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingQuickCategory(false);
+                        setQuickNewCategoryInput('');
+                      }}
+                      className="px-2 py-1 rounded-lg text-xs text-neutral-400 hover:text-neutral-600"
+                    >
+                      ✕
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingQuickCategory(true)}
+                    className="px-2.5 py-1 rounded-lg border border-dashed border-apple-border dark:border-apple-darkBorder text-neutral-500 hover:text-apple-blue hover:border-apple-blue text-xs font-medium transition-colors flex items-center space-x-1"
+                  >
+                    <FolderPlus className="w-3 h-3" />
+                    <span>＋ 新カテゴリー作成</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 顔写真変更モーダル */}
+          {isAvatarModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
+              <div className="w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-3xl border border-apple-border dark:border-apple-darkBorder p-6 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+                  <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-2">
+                    <Camera className="w-4 h-4 text-apple-blue" />
+                    <span>顔写真の変更・登録</span>
+                  </h3>
+                  <button type="button" onClick={() => setIsAvatarModalOpen(false)} className="text-neutral-400 hover:text-neutral-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col items-center space-y-3">
+                  <img
+                    src={selectedPerson.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                    alt="プレビュー"
+                    className="w-24 h-24 rounded-2xl object-cover border border-apple-border dark:border-apple-darkBorder shadow-md"
+                  />
+                  <span className="text-xs text-neutral-500">{selectedPerson.display_name} 様の顔写真</span>
+                </div>
+
+                {/* 隠しファイルインプット */}
+                <input
+                  ref={avatarFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarFileChange}
+                  className="hidden"
+                />
+
+                <div className="space-y-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    className="w-full py-2.5 rounded-xl bg-apple-blue text-white font-medium text-xs hover:opacity-90 flex items-center justify-center space-x-2 shadow-sm"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>端末の写真・カメラから選択</span>
+                  </button>
+
+                  <div className="relative flex items-center justify-center">
+                    <div className="border-t border-apple-border dark:border-apple-darkBorder w-full"></div>
+                    <span className="bg-white dark:bg-[#1C1C1E] px-2 text-[10px] text-neutral-400 absolute">または</span>
+                  </div>
+
+                  <form onSubmit={handleSaveAvatarUrl} className="space-y-2">
+                    <input
+                      type="url"
+                      placeholder="画像URLを入力 (https://...)"
+                      value={customAvatarUrl}
+                      onChange={(e) => setCustomAvatarUrl(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!customAvatarUrl.trim()}
+                      className="w-full py-2 rounded-xl bg-neutral-800 dark:bg-neutral-700 text-white font-medium text-xs disabled:opacity-40"
+                    >
+                      URLで顔写真を更新
+                    </button>
+                  </form>
                 </div>
               </div>
             </div>
-
-            <button
-              onClick={handleOpenEditModal}
-              className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center space-x-1.5 self-start sm:self-auto shadow-sm"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>カルテ情報を編集</span>
-            </button>
-          </div>
+          )}
 
           {/* カルテ編集モーダル */}
           {isEditingPerson && (
@@ -324,6 +554,36 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                     onChange={(e) => setEditNotes(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder"
                   />
+                </div>
+
+                <div className="text-xs space-y-1.5">
+                  <label className="block font-medium text-neutral-500">所属カテゴリー</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {store.getCategories().map(cat => {
+                      const isChecked = editCategoryTags.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            if (isChecked) {
+                              setEditCategoryTags(editCategoryTags.filter(c => c !== cat));
+                            } else {
+                              setEditCategoryTags([...editCategoryTags, cat]);
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all flex items-center space-x-1 ${
+                            isChecked
+                              ? 'bg-apple-blue text-white border-apple-blue'
+                              : 'bg-neutral-50 dark:bg-neutral-800/60 border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-400'
+                          }`}
+                        >
+                          {isChecked ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                          <span>{cat}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="flex justify-end space-x-2 pt-2 border-t border-apple-border dark:border-apple-darkBorder">
@@ -819,20 +1079,51 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
               />
             </div>
 
-            <div className="flex space-x-1.5 overflow-x-auto pb-1 text-xs -mx-4 px-4 sm:mx-0 sm:px-0">
-              {['ALL', 'BNI', '仕事', '友人', 'PROVISIONAL'].map(t => (
+            <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 text-xs -mx-4 px-4 sm:mx-0 sm:px-0">
+              <button
+                onClick={() => setSelectedTag('ALL')}
+                className={`px-3 py-1.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+                  selectedTag === 'ALL'
+                    ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200'
+                }`}
+              >
+                全員
+              </button>
+
+              {store.getCategories().map(cat => (
                 <button
-                  key={t}
-                  onClick={() => setSelectedTag(t)}
+                  key={cat}
+                  onClick={() => setSelectedTag(cat)}
                   className={`px-3 py-1.5 rounded-xl font-medium transition-all whitespace-nowrap ${
-                    selectedTag === t
+                    selectedTag === cat
                       ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
                       : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200'
                   }`}
                 >
-                  {t === 'ALL' ? '全員' : t === 'PROVISIONAL' ? '仮カルテ' : t}
+                  {cat}
                 </button>
               ))}
+
+              <button
+                onClick={() => setSelectedTag('PROVISIONAL')}
+                className={`px-3 py-1.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+                  selectedTag === 'PROVISIONAL'
+                    ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200'
+                }`}
+              >
+                仮カルテ
+              </button>
+
+              <button
+                onClick={() => setShowAddCategoryModal(true)}
+                className="px-2.5 py-1.5 rounded-xl border border-dashed border-apple-border dark:border-apple-darkBorder text-neutral-500 hover:text-apple-blue hover:border-apple-blue text-xs font-medium transition-colors whitespace-nowrap flex items-center space-x-1"
+                title="新しいカテゴリーを作成"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+                <span>＋ カテゴリー追加</span>
+              </button>
             </div>
           </div>
 
@@ -893,6 +1184,59 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 新規カテゴリー追加モーダル */}
+      {showAddCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
+          <form onSubmit={handleCreateGlobalCategory} className="w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-3xl border border-apple-border dark:border-apple-darkBorder p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+              <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-2">
+                <FolderPlus className="w-4 h-4 text-apple-blue" />
+                <span>新しいカテゴリーの作成</span>
+              </h3>
+              <button type="button" onClick={() => setShowAddCategoryModal(false)} className="text-neutral-400 hover:text-neutral-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-500 leading-relaxed">
+              登録したカテゴリーは人脈カルテへの手動振り分けや、一覧での絞り込みフィルターとして利用できます。
+            </p>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                カテゴリー名 *
+              </label>
+              <input
+                type="text"
+                autoFocus
+                required
+                placeholder="例: 一般社団法人stone, 幹部, パートナー など"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7]"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-apple-border dark:border-apple-darkBorder">
+              <button
+                type="button"
+                onClick={() => setShowAddCategoryModal(false)}
+                className="px-3.5 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs"
+              >
+                キャンセル
+              </button>
+              <button
+                type="submit"
+                disabled={!newCategoryName.trim()}
+                className="px-4 py-1.5 rounded-xl bg-apple-blue text-white text-xs font-medium disabled:opacity-40"
+              >
+                作成する
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

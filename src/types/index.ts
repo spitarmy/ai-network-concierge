@@ -24,7 +24,7 @@ export interface User {
 }
 
 export type PersonStatus = 'active' | 'provisional' | 'archived' | 'deleted';
-export type CategoryTag = 'BNI' | '仕事' | '友人' | '知人' | 'パートナー' | 'その他';
+export type CategoryTag = string;
 
 export interface Person {
   id: PersonId;

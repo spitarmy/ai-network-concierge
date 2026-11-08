@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus } from 'lucide-react';
 import { store } from '../services/store';
 import { MeetingType, MeetingProvider } from '../types';
 
@@ -37,7 +37,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [personName, setPersonName] = useState('');
   const [phonetic, setPhonetic] = useState('');
   const [company, setCompany] = useState('');
-  const [tag, setTag] = useState<'BNI' | '仕事' | '友人'>('BNI');
+  const [selectedTags, setSelectedTags] = useState<string[]>(['一般社団法人stone']);
+  const [customTagInput, setCustomTagInput] = useState('');
+  const [isAddingTagInput, setIsAddingTagInput] = useState(false);
 
   if (!isOpen) return null;
 
@@ -106,7 +108,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     const newP = store.createPerson({
       display_name: personName,
       phonetic_name: phonetic,
-      category_tags: [tag],
+      category_tags: selectedTags.length > 0 ? selectedTags : ['一般社団法人stone'],
     });
 
     if (company.trim()) {
@@ -119,6 +121,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       setPersonName('');
       setPhonetic('');
       setCompany('');
+      setSelectedTags(['一般社団法人stone']);
       onRefresh();
       onClose();
     }, 1000);
@@ -417,23 +420,80 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">区分タグ</label>
-                <div className="flex space-x-2">
-                  {(['BNI', '仕事', '友人'] as const).map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTag(t)}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-                        tag === t
-                          ? 'bg-apple-blue/10 border-apple-blue text-apple-blue dark:text-apple-darkBlue'
-                          : 'border-apple-border dark:border-apple-darkBorder text-neutral-500'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  所属カテゴリー（手動選択・複数可）
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {store.getCategories().map(cat => {
+                    const isSelected = selectedTags.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedTags(selectedTags.filter(t => t !== cat));
+                          } else {
+                            setSelectedTags([...selectedTags, cat]);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all flex items-center space-x-1 ${
+                          isSelected
+                            ? 'bg-apple-blue text-white border-apple-blue shadow-sm'
+                            : 'bg-neutral-100/80 dark:bg-neutral-800/80 border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-400'
+                        }`}
+                      >
+                        {isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                        <span>{cat}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {isAddingTagInput ? (
+                  <div className="flex items-center space-x-1 mt-1">
+                    <input
+                      type="text"
+                      placeholder="新カテゴリー名 (例: 幹部)"
+                      value={customTagInput}
+                      onChange={(e) => setCustomTagInput(e.target.value)}
+                      className="flex-1 p-1.5 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-apple-blue"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = customTagInput.trim();
+                        if (trimmed) {
+                          store.addCategory(trimmed);
+                          if (!selectedTags.includes(trimmed)) {
+                            setSelectedTags([...selectedTags, trimmed]);
+                          }
+                          setCustomTagInput('');
+                          setIsAddingTagInput(false);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 bg-apple-blue text-white text-xs rounded-lg font-medium"
+                    >
+                      追加
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingTagInput(false)}
+                      className="text-xs text-neutral-400 px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingTagInput(true)}
+                    className="text-xs text-apple-blue hover:underline flex items-center space-x-0.5 mt-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>新カテゴリーを作成して追加</span>
+                  </button>
+                )}
               </div>
 
               <button

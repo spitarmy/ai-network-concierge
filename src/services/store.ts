@@ -30,6 +30,7 @@ export interface DatabaseState {
   referrals: Referral[];
   costLedger: AICostEntry[];
   auditLogs: AuditLog[];
+  customCategories?: Record<string, string[]>;
 }
 
 // サンプルシードデータ（動作確認・デモ用）
@@ -799,6 +800,60 @@ class DataStore {
     Object.assign(p, updates, { updated_at: new Date().toISOString() });
 
     this.logAudit('UPDATE_PERSON', 'person', p.id, { old: oldData, updated: updates });
+    this.persist();
+    return p;
+  }
+
+  // --- カテゴリー管理 & 顔写真更新 ---
+  public getCategories(): string[] {
+    const tid = this.state.currentTenantId;
+    if (!this.state.customCategories) {
+      this.state.customCategories = {};
+    }
+    if (!this.state.customCategories[tid] || this.state.customCategories[tid].length === 0) {
+      this.state.customCategories[tid] = [
+        '一般社団法人stone', 'BNI', '仕事', 'パートナー', 'クライアント', '友人', '知人'
+      ];
+      this.persist();
+    }
+    return this.state.customCategories[tid];
+  }
+
+  public addCategory(name: string): string[] {
+    const trimmed = name.trim();
+    if (!trimmed) return this.getCategories();
+    const tid = this.state.currentTenantId;
+    const cats = this.getCategories();
+    if (!cats.includes(trimmed)) {
+      cats.push(trimmed);
+      this.state.customCategories![tid] = cats;
+      this.persist();
+    }
+    return cats;
+  }
+
+  public removeCategory(name: string): string[] {
+    const tid = this.state.currentTenantId;
+    const cats = this.getCategories().filter(c => c !== name);
+    this.state.customCategories![tid] = cats;
+    this.persist();
+    return cats;
+  }
+
+  public updatePersonCategories(personId: string, tags: string[]): Person {
+    const p = this.getPersonById(personId);
+    if (!p) throw new Error('Person not found');
+    p.category_tags = tags;
+    p.updated_at = new Date().toISOString();
+    this.persist();
+    return p;
+  }
+
+  public updatePersonAvatar(personId: string, avatarUrl: string): Person {
+    const p = this.getPersonById(personId);
+    if (!p) throw new Error('Person not found');
+    p.avatar_url = avatarUrl;
+    p.updated_at = new Date().toISOString();
     this.persist();
     return p;
   }
