@@ -1425,6 +1425,112 @@ class DataStore {
     return this.processMeetingRecordingAndAutoRegister(newMeeting.id, transcriptText);
   }
 
+  // --- 面談後のお礼文 & 相互要約の自動生成 (LINE/メール手動送信用) ---
+  public generateThankYouDraft(
+    meetingId: string,
+    tone: 'line_casual' | 'business_polite' | 'bni_formal' = 'line_casual'
+  ): {
+    recipient_name: string;
+    draft_text: string;
+    meeting_title: string;
+    summary_points: {
+      partner_business: string;
+      partner_referral: string;
+      my_commitment: string;
+      action_items: string;
+    };
+  } {
+    const tid = this.state.currentTenantId;
+    const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
+    const participant = meeting && meeting.participant_ids[0] ? this.getPersonById(meeting.participant_ids[0]) : undefined;
+    const recipient_name = participant ? participant.display_name : '面談のお相手';
+
+    const facts = participant ? this.getFactsForPerson(participant.id) : [];
+    const topicFact = facts.find(f => f.fact_category === 'topic');
+    const promiseFact = facts.find(f => f.fact_category === 'promise');
+    const orgs = participant ? this.getOrgMembershipsForPerson(participant.id) : [];
+    const bni = participant ? this.getBNIMembershipsForPerson(participant.id) : [];
+
+    const company = orgs[0]?.organization_name || '御社';
+    const chapter = bni[0]?.chapter_name || '';
+    const partner_business = topicFact?.fact_value || '看板・屋外広告施工、店舗サイン企画';
+    const partner_referral = '新規開業・出店予定の飲食店オーナー様やクリニック院長様';
+    const my_commitment = '当方からマッチする事業者様への打診とお繋ぎ';
+    const action_items = promiseFact?.fact_value || '次回までに施工実績事例集の送付とお繋ぎ連絡';
+
+    let draft_text = '';
+
+    if (tone === 'line_casual') {
+      draft_text = `${recipient_name}さん、本日はお忙しい中Zoomでのお時間をいただき本当にありがとうございました！
+とても有意義で楽しい時間でした😊
+
+本日お伺いした内容とお互いの宿題を簡単にまとめましたので共有させてください！
+
+━━━━━━━━━━━━━━━━━━━
+【本日お伺いした${recipient_name}様のお話】
+・会社/事業: ${company}${chapter ? `（BNI ${chapter}）` : ''}
+・強み/実績: ${partner_business}
+・求めているご紹介: ${partner_referral}
+
+【当方からのお約束・ネクストアクション】
+・${my_commitment}
+・${action_items}
+━━━━━━━━━━━━━━━━━━━
+
+また近況や進捗などありましたらお気軽にLINEしてください！
+引き続きどうぞよろしくお願いいたします✨`;
+    } else if (tone === 'bni_formal') {
+      draft_text = `${recipient_name}様
+
+本日はお忙しい中、貴重なBNI 1to1面談のお時間を賜り、誠にありがとうございました。
+${company}様の素晴らしい強みや想いをお伺いでき、大変学びの多い面談となりました。
+
+本日の面談要約および相互のコミットメントを以下の通りまとめましたので、ご査収ください。
+
+━━━━━━━━━━━━━━━━━━━
+■ 面談議事録 & 相互確認
+・所属: ${chapter ? `BNI ${chapter}` : 'BNIメンバー'}
+・事業概要: ${company}（${partner_business}）
+・ターゲットリファーラル: ${partner_referral}
+・当方のアクション: ${my_commitment}
+・双方のフォロー約束: ${action_items}
+━━━━━━━━━━━━━━━━━━━
+
+Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質なリファーラルをお届けできるよう、早速アンテナを張ってまいります。
+今後とも末永いお付き合いのほど、何卒よろしくお願い申し上げます。`;
+    } else {
+      draft_text = `${recipient_name}様
+
+いつも大変お世話になっております。
+本日はお忙しい中、貴重なお時間をいただき誠にありがとうございました。
+
+本日お話しさせていただいた内容の要約と、今後のアクション事項を以下の通り共有いたします。
+
+━━━━━━━━━━━━━━━━━━━
+【面談要約】
+・お相手事業概要: ${company} / ${partner_business}
+・求めている協業・紹介先: ${partner_referral}
+・当方からのご提案・支援: ${my_commitment}
+・次回までのToDo: ${action_items}
+━━━━━━━━━━━━━━━━━━━
+
+内容に相違や追加のご要望がございましたら、いつでもお申し付けください。
+引き続きよろしくお願い申し上げます。`;
+    }
+
+    return {
+      recipient_name,
+      draft_text,
+      meeting_title: meeting?.title || '面談',
+      summary_points: {
+        partner_business,
+        partner_referral,
+        my_commitment,
+        action_items,
+      }
+    };
+  }
+
   public getMeetings(): Meeting[] {
     const tid = this.state.currentTenantId;
     return this.state.meetings

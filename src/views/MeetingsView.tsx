@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Calendar, Clock, Shield, AlertTriangle, Pin, PinOff,
-  CheckCircle2, XCircle, Play, RotateCcw, Download, ExternalLink
+  CheckCircle2, XCircle, Play, RotateCcw, Download, ExternalLink,
+  MessageSquare, Bot
 } from 'lucide-react';
 import { store } from '../services/store';
 import { Meeting } from '../types';
@@ -9,9 +10,14 @@ import { Meeting } from '../types';
 interface MeetingsViewProps {
   onOpenQuickAdd?: () => void;
   onOpenIdentify?: (meetingId: string) => void;
+  onOpenThankYou?: (meetingId: string) => void;
 }
 
-export const MeetingsView: React.FC<MeetingsViewProps> = ({ onOpenQuickAdd, onOpenIdentify }) => {
+export const MeetingsView: React.FC<MeetingsViewProps> = ({
+  onOpenQuickAdd,
+  onOpenIdentify,
+  onOpenThankYou,
+}) => {
   const [, setRefreshKey] = useState(0);
   const meetings = store.getMeetings();
   const recordings = store.getRecordings();
@@ -189,7 +195,30 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({ onOpenQuickAdd, onOp
                     </span>
                   </span>
 
-                  {/* カレンダー連携ボタン群 */}
+                  {/* お礼文送信 & ボット派遣 & カレンダー連携ボタン群 */}
+                  {m.recording_status === 'completed' && onOpenThankYou && (
+                    <button
+                      onClick={() => onOpenThankYou(m.id)}
+                      className="px-2.5 py-1 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-xs flex items-center space-x-1"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      <span>お礼文・要約</span>
+                    </button>
+                  )}
+
+                  {m.recording_status !== 'completed' && (
+                    <button
+                      onClick={() => {
+                        alert('【Zoomボット派遣予約完了】\n面談時刻に「AI人脈コンシェルジュ 記録員」が待機室へ自動入室します。ホストが入室を許可すると録音・文字起こしを開始します。');
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-medium flex items-center space-x-1"
+                      title="面談時刻にAIボットを待機室へ自動派遣"
+                    >
+                      <Bot className="w-3 h-3" />
+                      <span>ボット派遣予約</span>
+                    </button>
+                  )}
+
                   <a
                     href={getGoogleCalendarUrl(m)}
                     target="_blank"

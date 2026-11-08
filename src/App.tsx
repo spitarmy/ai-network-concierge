@@ -3,6 +3,7 @@ import { Navigation, ViewType } from './components/Navigation';
 import { Header } from './components/Header';
 import { QuickAddModal } from './components/QuickAddModal';
 import { IdentifyParticipantModal } from './components/IdentifyParticipantModal';
+import { ThankYouFollowUpModal } from './components/ThankYouFollowUpModal';
 import { HomeView } from './views/HomeView';
 import { PersonsView } from './views/PersonsView';
 import { BNIView } from './views/BNIView';
@@ -22,6 +23,7 @@ export const App: React.FC = () => {
   const [selectedPersonId, setSelectedPersonId] = useState<string | undefined>();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [identifyingMeetingId, setIdentifyingMeetingId] = useState<string | null>(null);
+  const [thankYouMeetingId, setThankYouMeetingId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSimpleMode, setIsSimpleMode] = useState(false);
   const [, setRefreshKey] = useState(0);
@@ -178,6 +180,7 @@ export const App: React.FC = () => {
               onNavigate={(v) => setCurrentView(v)}
               onOpenQuickAdd={() => setIsQuickAddOpen(true)}
               onOpenIdentify={(mId) => setIdentifyingMeetingId(mId)}
+              onOpenThankYou={(mId) => setThankYouMeetingId(mId)}
             />
           )}
 
@@ -212,6 +215,7 @@ export const App: React.FC = () => {
             <MeetingsView
               onOpenQuickAdd={() => setIsQuickAddOpen(true)}
               onOpenIdentify={(mId) => setIdentifyingMeetingId(mId)}
+              onOpenThankYou={(mId) => setThankYouMeetingId(mId)}
             />
           )}
 
@@ -265,6 +269,13 @@ export const App: React.FC = () => {
           handleRefresh();
           handleSelectPerson(personId);
         }}
+      />
+
+      {/* お礼文＆相互要約手動送信モーダルシート */}
+      <ThankYouFollowUpModal
+        isOpen={!!thankYouMeetingId}
+        meetingId={thankYouMeetingId}
+        onClose={() => setThankYouMeetingId(null)}
       />
     </div>
   );

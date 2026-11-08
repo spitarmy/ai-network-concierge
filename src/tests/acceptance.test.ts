@@ -455,6 +455,18 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       // AI利用コスト（原価台帳）が自動計上されていること
       const costs = store.getCostLedger();
       expect(costs.some(c => c.service_category === 'audio_transcribe')).toBe(true);
+
+      // お礼文・相互要約の自動生成テスト (LINE用カジュアル & BNIフォーマル)
+      const thankYouLine = store.generateThankYouDraft(result.meeting.id, 'line_casual');
+      expect(thankYouLine.recipient_name).toBe('高橋 誠治');
+      expect(thankYouLine.draft_text).toContain('高橋 誠治さん、本日はお忙しい中Zoomでのお時間をいただき');
+      expect(thankYouLine.draft_text).toContain('株式会社タカハシ看板デザイン');
+      expect(thankYouLine.draft_text).toContain('京都南');
+      expect(thankYouLine.draft_text).toContain('次回までに施工実績カタログ');
+
+      const thankYouBNI = store.generateThankYouDraft(result.meeting.id, 'bni_formal');
+      expect(thankYouBNI.draft_text).toContain('Givers Gain');
+      expect(thankYouBNI.draft_text).toContain('BNI 1to1面談');
     });
   });
 });

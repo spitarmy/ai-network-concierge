@@ -18,6 +18,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const oauthConfig = store.getOAuthConfig();
+  const [zoomMode, setZoomMode] = useState<'bot' | 'cloud'>('bot');
   const [zoomAccountId, setZoomAccountId] = useState(oauthConfig.zoom.account_id || '');
   const [zoomClientId, setZoomClientId] = useState(oauthConfig.zoom.client_id || '');
   const [zoomClientSecret, setZoomClientSecret] = useState(oauthConfig.zoom.client_secret || '');
@@ -392,6 +393,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
               }`}>
                 {oauthConfig.zoom.is_connected ? '● 認可有効' : '○ 未接続'}
               </span>
+            </div>
+
+            <div>
+              <label className="block mb-1.5 font-medium text-neutral-500">Zoom連携・録音方式（両方対応）:</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div
+                  onClick={() => setZoomMode('bot')}
+                  className={`cursor-pointer p-2.5 rounded-xl border transition-all ${
+                    zoomMode === 'bot'
+                      ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200'
+                      : 'bg-white dark:bg-neutral-800 border-apple-border dark:border-apple-darkBorder text-neutral-500'
+                  }`}
+                >
+                  <div className="font-bold flex items-center space-x-1">
+                    <span>🤖 パターン1: ボット自動派遣</span>
+                  </div>
+                  <p className="text-[10px] mt-0.5 text-neutral-500 dark:text-neutral-400 leading-snug">
+                    面談時刻にAIボットが待機室へ自動入室。無料Zoomアカウントでも利用可能。
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => setZoomMode('cloud')}
+                  className={`cursor-pointer p-2.5 rounded-xl border transition-all ${
+                    zoomMode === 'cloud'
+                      ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+                      : 'bg-white dark:bg-neutral-800 border-apple-border dark:border-apple-darkBorder text-neutral-500'
+                  }`}
+                >
+                  <div className="font-bold flex items-center space-x-1">
+                    <span>☁️ パターン2: クラウド録音自動連携</span>
+                  </div>
+                  <p className="text-[10px] mt-0.5 text-neutral-500 dark:text-neutral-400 leading-snug">
+                    Zoom画面の「クラウド記録」を押すだけで自動同期。ボット画面入室なし（Zoom Pro以上）。
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div>

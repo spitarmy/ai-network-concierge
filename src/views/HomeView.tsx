@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic } from 'lucide-react';
+import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic, MessageSquare } from 'lucide-react';
 import { store } from '../services/store';
 import { Person } from '../types';
 
@@ -9,6 +9,7 @@ interface HomeViewProps {
   onNavigate: (view: any) => void;
   onOpenQuickAdd: () => void;
   onOpenIdentify: (meetingId: string) => void;
+  onOpenThankYou: (meetingId: string) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -17,6 +18,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onNavigate,
   onOpenQuickAdd,
   onOpenIdentify,
+  onOpenThankYou,
 }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
@@ -149,9 +151,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           {/* 録音解析成功トーストメッセージ */}
           {analyzeSuccess && (
-            <div className="mt-4 p-3 bg-apple-green/10 text-apple-green border border-apple-green/20 rounded-2xl text-xs flex items-center space-x-2 animate-fadeIn">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span className="font-semibold">{analyzeSuccess}</span>
+            <div className="mt-4 p-3.5 bg-apple-green/10 text-apple-green border border-apple-green/20 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 animate-fadeIn">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span className="font-semibold">{analyzeSuccess}</span>
+              </div>
+              <button
+                onClick={() => onOpenThankYou(upcomingMeeting.id)}
+                className="px-3 py-1.5 rounded-xl bg-apple-green text-white text-xs font-semibold hover:opacity-90 transition-opacity self-end sm:self-auto shrink-0 flex items-center space-x-1"
+              >
+                <MessageSquare className="w-3 h-3" />
+                <span>お礼文・要約を確認して送る →</span>
+              </button>
             </div>
           )}
 
@@ -200,17 +211,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="mt-3 flex items-center justify-between p-2.5 rounded-xl bg-apple-green/10 text-apple-green text-xs font-medium">
-              <span className="flex items-center space-x-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>録音のAI文字起こし解析・カルテ自動生成完了済み</span>
-              </span>
-              <button
-                onClick={() => onOpenIdentify(upcomingMeeting.id)}
-                className="text-[11px] text-neutral-600 dark:text-neutral-300 hover:underline flex items-center space-x-1"
-              >
-                <span>情報を確認・編集</span>
-              </button>
+            <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-blue-50/90 to-indigo-50/90 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/80 dark:border-blue-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+              <div className="flex items-start space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-apple-green/15 text-apple-green flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center space-x-1.5">
+                    <span>面談の録音解析・カルテ生成完了</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-apple-green/10 text-apple-green font-medium">
+                      解析済み
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed">
+                    相手のお話要約と相互の約束事がまとまりました。相手にお礼文と相互確認メッセージを手動送信できます。
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+                <button
+                  onClick={() => onOpenThankYou(upcomingMeeting.id)}
+                  className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center space-x-1.5"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>お礼文・相互要約を送る</span>
+                </button>
+              </div>
             </div>
           )}
 
