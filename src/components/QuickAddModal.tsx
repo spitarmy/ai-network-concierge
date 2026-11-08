@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus } from 'lucide-react';
+import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus, Clock } from 'lucide-react';
 import { store } from '../services/store';
 import { MeetingType, MeetingProvider } from '../types';
+import { formatMeetingSchedule } from '../utils/date';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -32,6 +33,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [meetingUrl, setMeetingUrl] = useState('');
   const [parsedResult, setParsedResult] = useState<any>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const setPresetSchedule = (daysOffset: number, hour: number, minute: number = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysOffset);
+    d.setHours(hour, minute, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setScheduledTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  };
 
   // 人物追加状態
   const [personName, setPersonName] = useState('');
@@ -288,42 +297,98 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-2 text-xs">
                   <div>
-                    <label className="block text-neutral-500 mb-1">日時</label>
-                    <input
-                      type="datetime-local"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-neutral-500 font-semibold flex items-center space-x-1">
+                        <Calendar className="w-3.5 h-3.5 text-apple-blue" />
+                        <span>面談予定日時（何日何時から） *</span>
+                      </label>
+                      {scheduledTime && (
+                        <span className="text-[11px] font-bold text-apple-blue dark:text-apple-darkBlue flex items-center space-x-1 bg-apple-blue/10 dark:bg-apple-darkBlue/20 px-2 py-0.5 rounded-md">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatMeetingSchedule(new Date(scheduledTime).toISOString()).fullDateText} {formatMeetingSchedule(new Date(scheduledTime).toISOString()).timeText}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="datetime-local"
+                        required
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="w-full p-2.5 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-apple-blue shadow-2xs"
+                      />
+
+                      {/* クイック選択プリセット */}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPresetSchedule(0, 15, 0)}
+                          className="px-2 py-1 rounded-lg text-[10px] bg-neutral-200/80 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-medium"
+                        >
+                          今日 15:00
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPresetSchedule(0, 19, 0)}
+                          className="px-2 py-1 rounded-lg text-[10px] bg-neutral-200/80 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-medium"
+                        >
+                          今日 19:00
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPresetSchedule(1, 10, 0)}
+                          className="px-2 py-1 rounded-lg text-[10px] bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue font-bold"
+                        >
+                          明日 10:00
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPresetSchedule(1, 14, 0)}
+                          className="px-2 py-1 rounded-lg text-[10px] bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue font-bold"
+                        >
+                          明日 14:00
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPresetSchedule(2, 14, 0)}
+                          className="px-2 py-1 rounded-lg text-[10px] bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 font-semibold"
+                        >
+                          明後日 14:00
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-neutral-500 mb-1">開催ツール</label>
-                    <select
-                      value={meetingProvider}
-                      onChange={(e) => setMeetingProvider(e.target.value as MeetingProvider)}
-                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
-                    >
-                      <option value="zoom">Zoom</option>
-                      <option value="google_meet">Google Meet</option>
-                      <option value="in_person">対面・リアル面談</option>
-                      <option value="phone">電話</option>
-                      <option value="other">その他</option>
-                    </select>
-                  </div>
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-neutral-500 mb-1">開催ツール</label>
+                      <select
+                        value={meetingProvider}
+                        onChange={(e) => setMeetingProvider(e.target.value as MeetingProvider)}
+                        className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                      >
+                        <option value="zoom">Zoom</option>
+                        <option value="google_meet">Google Meet</option>
+                        <option value="in_person">対面・リアル面談</option>
+                        <option value="phone">電話</option>
+                        <option value="other">その他</option>
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-neutral-500 mb-1 text-xs">会議URL / 場所</label>
-                  <input
-                    type="text"
-                    value={meetingUrl}
-                    onChange={(e) => setMeetingUrl(e.target.value)}
-                    placeholder="https://us02web.zoom.us/j/... または場所"
-                    className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
-                  />
+                    <div>
+                      <label className="block text-neutral-500 mb-1">会議URL / 場所</label>
+                      <input
+                        type="text"
+                        value={meetingUrl}
+                        onChange={(e) => setMeetingUrl(e.target.value)}
+                        placeholder="https://us02web.zoom.us/j/... または場所"
+                        className="w-full p-2 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div>

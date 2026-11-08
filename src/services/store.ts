@@ -1065,17 +1065,51 @@ class DataStore {
     if (/商談|打合せ|案件/i.test(rawText)) suggested_type = 'business_meeting';
     if (/交流会|定例会|チャプター/i.test(rawText)) suggested_type = 'networking';
 
-    // 日時推定（簡易解析・デフォルトは明日14:00）
+    // 日時推定（明示的な日付・時刻、またはデフォルトは明日14:00）
     let scheduled_start_at = new Date(Date.now() + 86400 * 1000).toISOString();
-    const dateMatch = rawText.match(/(\d{1,2})[\/月](\d{1,2})(?:日)?\s*(\d{1,2}):(\d{2})/);
-    if (dateMatch) {
-      const now = new Date();
-      const month = parseInt(dateMatch[1]) - 1;
-      const day = parseInt(dateMatch[2]);
-      const hour = parseInt(dateMatch[3]);
-      const min = parseInt(dateMatch[4]);
-      const targetDate = new Date(now.getFullYear(), month, day, hour, min);
-      scheduled_start_at = targetDate.toISOString();
+    const now = new Date();
+
+    // 1. 年月日時分 (例: 2026年11月10日 15:00 または 2026/11/10 15:00)
+    const fullDateMatch = rawText.match(/(202\d)[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
+    // 2. 月日時分 (例: 11/10 15:00, 11月10日 15時, 11/10(火) 15:00)
+    const monthDateMatch = rawText.match(/(\d{1,2})[\/月](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
+    // 3. 相対日 (例: 明日 14:00, 今日 15時)
+    const relativeDateMatch = rawText.match(/(明日|今日|明後日|本日)\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
+    // 4. Zoom標準フォーマット (例: 2026年11月10日 03:00 PM)
+    const zoomTimeMatch = rawText.match(/(?:時間|Time):\s*(\d{4})年?(\d{1,2})月?(\d{1,2})日?\s*(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+
+    if (zoomTimeMatch) {
+      const year = parseInt(zoomTimeMatch[1]);
+      const month = parseInt(zoomTimeMatch[2]) - 1;
+      const day = parseInt(zoomTimeMatch[3]);
+      let hour = parseInt(zoomTimeMatch[4]);
+      const min = parseInt(zoomTimeMatch[5]);
+      const ampm = zoomTimeMatch[6];
+      if (ampm && ampm.toUpperCase() === 'PM' && hour < 12) hour += 12;
+      if (ampm && ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+      scheduled_start_at = new Date(year, month, day, hour, min).toISOString();
+    } else if (fullDateMatch) {
+      const year = parseInt(fullDateMatch[1]);
+      const month = parseInt(fullDateMatch[2]) - 1;
+      const day = parseInt(fullDateMatch[3]);
+      const hour = parseInt(fullDateMatch[4]);
+      const min = fullDateMatch[5] ? parseInt(fullDateMatch[5]) : 0;
+      scheduled_start_at = new Date(year, month, day, hour, min).toISOString();
+    } else if (monthDateMatch) {
+      const month = parseInt(monthDateMatch[1]) - 1;
+      const day = parseInt(monthDateMatch[2]);
+      const hour = parseInt(monthDateMatch[3]);
+      const min = monthDateMatch[4] ? parseInt(monthDateMatch[4]) : 0;
+      scheduled_start_at = new Date(now.getFullYear(), month, day, hour, min).toISOString();
+    } else if (relativeDateMatch) {
+      const rel = relativeDateMatch[1];
+      const hour = parseInt(relativeDateMatch[2]);
+      const min = relativeDateMatch[3] ? parseInt(relativeDateMatch[3]) : 0;
+      const target = new Date();
+      if (rel === '明日') target.setDate(target.getDate() + 1);
+      if (rel === '明後日') target.setDate(target.getDate() + 2);
+      target.setHours(hour, min, 0, 0);
+      scheduled_start_at = target.toISOString();
     }
 
     // 参加者推定
@@ -1166,7 +1200,7 @@ class DataStore {
       : (data.meeting_type === '1to1' ? 'Zoom 1to1面談 (相手未特定)' : 'オンライン面談');
 
     const newMeeting: Meeting = {
-      id: `m-${Date.now()}`,
+      id: data.id || `m-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       tenant_id: tid,
       title: data.title || defaultTitle,
       meeting_type: data.meeting_type || '1to1',
@@ -1588,9 +1622,42 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
 
   public getMeetings(): Meeting[] {
     const tid = this.state.currentTenantId;
+    const now = Date.now();
     return this.state.meetings
       .filter(m => m.tenant_id === tid)
-      .sort((a, b) => new Date(a.scheduled_start_at).getTime() - new Date(b.scheduled_start_at).getTime());
+      .sort((a, b) => {
+        const timeA = new Date(a.scheduled_start_at).getTime();
+        const timeB = new Date(b.scheduled_start_at).getTime();
+        // 過去2時間以内または将来の予定を「今後の予定」として優先
+        const isUpcomingA = timeA >= now - 3600 * 1000 * 2;
+        const isUpcomingB = timeB >= now - 3600 * 1000 * 2;
+
+        if (isUpcomingA && isUpcomingB) {
+          return timeA - timeB; // 直近（近い順）が最上位！
+        }
+        if (isUpcomingA && !isUpcomingB) {
+          return -1; // 今後の予定を先頭に
+        }
+        if (!isUpcomingA && isUpcomingB) {
+          return 1;
+        }
+        return timeB - timeA; // 過去の面談は新しい順
+      });
+  }
+
+  public updateMeeting(id: string, updates: Partial<Meeting>): Meeting {
+    const m = this.state.meetings.find(item => item.id === id);
+    if (!m) throw new Error('Meeting not found');
+    Object.assign(m, updates);
+    this.persist();
+    return m;
+  }
+
+  public deleteMeeting(id: string): void {
+    this.state.meetings = this.state.meetings.filter(m => m.id !== id);
+    this.state.consents = this.state.consents.filter(c => c.meeting_id !== id);
+    this.state.recordings = this.state.recordings.filter(r => r.meeting_id !== id);
+    this.persist();
   }
 
   // --- 同意ステートマシン (MEET-07〜MEET-10) ---

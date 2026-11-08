@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import {
   Calendar, Clock, Shield, AlertTriangle, Pin, PinOff,
   CheckCircle2, XCircle, Play, RotateCcw, Download, ExternalLink,
-  MessageSquare, Bot
+  MessageSquare, Bot, Edit3, Trash2, X
 } from 'lucide-react';
 import { store } from '../services/store';
 import { Meeting } from '../types';
+import { formatMeetingSchedule } from '../utils/date';
 
 interface MeetingsViewProps {
   onOpenQuickAdd?: () => void;
@@ -19,8 +20,55 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
   onOpenThankYou,
 }) => {
   const [, setRefreshKey] = useState(0);
+  const [tabFilter, setTabFilter] = useState<'upcoming' | 'all' | 'past'>('upcoming');
+
+  // 予定編集モーダル状態
+  const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editStartAt, setEditStartAt] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+
   const meetings = store.getMeetings();
   const recordings = store.getRecordings();
+
+  const handleOpenEditMeeting = (m: Meeting) => {
+    setEditingMeeting(m);
+    setEditTitle(m.title);
+    const d = new Date(m.scheduled_start_at);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setEditStartAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    setEditUrl(m.meeting_url || '');
+  };
+
+  const handleSaveMeetingEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMeeting) return;
+    store.updateMeeting(editingMeeting.id, {
+      title: editTitle,
+      scheduled_start_at: new Date(editStartAt).toISOString(),
+      meeting_url: editUrl.trim() || undefined,
+    });
+    setEditingMeeting(null);
+    setRefreshKey(k => k + 1);
+  };
+
+  const handleDeleteMeeting = (meetingId: string) => {
+    if (confirm('この面談予定を削除しますか？')) {
+      store.deleteMeeting(meetingId);
+      if (editingMeeting?.id === meetingId) {
+        setEditingMeeting(null);
+      }
+      setRefreshKey(k => k + 1);
+    }
+  };
+
+  const setPresetEditSchedule = (daysOffset: number, hour: number, minute: number = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysOffset);
+    d.setHours(hour, minute, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setEditStartAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  };
 
   const handleUpdateConsent = (consentId: string, status: 'granted' | 'rejected' | 'revoked') => {
     store.updateConsentStatus(consentId, status);
@@ -74,6 +122,14 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(m.title)}&dates=${formatICS(startDate)}/${formatICS(endDate)}&details=${encodeURIComponent(m.meeting_url || '')}&location=${encodeURIComponent(m.meeting_url || '')}`;
   };
 
+  const upcomingMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at).isUpcoming);
+  const pastMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at).isPast);
+  const displayMeetings = tabFilter === 'upcoming'
+    ? upcomingMeetings
+    : tabFilter === 'past'
+    ? pastMeetings
+    : meetings;
+
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 pb-24 animate-fadeIn">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -103,16 +159,57 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
         </div>
       </div>
 
+      {/* 絞り込みタブ */}
+      {meetings.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          <button
+            onClick={() => setTabFilter('upcoming')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 ${
+              tabFilter === 'upcoming'
+                ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
+                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>直近・今後の予定 ({upcomingMeetings.length}件)</span>
+          </button>
+          <button
+            onClick={() => setTabFilter('all')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all ${
+              tabFilter === 'all'
+                ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
+                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+            }`}
+          >
+            <span>すべて ({meetings.length}件)</span>
+          </button>
+          <button
+            onClick={() => setTabFilter('past')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all ${
+              tabFilter === 'past'
+                ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
+                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+            }`}
+          >
+            <span>過去・完了した面談 ({pastMeetings.length}件)</span>
+          </button>
+        </div>
+      )}
+
       <div className="space-y-6">
-        {meetings.length === 0 ? (
+        {displayMeetings.length === 0 ? (
           <div className="rounded-3xl p-12 bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-apple-blue/10 dark:bg-apple-darkBlue/20 text-apple-blue dark:text-apple-darkBlue flex items-center justify-center mx-auto">
               <Calendar className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">予定はまだ登録されていません</h3>
+              <h3 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                {tabFilter === 'upcoming' ? '直近・今後の予定はありません' : '該当する面談予定はありません'}
+              </h3>
               <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
-                次回1to1や商談の予定を登録すると、相手カルテとの事前照合や録音同意管理の準備が自動的に行われます。
+                {tabFilter === 'upcoming'
+                  ? '「すべて」タブで過去の面談を確認するか、「＋ 予定を登録」から新しい面談日時を登録してください。'
+                  : '次回1to1や商談の予定を登録すると、相手カルテとの事前照合や録音同意管理の準備が自動的に行われます。'}
               </p>
             </div>
             {onOpenQuickAdd && (
@@ -120,26 +217,79 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
                 onClick={onOpenQuickAdd}
                 className="px-5 py-2.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm"
               >
-                ＋ 最初の予定を登録する
+                ＋ 予定を登録する
               </button>
             )}
           </div>
         ) : (
-          meetings.map((m) => {
+          displayMeetings.map((m) => {
           const consents = store.getConsentsForMeeting(m.id);
           const recording = recordings.find(r => r.meeting_id === m.id);
+          const sched = formatMeetingSchedule(m.scheduled_start_at);
 
           return (
             <div
               key={m.id}
               className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm"
             >
-              {/* 会議タイトル & プロバイダ */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-apple-blue/10 text-apple-blue flex items-center justify-center shrink-0">
+              {/* 開催日時バナー（何日何時からか一目でわかる特大表示） */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-2xl bg-apple-blue/10 dark:bg-apple-darkBlue/20 text-apple-blue dark:text-apple-darkBlue flex items-center justify-center shrink-0">
                     <Calendar className="w-5 h-5" />
                   </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-base sm:text-lg font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                        {sched.fullDateText} {sched.timeText}
+                      </span>
+                      {sched.relativeBadge && (
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${sched.badgeColor}`}>
+                          {sched.relativeBadge}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-neutral-400 mt-0.5 flex items-center space-x-2">
+                      <span className="uppercase font-mono font-bold text-apple-blue dark:text-apple-darkBlue">{m.provider}</span>
+                      <span>•</span>
+                      <span>{m.meeting_type === '1to1' ? 'BNI 1to1面談' : '商談・オンライン面談'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  {m.meeting_url && (
+                    <a
+                      href={m.meeting_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 transition-opacity flex items-center space-x-1.5 shadow-xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>会議を開く</span>
+                    </a>
+                  )}
+                  <button
+                    onClick={() => handleOpenEditMeeting(m)}
+                    className="px-3 py-1.5 rounded-xl border border-apple-border dark:border-apple-darkBorder text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-medium transition-colors flex items-center space-x-1"
+                    title="日時やURLを変更"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-neutral-500" />
+                    <span>日時を変更</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMeeting(m.id)}
+                    className="p-1.5 rounded-xl text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    title="この予定を削除"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 会議タイトル & ステータス */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+                <div className="flex items-center space-x-2.5">
                   <div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">{m.title}</h3>
@@ -164,12 +314,6 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
                           <span>手動入力</span>
                         </button>
                       )}
-                    </div>
-                    <div className="flex items-center space-x-2 text-xs text-neutral-400 mt-0.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{new Date(m.scheduled_start_at).toLocaleString('ja-JP')}</span>
-                      <span>•</span>
-                      <span className="uppercase font-mono">{m.provider}</span>
                     </div>
                   </div>
                 </div>
@@ -320,8 +464,138 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
               )}
             </div>
           );
-        }))}
+        })
+      )}
       </div>
+
+      {/* 面談予定・日時変更モーダル */}
+      {editingMeeting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
+          <form onSubmit={handleSaveMeetingEdit} className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl border border-apple-border dark:border-apple-darkBorder p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+              <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-apple-blue" />
+                <span>面談日時・予定内容の変更</span>
+              </h3>
+              <button type="button" onClick={() => setEditingMeeting(null)} className="text-neutral-400 hover:text-neutral-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-neutral-500 font-semibold mb-1">予定タイトル *</label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-neutral-500 font-semibold flex items-center space-x-1">
+                    <Clock className="w-3.5 h-3.5 text-apple-blue" />
+                    <span>開催日時（何日何時から） *</span>
+                  </label>
+                  {editStartAt && (
+                    <span className="text-[11px] font-bold text-apple-blue dark:text-apple-darkBlue">
+                      {formatMeetingSchedule(new Date(editStartAt).toISOString()).fullDateText} {formatMeetingSchedule(new Date(editStartAt).toISOString()).timeText}
+                    </span>
+                  )}
+                </div>
+
+                <input
+                  type="datetime-local"
+                  required
+                  value={editStartAt}
+                  onChange={(e) => setEditStartAt(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold text-xs focus:outline-none focus:ring-1 focus:ring-apple-blue mb-2"
+                />
+
+                {/* クイック選択プリセット */}
+                <div className="flex flex-wrap items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPresetEditSchedule(0, 15, 0)}
+                    className="px-2 py-1 rounded-lg text-[10px] bg-neutral-200/80 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-medium"
+                  >
+                    今日 15:00
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetEditSchedule(0, 19, 0)}
+                    className="px-2 py-1 rounded-lg text-[10px] bg-neutral-200/80 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-medium"
+                  >
+                    今日 19:00
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetEditSchedule(1, 10, 0)}
+                    className="px-2 py-1 rounded-lg text-[10px] bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue font-bold"
+                  >
+                    明日 10:00
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetEditSchedule(1, 14, 0)}
+                    className="px-2 py-1 rounded-lg text-[10px] bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue font-bold"
+                  >
+                    明日 14:00
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetEditSchedule(2, 14, 0)}
+                    className="px-2 py-1 rounded-lg text-[10px] bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 font-semibold"
+                  >
+                    明後日 14:00
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-500 font-semibold mb-1">Zoom / Google Meet URL</label>
+                <input
+                  type="text"
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  placeholder="https://us02web.zoom.us/j/..."
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-1 focus:ring-apple-blue"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-apple-border dark:border-apple-darkBorder">
+              <button
+                type="button"
+                onClick={() => handleDeleteMeeting(editingMeeting.id)}
+                className="px-3 py-1.5 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium flex items-center space-x-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>この予定を削除</span>
+              </button>
+
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingMeeting(null)}
+                  className="px-3.5 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-apple-blue text-white text-xs font-semibold shadow-sm hover:opacity-90"
+                >
+                  変更を保存
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

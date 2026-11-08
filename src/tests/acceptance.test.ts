@@ -512,5 +512,58 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(fetched?.avatar_url).toBe(mockDataUrl);
       expect(fetched?.category_tags).toEqual(['一般社団法人stone', '幹部', '知人']);
     });
+
+    it('複数の面談予定を登録した際、日時が近い順（昇順）に並び、日時の更新・変更・削除が正しく動作すること', () => {
+      store.resetToProductionEmptyState();
+      expect(store.getMeetings().length).toBe(0);
+
+      const now = Date.now();
+      const in2Days = new Date(now + 86400 * 1000 * 2).toISOString();
+      const in1Day = new Date(now + 86400 * 1000 * 1).toISOString();
+      const in3Hours = new Date(now + 3600 * 1000 * 3).toISOString();
+
+      // あえてバラバラの順番で予定を作成
+      const m2Days = store.createMeeting({
+        title: '明後日の面談',
+        scheduled_start_at: in2Days,
+      });
+
+      const m3Hours = store.createMeeting({
+        title: '3時間後の直近面談',
+        scheduled_start_at: in3Hours,
+      });
+
+      const m1Day = store.createMeeting({
+        title: '明日の面談',
+        scheduled_start_at: in1Day,
+      });
+
+      // getMeetings() で取得したとき、近い順（3時間後 → 明日 → 明後日）にソートされていること
+      const sortedMeetings = store.getMeetings();
+      expect(sortedMeetings.length).toBe(3);
+      expect(sortedMeetings[0].id).toBe(m3Hours.id);
+      expect(sortedMeetings[0].title).toBe('3時間後の直近面談');
+      expect(sortedMeetings[1].id).toBe(m1Day.id);
+      expect(sortedMeetings[1].title).toBe('明日の面談');
+      expect(sortedMeetings[2].id).toBe(m2Days.id);
+      expect(sortedMeetings[2].title).toBe('明後日の面談');
+
+      // 日時変更（updateMeeting）のテスト
+      const in1Hour = new Date(now + 3600 * 1000 * 1).toISOString();
+      store.updateMeeting(m2Days.id, {
+        title: '繰り上げ面談（1時間後）',
+        scheduled_start_at: in1Hour,
+      });
+
+      // 繰り上げられた予定が先頭（1時間後）に並び変わること
+      const reordered = store.getMeetings();
+      expect(reordered[0].id).toBe(m2Days.id);
+      expect(reordered[0].title).toBe('繰り上げ面談（1時間後）');
+
+      // 予定削除（deleteMeeting）のテスト
+      store.deleteMeeting(m1Day.id);
+      expect(store.getMeetings().length).toBe(2);
+      expect(store.getMeetings().some(m => m.id === m1Day.id)).toBe(false);
+    });
   });
 });

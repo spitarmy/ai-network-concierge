@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic, MessageSquare, ExternalLink } from 'lucide-react';
 import { store } from '../services/store';
 import { Person } from '../types';
+import { formatMeetingSchedule } from '../utils/date';
 
 interface HomeViewProps {
   isSimpleMode: boolean;
@@ -98,21 +99,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500 mt-1">
-                  <span>{new Date(upcomingMeeting.scheduled_start_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span>•</span>
-                  <span className="uppercase font-mono font-medium text-apple-blue dark:text-apple-darkBlue">{upcomingMeeting.provider}</span>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  {(() => {
+                    const sched = formatMeetingSchedule(upcomingMeeting.scheduled_start_at);
+                    return (
+                      <>
+                        <span className="text-xs sm:text-sm font-bold text-apple-blue dark:text-apple-darkBlue bg-apple-blue/10 dark:bg-apple-darkBlue/20 px-2.5 py-0.5 rounded-lg flex items-center space-x-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{sched.fullDateText} {sched.timeText}</span>
+                        </span>
+                        {sched.relativeBadge && (
+                          <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${sched.badgeColor}`}>
+                            {sched.relativeBadge}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <span className="text-xs uppercase font-mono font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md">
+                    {upcomingMeeting.provider}
+                  </span>
                   {currentChapter && (
-                    <>
-                      <span>•</span>
-                      <span>{currentChapter.region_name}・{currentChapter.chapter_name}</span>
-                    </>
+                    <span className="text-xs text-neutral-400">
+                      • {currentChapter.region_name}・{currentChapter.chapter_name}
+                    </span>
                   )}
                   {upcomingParticipant && (
-                    <>
-                      <span>•</span>
-                      <span>通算{upcomingParticipant.meeting_count}回目の面談</span>
-                    </>
+                    <span className="text-xs text-neutral-400">
+                      • 通算{upcomingParticipant.meeting_count}回目の面談
+                    </span>
                   )}
                 </div>
               </div>
@@ -277,39 +292,75 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {meetings.length > 1 && (
         <div className="p-5 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-              登録済みの今後の予定 ({meetings.length}件)
-            </span>
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-apple-blue" />
+              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                面談予定一覧（直近・日時が近い順） ({meetings.length}件)
+              </span>
+            </div>
             <button
               onClick={() => onNavigate('meetings')}
-              className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
+              className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline font-medium"
             >
-              すべて見る →
+              すべての予定を管理 →
             </button>
           </div>
           <div className="space-y-2">
-            {meetings.slice(1, 4).map(m => {
+            {meetings.slice(1, 5).map(m => {
               const p = m.participant_ids[0] ? store.getPersonById(m.participant_ids[0]) : undefined;
+              const sched = formatMeetingSchedule(m.scheduled_start_at);
+
               return (
                 <div
                   key={m.id}
-                  onClick={() => onNavigate('meetings')}
-                  className="cursor-pointer p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder transition-colors flex items-center justify-between"
+                  className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-850/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-xl bg-apple-blue/10 text-apple-blue flex items-center justify-center shrink-0">
+                  <div className="flex items-center space-x-3 cursor-pointer" onClick={() => onNavigate('meetings')}>
+                    <div className="w-9 h-9 rounded-xl bg-apple-blue/10 text-apple-blue flex items-center justify-center shrink-0">
                       <Calendar className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
-                        {m.title}
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                          {m.title}
+                        </span>
+                        {sched.relativeBadge && (
+                          <span className={`px-2 py-0.2 rounded text-[10px] font-bold ${sched.badgeColor}`}>
+                            {sched.relativeBadge}
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[11px] text-neutral-400">
-                        {new Date(m.scheduled_start_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} • {p ? p.display_name : '参加者登録中'}
+                      <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center space-x-2">
+                        <span className="font-semibold text-apple-blue dark:text-apple-darkBlue">
+                          📅 {sched.fullDateText} {sched.timeText}
+                        </span>
+                        <span>•</span>
+                        <span>{p ? p.display_name : '相手未特定'}</span>
+                        <span>•</span>
+                        <span className="uppercase font-mono text-[10px] text-neutral-400">{m.provider}</span>
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs text-neutral-400">→</span>
+
+                  <div className="flex items-center space-x-2 self-end sm:self-auto shrink-0">
+                    {m.meeting_url && (
+                      <a
+                        href={m.meeting_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue dark:text-apple-darkBlue text-[11px] font-semibold transition-colors flex items-center space-x-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>会議を開く</span>
+                      </a>
+                    )}
+                    <button
+                      onClick={() => onNavigate('meetings')}
+                      className="px-2.5 py-1 rounded-lg border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 text-[11px]"
+                    >
+                      詳細
+                    </button>
+                  </div>
                 </div>
               );
             })}
