@@ -565,5 +565,32 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(store.getMeetings().length).toBe(2);
       expect(store.getMeetings().some(m => m.id === m1Day.id)).toBe(false);
     });
+
+    it('純粋なURLのみの入力では has_detected_date が false、日付入りテキストでは true となり、リロード後も予定が維持されること', () => {
+      // 純粋なZoom URL貼り付け
+      const pureUrl = 'https://us02web.zoom.us/j/84920491029?pwd=abcd';
+      const parsedPure = store.parseMeetingIntent(pureUrl);
+      expect(parsedPure.extracted?.meeting_url).toBe(pureUrl);
+      expect(parsedPure.extracted?.has_detected_date).toBe(false);
+
+      // 日時が明記されたテキスト貼り付け
+      const textWithDate = '次回面談 11/15 14:00〜 https://us02web.zoom.us/j/84920491029?pwd=abcd 佐藤さんと打ち合わせ';
+      const parsedWithDate = store.parseMeetingIntent(textWithDate);
+      expect(parsedWithDate.extracted?.has_detected_date).toBe(true);
+
+      // ユーザー予定を登録
+      const userMeeting = store.createMeeting({
+        title: '大切な取引先との面談',
+        scheduled_start_at: new Date(Date.now() + 86400 * 1000 * 5).toISOString(),
+        meeting_url: pureUrl,
+      });
+
+      // localStorageから再読み込み（リロード擬似）
+      // @ts-expect-error accessing constructor for persistence verification
+      const reloadedStore = new store.constructor();
+      const reloadedMeetings = reloadedStore.getMeetings();
+      expect(reloadedMeetings.some((m: any) => m.id === userMeeting.id)).toBe(true);
+      expect(reloadedMeetings.find((m: any) => m.id === userMeeting.id)?.title).toBe('大切な取引先との面談');
+    });
   });
 });

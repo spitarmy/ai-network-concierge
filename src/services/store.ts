@@ -662,24 +662,31 @@ const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
   },
 };
 
+// 環境非依存ストレージ（ブラウザ localStorage & テスト・Node環境 fallback）
+const nodeMemoryStore = new Map<string, string>();
+const getStorageItem = (key: string): string | null => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage.getItem(key);
+  }
+  return nodeMemoryStore.get(key) || null;
+};
+const setStorageItem = (key: string, value: string): void => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(key, value);
+  } else {
+    nodeMemoryStore.set(key, value);
+  }
+};
+
 // シングルトンストレージエンジン
 class DataStore {
   private state: DatabaseState;
   private oauthConfig: OAuthIntegrationConfig;
 
   constructor() {
-    const PROD_CLEAN_KEY_V3 = 'ai_network_concierge_v3_clean_slate';
-    const isCleanV3 = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(PROD_CLEAN_KEY_V3) : null;
-    const raw = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+    const raw = getStorageItem(STORAGE_KEY);
 
-    if (!isCleanV3) {
-      // ユーザーの指示に基づき、前バージョンまでのサンプルデータを問答無用で全消去
-      this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(PROD_CLEAN_KEY_V3, 'true');
-      }
-      this.persist();
-    } else if (raw) {
+    if (raw) {
       try {
         this.state = JSON.parse(raw);
       } catch (e) {
@@ -690,13 +697,13 @@ class DataStore {
       this.persist();
     }
 
-    // 安全防御: 万が一 state 内にサンプルの山田・田中・佐藤が残っていた場合も強制排除
+    // 安全防御: 万が一 state 内にサンプルの山田・田中・佐藤が残っていた場合のみサンプルIDだけを安全に排除
     if (this.state.persons && this.state.persons.some(p => ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov'].includes(p.id))) {
       this.purgeSamplePersons();
     }
 
     // OAuth設定ロード
-    const rawOAuth = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(OAUTH_STORAGE_KEY) : null;
+    const rawOAuth = getStorageItem(OAUTH_STORAGE_KEY);
     if (rawOAuth) {
       try {
         this.oauthConfig = JSON.parse(rawOAuth);
@@ -710,31 +717,29 @@ class DataStore {
     // ユーザー様ご提供のZoom本番認証情報を自動永続化
     if (!this.oauthConfig.zoom.client_id) {
       this.oauthConfig.zoom = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG.zoom));
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
-      }
+      setStorageItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
     }
   }
 
   public purgeSamplePersons(): void {
-    const sampleIds = ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov', 'p-tenant2-secret'];
-    this.state.persons = this.state.persons.filter(p => !sampleIds.includes(p.id));
-    this.state.meetings = this.state.meetings.filter(m => !m.id.startsWith('m-'));
-    this.state.facts = this.state.facts.filter(f => !f.id.startsWith('fact-'));
-    this.state.cardScans = this.state.cardScans.filter(c => !c.id.startsWith('cs-yamada'));
+    const samplePersonIds = ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov', 'p-tenant2-secret'];
+    const sampleMeetingIds = ['m-yamada-upcoming', 'm-yamada-past1', 'm-yamada-past2'];
+    const sampleFactIds = ['fact-1', 'fact-2', 'fact-3', 'fact-4', 'fact-5', 'fact-6'];
+    this.state.persons = this.state.persons.filter(p => !samplePersonIds.includes(p.id));
+    this.state.meetings = this.state.meetings.filter(m => !sampleMeetingIds.includes(m.id));
+    this.state.facts = this.state.facts.filter(f => !sampleFactIds.includes(f.id));
+    this.state.cardScans = this.state.cardScans.filter(c => c.id !== 'cs-yamada');
     this.state.reviewQueue = this.state.reviewQueue.filter(q => q.id !== 'rq-1');
     this.state.referrals = this.state.referrals.filter(r => r.id !== 'ref-1');
-    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => !m.id.startsWith('om-'));
-    this.state.organizations = this.state.organizations.filter(o => !o.id.startsWith('org-'));
-    this.state.businessOfferings = this.state.businessOfferings.filter(b => !b.id.startsWith('bo-'));
-    this.state.bniMemberships = this.state.bniMemberships.filter(m => !m.id.startsWith('bnim-'));
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => !m.id.startsWith('om-yamada'));
+    this.state.organizations = this.state.organizations.filter(o => !o.id.startsWith('org-yamada'));
+    this.state.businessOfferings = this.state.businessOfferings.filter(b => !b.id.startsWith('bo-yamada'));
+    this.state.bniMemberships = this.state.bniMemberships.filter(m => !m.id.startsWith('bnim-yamada'));
     this.persist();
   }
 
   private persist() {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
-    }
+    setStorageItem(STORAGE_KEY, JSON.stringify(this.state));
   }
 
   // --- テナント境界（RLS）フィルタ ---
@@ -1033,12 +1038,22 @@ class DataStore {
       meeting_code?: string;
       suggested_type: '1to1' | 'business_meeting' | 'networking' | 'other';
       scheduled_start_at: string;
+      has_detected_date: boolean;
       candidate_participants: { personId?: string; name: string; confidence: number }[];
     };
     is_duplicate: boolean;
     duplicate_meeting?: Meeting;
   } {
     const tid = this.state.currentTenantId;
+
+    // 全角英数・記号の正規化（スマホの全角入力やLINEのコピペに対応）
+    const normalizedText = rawText
+      .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/：/g, ':')
+      .replace(/／/g, '/')
+      .replace(/（/g, '(')
+      .replace(/）/g, ')');
+
     const zoomRegex = /(https?:\/\/[a-zA-Z0-9-.]*zoom\.us\/[j|s|my]\/([0-9]+)(\?pwd=[a-zA-Z0-9]+)?)/i;
     const meetRegex = /(https?:\/\/meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3}))/i;
 
@@ -1046,13 +1061,13 @@ class DataStore {
     let url: string | undefined;
     let code: string | undefined;
 
-    const zoomMatch = rawText.match(zoomRegex);
+    const zoomMatch = normalizedText.match(zoomRegex);
     if (zoomMatch) {
       provider = 'zoom';
       url = zoomMatch[1];
       code = zoomMatch[2];
     } else {
-      const meetMatch = rawText.match(meetRegex);
+      const meetMatch = normalizedText.match(meetRegex);
       if (meetMatch) {
         provider = 'google_meet';
         url = meetMatch[1];
@@ -1062,21 +1077,26 @@ class DataStore {
 
     // 会議種別推定
     let suggested_type: '1to1' | 'business_meeting' | 'networking' | 'other' = '1to1';
-    if (/商談|打合せ|案件/i.test(rawText)) suggested_type = 'business_meeting';
-    if (/交流会|定例会|チャプター/i.test(rawText)) suggested_type = 'networking';
+    if (/商談|打合せ|案件/i.test(normalizedText)) suggested_type = 'business_meeting';
+    if (/交流会|定例会|チャプター/i.test(normalizedText)) suggested_type = 'networking';
 
-    // 日時推定（明示的な日付・時刻、またはデフォルトは明日14:00）
-    let scheduled_start_at = new Date(Date.now() + 86400 * 1000).toISOString();
+    // 日時推定（明示的な日付・時刻を厳密検出）
+    let scheduled_start_at = '';
+    let has_detected_date = false;
     const now = new Date();
 
-    // 1. 年月日時分 (例: 2026年11月10日 15:00 または 2026/11/10 15:00)
-    const fullDateMatch = rawText.match(/(202\d)[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
-    // 2. 月日時分 (例: 11/10 15:00, 11月10日 15時, 11/10(火) 15:00)
-    const monthDateMatch = rawText.match(/(\d{1,2})[\/月](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
-    // 3. 相対日 (例: 明日 14:00, 今日 15時)
-    const relativeDateMatch = rawText.match(/(明日|今日|明後日|本日)\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
-    // 4. Zoom標準フォーマット (例: 2026年11月10日 03:00 PM)
-    const zoomTimeMatch = rawText.match(/(?:時間|Time):\s*(\d{4})年?(\d{1,2})月?(\d{1,2})日?\s*(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    // 1. Zoom標準フォーマット (例: 時間: 2026年11月10日 03:00 PM または Time: Nov 10, 2026 3:00 PM)
+    const zoomTimeMatch = normalizedText.match(/(?:時間|Time):\s*(\d{4})年?(\d{1,2})月?(\d{1,2})日?\s*(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    // 2. 年月日時分 (例: 2026年11月10日 15:00 または 2026/11/10 15:00)
+    const fullDateMatch = normalizedText.match(/(202\d)[年\/-](\d{1,2})[月\/-](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
+    // 3. 月日時分 (例: 11/10 15:00, 11月10日 15時, 11/10(火) 15:00)
+    const monthDateMatch = normalizedText.match(/(\d{1,2})[\/月](\d{1,2})日?\s*(?:\([月火水木金土日]\))?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
+    // 4. 相対日 (例: 明日 14:00, 今日 15時, 本日 19:00)
+    const relativeDateMatch = normalizedText.match(/(明日|今日|明後日|本日)\s*(?:の)?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?/);
+    // 5. 単独時刻 (例: 14:00〜, 15時〜, 14:00-15:00)
+    const timeOnlyMatch = normalizedText.match(/(?:時間|日時|時刻|開始|日程|から)?\s*(\d{1,2})(?::|時)(\d{0,2})(?:分)?\s*(?:〜|~|-|から)/);
+    // 6. 日付のみ (例: 11月10日, 11/10) -> デフォルト14:00
+    const dateOnlyMatch = normalizedText.match(/(\d{1,2})[\/月](\d{1,2})日?(?:\([月火水木金土日]\))?/);
 
     if (zoomTimeMatch) {
       const year = parseInt(zoomTimeMatch[1]);
@@ -1088,6 +1108,7 @@ class DataStore {
       if (ampm && ampm.toUpperCase() === 'PM' && hour < 12) hour += 12;
       if (ampm && ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
       scheduled_start_at = new Date(year, month, day, hour, min).toISOString();
+      has_detected_date = true;
     } else if (fullDateMatch) {
       const year = parseInt(fullDateMatch[1]);
       const month = parseInt(fullDateMatch[2]) - 1;
@@ -1095,12 +1116,14 @@ class DataStore {
       const hour = parseInt(fullDateMatch[4]);
       const min = fullDateMatch[5] ? parseInt(fullDateMatch[5]) : 0;
       scheduled_start_at = new Date(year, month, day, hour, min).toISOString();
+      has_detected_date = true;
     } else if (monthDateMatch) {
       const month = parseInt(monthDateMatch[1]) - 1;
       const day = parseInt(monthDateMatch[2]);
       const hour = parseInt(monthDateMatch[3]);
       const min = monthDateMatch[4] ? parseInt(monthDateMatch[4]) : 0;
       scheduled_start_at = new Date(now.getFullYear(), month, day, hour, min).toISOString();
+      has_detected_date = true;
     } else if (relativeDateMatch) {
       const rel = relativeDateMatch[1];
       const hour = parseInt(relativeDateMatch[2]);
@@ -1110,20 +1133,36 @@ class DataStore {
       if (rel === '明後日') target.setDate(target.getDate() + 2);
       target.setHours(hour, min, 0, 0);
       scheduled_start_at = target.toISOString();
+      has_detected_date = true;
+    } else if (timeOnlyMatch) {
+      const hour = parseInt(timeOnlyMatch[1]);
+      const min = timeOnlyMatch[2] ? parseInt(timeOnlyMatch[2]) : 0;
+      const target = new Date();
+      if (hour < now.getHours() || (hour === now.getHours() && min < now.getMinutes())) {
+        target.setDate(target.getDate() + 1);
+      }
+      target.setHours(hour, min, 0, 0);
+      scheduled_start_at = target.toISOString();
+      has_detected_date = true;
+    } else if (dateOnlyMatch) {
+      const month = parseInt(dateOnlyMatch[1]) - 1;
+      const day = parseInt(dateOnlyMatch[2]);
+      scheduled_start_at = new Date(now.getFullYear(), month, day, 14, 0).toISOString();
+      has_detected_date = true;
     }
 
     // 参加者推定
     const candidates: { personId?: string; name: string; confidence: number }[] = [];
     const activePersons = this.getPersons();
     for (const p of activePersons) {
-      if (rawText.includes(p.display_name) || rawText.includes(p.display_name.split(' ')[0])) {
+      if (normalizedText.includes(p.display_name) || normalizedText.includes(p.display_name.split(' ')[0])) {
         candidates.push({ personId: p.id, name: p.display_name, confidence: 0.95 });
       }
     }
 
     // 既存人脈にない場合、日本語の招待文から相手氏名を自動抽出（U01要件）
     if (candidates.length === 0) {
-      const nameMatch = rawText.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:さん|様|氏|社長|先生|代表)?(?:と|との)?(?:次回)?(?:1to1|面談|打合せ|打ち合わせ|会議|商談)/);
+      const nameMatch = normalizedText.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:さん|様|氏|社長|先生|代表)?(?:と|との)?(?:次回)?(?:1to1|面談|打合せ|打ち合わせ|会議|商談)/);
       if (nameMatch && nameMatch[1] && !/^(明日|明後日|本日|日時|次回|時間|月曜|火曜|水曜|木曜|金曜|土曜|日曜)$/.test(nameMatch[1])) {
         candidates.push({ name: nameMatch[1], confidence: 0.85 });
       }
@@ -1132,7 +1171,7 @@ class DataStore {
     // 重複判定（同一Zoomコードかつ同一日の会議が存在するか）
     let is_duplicate = false;
     let duplicate_meeting: Meeting | undefined;
-    if (code) {
+    if (code && has_detected_date) {
       const existing = this.state.meetings.find(
         m => m.tenant_id === tid && m.meeting_code === code &&
         m.scheduled_start_at.substring(0, 10) === scheduled_start_at.substring(0, 10)
@@ -1150,6 +1189,7 @@ class DataStore {
         meeting_code: code,
         suggested_type,
         scheduled_start_at,
+        has_detected_date,
         candidate_participants: candidates,
       },
       is_duplicate,
@@ -1997,9 +2037,7 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
       ...this.oauthConfig.zoom,
       ...config,
     };
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
-    }
+    setStorageItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
   }
 
   public updateGoogleConfig(config: Partial<OAuthIntegrationConfig['google']>): void {
@@ -2007,9 +2045,7 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
       ...this.oauthConfig.google,
       ...config,
     };
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
-    }
+    setStorageItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
   }
 
   public testOAuthConnection(provider: 'zoom' | 'google'): { success: boolean; message: string } {

@@ -70,7 +70,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         if (res.extracted.meeting_url) {
           setMeetingUrl(res.extracted.meeting_url);
         }
-        if (res.extracted.scheduled_start_at) {
+        if (res.extracted.has_detected_date && res.extracted.scheduled_start_at) {
           const d = new Date(res.extracted.scheduled_start_at);
           const pad = (n: number) => String(n).padStart(2, '0');
           setScheduledTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
@@ -253,6 +253,31 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                   <div>
                     <strong>同一番号の既存会議を検知:</strong> すでに登録済みの予定が存在します。重複登録を防ぐため別会議か確認してください。
                   </div>
+                </div>
+              )}
+
+              {/* 日時自動抽出ステータス */}
+              {pasteText.trim().length > 3 && parsedResult && (
+                <div className={`p-3 rounded-2xl text-xs flex items-center space-x-2 ${
+                  parsedResult.extracted?.has_detected_date
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                }`}>
+                  {parsedResult.extracted?.has_detected_date ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <div>
+                        <strong>日時を自動抽出しました:</strong> {formatMeetingSchedule(new Date(scheduledTime).toISOString()).fullDateText} {formatMeetingSchedule(new Date(scheduledTime).toISOString()).timeText}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div>
+                        <strong>案内文から日時は未検出です:</strong> 下記の「面談予定日時」から何日何時かを選択してください。
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

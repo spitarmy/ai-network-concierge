@@ -124,9 +124,12 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
 
   const upcomingMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at).isUpcoming);
   const pastMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at).isPast);
-  const displayMeetings = tabFilter === 'upcoming'
+  const activeTab = (tabFilter === 'upcoming' && upcomingMeetings.length === 0 && meetings.length > 0)
+    ? 'all'
+    : tabFilter;
+  const displayMeetings = activeTab === 'upcoming'
     ? upcomingMeetings
-    : tabFilter === 'past'
+    : activeTab === 'past'
     ? pastMeetings
     : meetings;
 
@@ -165,7 +168,7 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           <button
             onClick={() => setTabFilter('upcoming')}
             className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 ${
-              tabFilter === 'upcoming'
+              activeTab === 'upcoming'
                 ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
                 : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
             }`}
@@ -176,7 +179,7 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           <button
             onClick={() => setTabFilter('all')}
             className={`px-3.5 py-1.5 rounded-xl transition-all ${
-              tabFilter === 'all'
+              activeTab === 'all'
                 ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
                 : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
             }`}
@@ -186,7 +189,7 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           <button
             onClick={() => setTabFilter('past')}
             className={`px-3.5 py-1.5 rounded-xl transition-all ${
-              tabFilter === 'past'
+              activeTab === 'past'
                 ? 'bg-apple-blue dark:bg-apple-darkBlue text-white shadow-sm'
                 : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
             }`}
