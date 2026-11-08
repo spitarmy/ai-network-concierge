@@ -184,4 +184,106 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(store.getFactsForPerson(newPerson.id).length).toBe(0);
     });
   });
+
+  describe('I. 本番運用・データ管理・インポート/バックアップ検証 (PROD-01〜05)', () => {
+    it('名刺写真付きスキャンの作成とOCRシミュレーションが動作すること', () => {
+      const scan = store.createCardScanWithPhoto('data:image/png;base64,samplebase64data', '名刺表面テスト');
+      expect(scan.id).toBeDefined();
+      expect(scan.image_url).toBe('data:image/png;base64,samplebase64data');
+      expect(scan.status).toBe('completed');
+      expect(scan.raw_extracted.person_name).toBe('名刺表面テスト');
+    });
+
+    it('人物の基本情報更新、オファリング追加、事実追加、BNI移籍が反映されること', () => {
+      // 1. 人物更新
+      const updated = store.updatePerson('p-yamada', {
+        notes: '2026年本番運用メモ更新',
+        service_areas: ['京都府', '滋賀県', '大阪府'],
+      });
+      expect(updated?.notes).toBe('2026年本番運用メモ更新');
+      expect(updated?.service_areas).toContain('大阪府');
+
+      // 2. オファリング追加
+      const offering = store.addBusinessOffering({
+        person_id: 'p-yamada',
+        service_title: '新築ZEH住宅プロデュース',
+        specialties: '高気密高断熱, 京都産木材100%',
+        target_clients: '環境配慮型住宅を検討中の子育て世帯',
+        service_area: '京都・滋賀',
+        is_active: true,
+      });
+      expect(offering.service_title).toBe('新築ZEH住宅プロデュース');
+      expect(store.getBusinessOfferingsForPerson('p-yamada').some(o => o.id === offering.id)).toBe(true);
+
+      // 3. 事実追加
+      const fact = store.addFact({
+        person_id: 'p-yamada',
+        fact_category: 'preference',
+        fact_key: '趣味',
+        fact_value: 'トレイルランニング（比叡山）',
+        source_type: 'manual_edit',
+        confidence: 1.0,
+        verification_status: 'verified',
+        visibility: 'private',
+        valid_from: new Date().toISOString(),
+      });
+      expect(fact.fact_value).toContain('トレイルランニング');
+
+      // 4. BNI移籍処理
+      store.transferBNIChapter('p-yamada', 'chap-tokyo-ginza', '建設・リノベ', '滋賀エリア開拓のため移籍');
+      const bniList = store.getBNIMembershipsForPerson('p-yamada');
+      const newActive = bniList.find(b => b.status === 'active');
+      expect(newActive?.chapter_id).toBe('chap-tokyo-ginza');
+      const oldTransferred = bniList.filter(b => b.status === 'transferred');
+      expect(oldTransferred.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('CSVインポートで新規人物・会社・オファリングが一括作成されること', () => {
+      const csv = `名前,フリガナ,会社名,役職,電話番号,メールアドレス,事業内容・オファリング
+テストCSV太郎,テストシータロウ,株式会社CSVフューチャー,代表取締役,090-1111-2222,testcsv@example.com,クラウドAI設計導入支援
+テストCSV花子,テストシーハナコ,花子デザイン事務所,代表,090-3333-4444,hanako@example.com,Apple風UIデザイン制作`;
+
+      const result = store.importCSVContacts(csv);
+      expect(result.importedCount).toBe(2);
+      expect(result.importedPersons[0].display_name).toBe('テストCSV太郎');
+      expect(result.importedPersons[1].display_name).toBe('テストCSV花子');
+
+      const p1 = store.getPersonById(result.importedPersons[0].id);
+      expect(p1?.primary_email).toBe('testcsv@example.com');
+      const orgs = store.getOrgMembershipsForPerson(result.importedPersons[0].id);
+      expect(orgs.some(o => o.organization_name === '株式会社CSVフューチャー')).toBe(true);
+      const offerings = store.getBusinessOfferingsForPerson(result.importedPersons[0].id);
+      expect(offerings.some(o => o.service_title.includes('クラウドAI設計導入支援'))).toBe(true);
+    });
+
+    it('バックアップのエクスポートとインポートが整合性を保つこと', () => {
+      const backup = store.exportBackupJSON();
+      expect(backup).toBeDefined();
+      const parsed = JSON.parse(backup);
+      expect(parsed.schema_version).toBe('1.0');
+      expect(parsed.data.persons.length).toBeGreaterThan(0);
+
+      // 本番初期化 (クリア)
+      store.resetToProductionEmptyState();
+      expect(store.getPersons().length).toBe(0);
+      expect(store.getMeetings().length).toBe(0);
+
+      // バックアップ復元
+      const restored = store.importBackupJSON(backup);
+      expect(restored).toBe(true);
+      expect(store.getPersons().length).toBeGreaterThan(0);
+    });
+
+    it('本番初期化（resetToProductionEmptyState）でサンプルデータが綺麗にクリアされること', () => {
+      store.resetToProductionEmptyState();
+      expect(store.getPersons().length).toBe(0);
+      expect(store.getMeetings().length).toBe(0);
+      expect(store.getBusinessOfferings().length).toBe(0);
+      expect(store.getCardScans().length).toBe(0);
+
+      // サンプル再投入
+      store.resetToSampleState();
+      expect(store.getPersons().length).toBeGreaterThan(0);
+    });
+  });
 });

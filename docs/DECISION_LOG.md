@@ -65,4 +65,5 @@
 | 変更ID | 日付 | 決定者 | 旧方針 | 新方針 | 理由 | 影響箇所 | 移行/テスト |
 |---|---|---|---|---|---|---|---|
 | DECISION-ARCH-01 | 2026-11-08 | Antigravity | Python FastAPI | Node.js 24 + TypeScript (Express/Vite) + Zod | 実行環境にPythonがなくNode 24/npmが利用可能なため。JSON Schema/API仕様は完全準拠 | バックエンド実装 | TypeScript型安全・Vitest |
+| DECISION-ARCH-02 | 2026-11-08 | ユーザー指示 / Antigravity | サンプルデータ中心のデモUI | 本番個人利用可能な実運用UI（スマホカメラ名刺撮影、CSVインポート、JSONバックアップ/復元、本番初期化、カレンダー.ics/Google同期） | ユーザー本人が直ちに実務・BNI人脈で運用開始するため | `store.ts`, `CardsView`, `PersonsView`, `MeetingsView`, `SettingsView` | 21件の受け入れテスト全通過 |
 

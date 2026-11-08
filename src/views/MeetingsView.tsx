@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   Calendar, Clock, Shield, AlertTriangle, Pin, PinOff,
-  CheckCircle2, XCircle, Play, RotateCcw
+  CheckCircle2, XCircle, Play, RotateCcw, Download, ExternalLink
 } from 'lucide-react';
 import { store } from '../services/store';
+import { Meeting } from '../types';
 
 export const MeetingsView: React.FC = () => {
   const [, setRefreshKey] = useState(0);
@@ -24,6 +25,42 @@ export const MeetingsView: React.FC = () => {
     const purged = store.run90DayPurgeJob();
     alert(`90日期限チェックジョブ実行完了: 期限切れの録音 ${purged}件 を自動完全抹消しました。`);
     setRefreshKey(prev => prev + 1);
+  };
+
+  const handleDownloadICS = (m: Meeting) => {
+    const startDate = new Date(m.scheduled_start_at);
+    const endDate = m.scheduled_end_at ? new Date(m.scheduled_end_at) : new Date(startDate.getTime() + 3600 * 1000);
+    const formatICS = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//AI Network Concierge//JP',
+      'BEGIN:VEVENT',
+      `SUMMARY:${m.title}`,
+      `DESCRIPTION:${m.meeting_url || ''}`,
+      `DTSTART:${formatICS(startDate)}`,
+      `DTEND:${formatICS(endDate)}`,
+      `LOCATION:${m.meeting_url || 'Online'}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${m.title}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getGoogleCalendarUrl = (m: Meeting) => {
+    const startDate = new Date(m.scheduled_start_at);
+    const endDate = m.scheduled_end_at ? new Date(m.scheduled_end_at) : new Date(startDate.getTime() + 3600 * 1000);
+    const formatICS = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(m.title)}&dates=${formatICS(startDate)}/${formatICS(endDate)}&details=${encodeURIComponent(m.meeting_url || '')}&location=${encodeURIComponent(m.meeting_url || '')}`;
   };
 
   return (
@@ -92,6 +129,25 @@ export const MeetingsView: React.FC = () => {
                        m.recording_status === 'completed' ? '面談完了・解析済み' : '同意確認待ち'}
                     </span>
                   </span>
+
+                  {/* カレンダー連携ボタン群 */}
+                  <a
+                    href={getGoogleCalendarUrl(m)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-medium flex items-center space-x-1"
+                  >
+                    <span>Googleカレンダー</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <button
+                    onClick={() => handleDownloadICS(m)}
+                    title="iCalendar形式 (.ics) をダウンロード"
+                    className="px-2.5 py-1 rounded-xl border border-apple-border dark:border-apple-darkBorder hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-xs font-medium flex items-center space-x-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>.ics</span>
+                  </button>
                 </div>
               </div>
 

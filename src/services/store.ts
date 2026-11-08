@@ -601,10 +601,10 @@ class DataStore {
       try {
         this.state = JSON.parse(raw);
       } catch (e) {
-        this.state = INITIAL_STATE;
+        this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
       }
     } else {
-      this.state = INITIAL_STATE;
+      this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
       this.persist();
     }
   }
@@ -782,6 +782,25 @@ class DataStore {
     return this.state.businessOfferings.filter(o => o.tenant_id === tid && o.person_id === personId);
   }
 
+  public getBusinessOfferings(): BusinessOffering[] {
+    const tid = this.state.currentTenantId;
+    return this.state.businessOfferings.filter(b => b.tenant_id === tid);
+  }
+
+  public addBusinessOffering(offering: Omit<BusinessOffering, 'id' | 'tenant_id'>): BusinessOffering {
+    const tid = this.state.currentTenantId;
+    const newOffering: BusinessOffering = {
+      ...offering,
+      id: `bo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      tenant_id: tid,
+      service_area: offering.service_area || '全国・オンライン対応',
+      is_active: offering.is_active ?? true,
+    };
+    this.state.businessOfferings.push(newOffering);
+    this.persist();
+    return newOffering;
+  }
+
   public addOrganizationMembership(personId: string, companyName: string, title: string): OrganizationMembership {
     const tid = this.state.currentTenantId;
     const newOrg: Organization = {
@@ -804,6 +823,11 @@ class DataStore {
     this.state.organizationMemberships.push(newMem);
     this.persist();
     return newMem;
+  }
+
+  public getCardScans(): CardScan[] {
+    const tid = this.state.currentTenantId;
+    return this.state.cardScans.filter(c => c.tenant_id === tid);
   }
 
   // --- 事実 (Facts) ---
@@ -1152,7 +1176,7 @@ class DataStore {
     this.persist();
   }
 
-  // --- AIチャット検索エンジン (AI-07〜09) ---
+  // --- AIチャット検索エンジン (AI-07〜09: 完全動的検索) ---
   public queryAI(question: string): {
     answer: string;
     facts: Fact[];
@@ -1160,35 +1184,92 @@ class DataStore {
     confidence: number;
     hasDefiniteAnswer: boolean;
   } {
-    const q = question.toLowerCase();
+    const q = question.toLowerCase().trim();
+    const persons = this.getPersons();
 
-    // 1. 山田さんの前回話題や約束について
-    if (q.includes('山田') || q.includes('やまだ')) {
-      const yamada = this.getPersonById('p-yamada');
-      const facts = this.getFactsForPerson('p-yamada');
+    // 1. 人物名による動的マッチング
+    const matchedPerson = persons.find(p => {
+      const name = p.display_name.toLowerCase();
+      const phonetic = p.phonetic_name.toLowerCase();
+      const firstName = p.display_name.split(' ')[0]?.toLowerCase() || '';
+      return (
+        q.includes(name) ||
+        (phonetic && q.includes(phonetic)) ||
+        (firstName.length >= 2 && q.includes(firstName))
+      );
+    });
+
+    if (matchedPerson) {
+      const pFacts = this.getFactsForPerson(matchedPerson.id);
+      const pMemberships = this.getBNIMembershipsForPerson(matchedPerson.id);
+      const activeChapter = pMemberships.find(m => m.status === 'active');
+      const pOrgs = this.getOrgMembershipsForPerson(matchedPerson.id);
+      const pOfferings = this.getBusinessOfferingsForPerson(matchedPerson.id);
+      const pastMeetings = this.getMeetings().filter(m => m.participant_ids.includes(matchedPerson.id));
+
+      const topicFacts = pFacts.filter(f => f.fact_category === 'topic');
+      const promiseFacts = pFacts.filter(f => f.fact_category === 'promise');
+      const requestFacts = pFacts.filter(f => f.fact_category === 'request');
+
+      let responseText = `${matchedPerson.display_name}様 (${activeChapter ? activeChapter.chapter_name : '所属設定中'} / ${pOrgs[0]?.organization_name || '会社登録中'}) に関する記録です。\n`;
+
+      if (pastMeetings.length > 0) {
+        const latest = pastMeetings[0];
+        responseText += `• 直近面談: ${new Date(latest.scheduled_start_at).toLocaleDateString('ja-JP')} (${latest.title})\n`;
+      }
+
+      if (topicFacts.length > 0) {
+        responseText += `• 盛り上がった話題: ${topicFacts.map(t => t.fact_value).join('、')}\n`;
+      }
+
+      if (promiseFacts.length > 0) {
+        responseText += `• 約束・フォロー: ${promiseFacts.map(p => p.fact_value).join('、')}\n`;
+      }
+
+      if (requestFacts.length > 0) {
+        responseText += `• 紹介ニーズ: ${requestFacts.map(r => r.fact_value).join('、')}\n`;
+      }
+
+      if (pOfferings.length > 0) {
+        responseText += `• 得意分野: ${pOfferings.map(o => o.service_title).join(' / ')}\n`;
+      }
+
       return {
-        answer: `山田太郎様との直近面談（2026/11/05）では、「京町家のリノベーション補助金（京都市）」について話題が盛り上がりました。また、山田様から「補助金概要のパンフレットPDFを送付する」という未完了の約束が記録されています。`,
-        facts: facts.filter(f => f.visibility === 'referral_eligible' || f.fact_category === 'promise'),
-        relatedPersons: yamada ? [yamada] : [],
+        answer: responseText,
+        facts: pFacts.filter(f => f.visibility === 'referral_eligible' || f.fact_category === 'promise'),
+        relatedPersons: [matchedPerson],
         confidence: 0.98,
         hasDefiniteAnswer: true,
       };
     }
 
-    // 2. 内装・店舗デザイナーの紹介について
-    if (q.includes('内装') || q.includes('デザイン') || q.includes('リノベ') || q.includes('デザイナー')) {
-      const sato = this.getPersonById('p-sato');
-      const yamada = this.getPersonById('p-yamada');
+    // 2. 業種・キーワード・紹介ニーズによる動的検索
+    const matchedOfferings = this.state.businessOfferings.filter(b => {
+      return (
+        q.includes(b.service_title.toLowerCase()) ||
+        q.includes(b.specialties.toLowerCase()) ||
+        q.includes(b.target_clients.toLowerCase())
+      );
+    });
+
+    if (matchedOfferings.length > 0) {
+      const personIds = Array.from(new Set(matchedOfferings.map(o => o.person_id)));
+      const matchedPersons = personIds.map(id => this.getPersonById(id)).filter(Boolean) as Person[];
+      const matchedFacts = this.state.facts.filter(f => personIds.includes(f.person_id));
+
+      const names = matchedPersons.map(p => `${p.display_name}様`).join('、');
+      const services = matchedOfferings.map(o => `「${o.service_title}」(${o.specialties})`).join('、');
+
       return {
-        answer: `店舗の看板・ロゴ・ブランディングをお探しの場合は、京都・大阪で実績多数の「佐藤由香様（デザインラボ）」が適しています。直近で山田太郎様（工務店）も店舗デザイナーをお探しですので、相互にご紹介することが可能です。`,
-        facts: this.state.facts.filter(f => f.person_id === 'p-sato' || f.person_id === 'p-yamada'),
-        relatedPersons: [sato, yamada].filter(Boolean) as Person[],
+        answer: `ご要望の条件に合致する人脈として、${names} が該当します。\n提供サービス・強み: ${services}。\nカルテより詳細や紹介下書きをご確認いただけます。`,
+        facts: matchedFacts,
+        relatedPersons: matchedPersons,
         confidence: 0.94,
         hasDefiniteAnswer: true,
       };
     }
 
-    // 3. 不明な質問に対して（勝手なでっちあげを防止する厳格な設計！）
+    // 3. 該当記録なし（でっちあげを防止し、誠実に「不明」と回答 - AI-09）
     return {
       answer: `申し訳ありません。ご質問の「${question}」に関する確定した記録は見つかりませんでした。人物カルテまたは会議記録に該当データが存在しないため、勝手な推測を行わず「不明」として回答いたします。`,
       facts: [],
@@ -1196,6 +1277,177 @@ class DataStore {
       confidence: 0.0,
       hasDefiniteAnswer: false,
     };
+  }
+
+  // --- 本番運用用: データ管理 (初期化・バックアップ・CSVインポート) ---
+  public resetToProductionEmptyState(): void {
+    const tid = this.state.currentTenantId;
+    this.state.persons = this.state.persons.filter(p => p.tenant_id !== tid);
+    this.state.organizations = this.state.organizations.filter(o => o.tenant_id !== tid);
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => m.tenant_id !== tid);
+    this.state.businessOfferings = this.state.businessOfferings.filter(b => b.tenant_id !== tid);
+    this.state.bniMemberships = this.state.bniMemberships.filter(m => m.tenant_id !== tid);
+    this.state.meetings = this.state.meetings.filter(m => m.tenant_id !== tid);
+    this.state.consents = this.state.consents.filter(c => c.tenant_id !== tid);
+    this.state.recordings = this.state.recordings.filter(r => r.tenant_id !== tid);
+    this.state.transcripts = this.state.transcripts.filter(t => t.tenant_id !== tid);
+    this.state.facts = this.state.facts.filter(f => f.tenant_id !== tid);
+    this.state.cardScans = this.state.cardScans.filter(c => c.tenant_id !== tid);
+    this.state.reviewQueue = this.state.reviewQueue.filter(q => q.tenant_id !== tid);
+    this.state.relationships = this.state.relationships.filter(r => r.tenant_id !== tid);
+    this.state.referrals = this.state.referrals.filter(r => r.tenant_id !== tid);
+
+    this.logAudit('PRODUCTION_EMPTY_RESET', 'tenant', tid, { note: '本番利用開始に伴うサンプルデータのクリア' });
+    this.persist();
+  }
+
+  public resetToSampleState(): void {
+    this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
+    this.persist();
+  }
+
+  public exportBackupJSON(): string {
+    return JSON.stringify({
+      schema_version: '1.0',
+      exported_at: new Date().toISOString(),
+      currentTenantId: this.state.currentTenantId,
+      data: this.state,
+    }, null, 2);
+  }
+
+  public importBackupJSON(jsonStr: string): boolean {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed && parsed.schema_version === '1.0' && parsed.data) {
+        this.state = parsed.data;
+        this.persist();
+        return true;
+      }
+      if (parsed && parsed.currentTenantId && Array.isArray(parsed.persons)) {
+        this.state = parsed;
+        this.persist();
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  // CSVから連絡先を一括取り込み (仕様08, CARD-07)
+  public importCSVContacts(csvText: string): { importedCount: number; duplicateCount: number; importedPersons: Person[] } {
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length <= 1) return { importedCount: 0, duplicateCount: 0, importedPersons: [] };
+
+    let importedCount = 0;
+    let duplicateCount = 0;
+    const importedPersons: Person[] = [];
+
+    // ヘッダー行をスキップ (氏名, ふりがな, 会社名, 役職, 電話, メール, タグ/オファリング)
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+      const [name, phonetic, company, title, phone, email, extra] = cols;
+
+      if (!name) continue;
+
+      // 既存の重複チェック
+      const existing = this.getPersons().find(p => p.display_name === name || (email && p.primary_email === email));
+      if (existing) {
+        duplicateCount++;
+        continue;
+      }
+
+      const newP = this.createPerson({
+        display_name: name,
+        phonetic_name: phonetic || '',
+        primary_phone: phone || undefined,
+        primary_email: email || undefined,
+        category_tags: [extra === 'BNI' || extra === '仕事' || extra === '友人' ? extra : '仕事'],
+      });
+
+      if (company) {
+        this.addOrganizationMembership(newP.id, company, title || '所属');
+      }
+
+      if (extra && !['BNI', '仕事', '友人'].includes(extra)) {
+        this.addBusinessOffering({
+          person_id: newP.id,
+          service_title: extra,
+          specialties: extra,
+          target_clients: '紹介希望先',
+          service_area: '全国',
+          is_active: true,
+        });
+      }
+
+      importedPersons.push(newP);
+      importedCount++;
+    }
+
+    this.persist();
+    return { importedCount, duplicateCount, importedPersons };
+  }
+
+  // 実名刺の写真アップロード & 確定保存
+  public createCardScanWithPhoto(
+    imageDataUrl: string,
+    extractedData: string | {
+      person_name: string;
+      phonetic_name?: string;
+      company_name?: string;
+      department?: string;
+      title?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      website_url?: string;
+    }
+  ): CardScan {
+    const tid = this.state.currentTenantId;
+
+    const data = typeof extractedData === 'string'
+      ? { person_name: extractedData, raw_text: extractedData, company_name: undefined, title: undefined, phonetic_name: undefined, department: undefined, phone: undefined, email: undefined, address: undefined, website_url: undefined }
+      : { ...extractedData, raw_text: `${extractedData.person_name} ${extractedData.company_name || ''} ${extractedData.title || ''}` };
+
+    let matchedPerson = this.getPersons().find(p => p.display_name === data.person_name);
+    if (!matchedPerson && data.person_name) {
+      matchedPerson = this.createPerson({
+        display_name: data.person_name,
+        phonetic_name: data.phonetic_name || '',
+        primary_phone: data.phone,
+        primary_email: data.email,
+        office_address: data.address,
+        category_tags: ['仕事'],
+      });
+      if (data.company_name) {
+        this.addOrganizationMembership(matchedPerson.id, data.company_name, data.title || '所属');
+      }
+    }
+
+    const newScan: CardScan = {
+      id: `cs-${Date.now()}`,
+      tenant_id: tid,
+      matched_person_id: matchedPerson?.id,
+      image_url: imageDataUrl,
+      raw_extracted: {
+        person_name: data.person_name,
+        phonetic_name: data.phonetic_name,
+        company_name: data.company_name,
+        department: data.department,
+        title: data.title,
+        phone_numbers: data.phone ? [data.phone] : [],
+        email: data.email,
+        address: data.address,
+        website_url: data.website_url,
+      },
+      ambiguous_fields: [],
+      status: 'completed',
+      created_at: new Date().toISOString(),
+    };
+
+    this.state.cardScans.unshift(newScan);
+    this.persist();
+    return newScan;
   }
 
   // --- 監査ログ ---

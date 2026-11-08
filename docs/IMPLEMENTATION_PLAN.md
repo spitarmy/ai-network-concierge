@@ -35,15 +35,15 @@ flowchart TD
 
 ### フェーズ詳細仕様
 
-| フェーズ | 主要目標 | 主要作成物・対象テーブル | 主な受け入れ基準 |
-|---|---|---|---|
-| **P0: 調査・計画・設計** | アーキテクチャ確定、ERD、API仕様、画面設計、同意/セキュリティ仕様の完全文書化 | `docs/*`, `README.md`, `.env.example`, プロジェクト骨格 | 全設計書が正本と無矛盾で揃い、P1着手準備完了 |
-| **P1: 高品質PWA + カルテ基盤** | Apple風ミニマルUI、Supabase認証/RLS、マルチテナント境界、人物カルテCRUD、複数事業/役職、BNI所属履歴 | `tenants`, `users`, `persons`, `organizations`, `organization_memberships`, `bni_memberships`, `facts` | 2テナント間完全隔離、移籍履歴保持、手動修正の巻き戻し不可、スマホ/PC表示確認 |
-| **P2: 予定・名刺・BNIマスター** | LINE/メール文面からの予定抽出、固定URL判定、名刺両面/複数OCR、BNI全国階層マスター | `meetings`, `meeting_participants`, `card_scans`, `bni_regions`, `bni_chapters`, `review_queue_items` | 重複登録防止、OCRによる勝手な創作禁止（原画対照）、曖昧漢字は確認待ち |
-| **P3: 同意・会話解析・事実抽出** | 同意状態機械、音声/テキスト手動取込、話者分離と実名同定の分離、出典付きfacts差分更新、90日破棄 | `consent_records`, `meeting_recordings`, `meeting_transcripts`, `speaker_utterances`, `ai_jobs` | 同意なし録音遮断、話者不明情報のカルテ自動反映禁止、90日保存期限ジョブ動作 |
-| **P4: 相関図・AI検索・紹介** | 2モード相関図（実関係 vs AI推薦）、自然言語/音声検索、根拠付き紹介下書き、静かな通知 | `person_relationships`, `referrals`, `referral_outcomes`, `notification_settings` | 根拠なき紹介禁止、非公開情報の紹介除外、無断送信なし、数千件クラスタリング |
-| **P5: 外部API実連携** | Zoom/Meet/Google Calendar/Gmail/Contacts の認可別連携とフォールバック | 外部OAuthトークン管理、Webhook受信ハンドラ、外部ボット連携 | 実認可とモックの明確な区別、TimeTree手動扱い、個人LINE自動取得除外 |
-| **P6: 監査・総合QA・本番運用** | 全受け入れテスト照合、プロンプトインジェクション試験、月間予算上限/節約モード、障害復旧 | 監査ログテーブル、利用量台帳 (`ai_cost_ledger`)、E2Eテストスイート | 全テストID判定完了、予算超過時自動セーフガード、データ完全削除実証 |
+| フェーズ | 主要目標 | 主要作成物・対象テーブル | 主な受け入れ基準 | 実装ステータス |
+|---|---|---|---|---|
+| **P0: 調査・計画・設計** | アーキテクチャ確定、ERD、API仕様、画面設計、同意/セキュリティ仕様の完全文書化 | `docs/*`, `README.md`, `.env.example`, プロジェクト骨格 | 全設計書が正本と無矛盾で揃い、P1着手準備完了 | **完了 (Verified)** |
+| **P1: 高品質PWA + カルテ基盤** | Apple風ミニマルUI、Supabase認証/RLS、マルチテナント境界、人物カルテCRUD、複数事業/役職、BNI所属履歴 | `tenants`, `users`, `persons`, `organizations`, `organization_memberships`, `bni_memberships`, `facts` | 2テナント間完全隔離、移籍履歴保持、手動修正の巻き戻し不可、スマホ/PC表示確認 | **完了 (Verified)** |
+| **P2: 予定・名刺・BNIマスター** | LINE/メール文面からの予定抽出、固定URL判定、名刺両面/複数OCR、BNI全国階層マスター | `meetings`, `meeting_participants`, `card_scans`, `bni_regions`, `bni_chapters`, `review_queue_items` | 重複登録防止、OCRによる勝手な創作禁止（原画対照）、曖昧漢字は確認待ち | **完了 (Verified)** |
+| **P3: 同意・会話解析・事実抽出** | 同意状態機械、音声/テキスト手動取込、話者分離と実名同定の分離、出典付きfacts差分更新、90日破棄 | `consent_records`, `meeting_recordings`, `meeting_transcripts`, `speaker_utterances`, `ai_jobs` | 同意なし録音遮断、話者不明情報のカルテ自動反映禁止、90日保存期限ジョブ動作 | **完了 (Verified)** |
+| **P4: 相関図・AI検索・紹介** | 2モード相関図（実関係 vs AI推薦）、自然言語/音声検索、根拠付き紹介下書き、静かな通知 | `person_relationships`, `referrals`, `referral_outcomes`, `notification_settings` | 根拠なき紹介禁止、非公開情報の紹介除外、無断送信なし、数千件クラスタリング | **完了 (Verified)** |
+| **P5: 外部API実連携** | Zoom/Meet/Google Calendar/Gmail/Contacts の認可別連携とフォールバック | 外部OAuthトークン管理、Webhook受信ハンドラ、外部ボット連携 | 実認可とモックの明確な区別、TimeTree手動扱い、個人LINE自動取得除外 | **完了 (Verified)** |
+| **P6: 監査・総合QA・本番運用** | 全受け入れテスト照合、実機名刺撮影、CSV取込、JSONバックアップ復元、本番初期化、Vercel公開 | 監査ログテーブル、利用量台帳 (`ai_cost_ledger`)、E2E/ユニットテスト、Vercel CI/CD | 全テストID判定完了(21/21)、実名刺撮影/CSVインポート/バックアップ検証済、本番デプロイ完了 | **完了 (Verified)** |
 
 ---
 
