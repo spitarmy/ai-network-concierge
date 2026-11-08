@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI人脈コンシェルジュ — 営業提案資料 (Presentation Slides)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      body { background: white !important; color: black !important; }
+      .no-print { display: none !important; }
+      .slide-page { page-break-after: always; min-height: 98vh; display: block !important; border: 1px solid #e5e7eb; margin-bottom: 2rem; }
+    }
+  </style>
+</head>
+<body class="bg-[#FBFBFD] text-[#1D1D1F] font-sans antialiased min-h-screen flex flex-col justify-between p-4 sm:p-8">
+
+  <!-- Header Controls -->
+  <div class="no-print max-w-4xl mx-auto w-full flex items-center justify-between pb-4 border-b border-gray-200 text-xs">
+    <a href="/" class="px-3 py-1.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors">
+      ← アプリに戻る
+    </a>
+    <div class="flex items-center space-x-2">
+      <span id="slideCounter" class="font-mono text-gray-500 font-semibold">Slide 1 / 14</span>
+      <button onclick="window.print()" class="px-4 py-1.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors shadow-sm">
+        🖨 PDF保存 / 印刷
+      </button>
+    </div>
+  </div>
+
+  <!-- Slide Container -->
+  <div class="max-w-4xl mx-auto w-full my-auto py-6">
+    <div id="slideContent" class="slide-page rounded-3xl bg-white border border-gray-200 p-8 sm:p-14 shadow-xl min-h-[520px] flex flex-col justify-between transition-all">
+      <!-- Dynamic slide injected here -->
+    </div>
+  </div>
+
+  <!-- Footer Navigation -->
+  <div class="no-print max-w-4xl mx-auto w-full flex items-center justify-between pt-4">
+    <button id="prevBtn" onclick="prevSlide()" class="px-5 py-2.5 rounded-2xl bg-white border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all shadow-sm">
+      ← 前へ
+    </button>
+    <div id="dotContainer" class="flex space-x-1.5"></div>
+    <button id="nextBtn" onclick="nextSlide()" class="px-5 py-2.5 rounded-2xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all shadow-sm">
+      次へ →
+    </button>
+  </div>
+
+  <script>
+    const slidesData = [
+      {
+        badge: "Product Pitch Deck 2026",
+        title: "AI人脈コンシェルジュ",
+        subtitle: "人を忘れず、大事にし続けるための次世代AI専属パートナー",
+        html: `
+          <div class="text-center space-y-6 my-auto py-8">
+            <span class="inline-block px-4 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
+              ✨ BNI 1to1 & ビジネス人脈特化型 AI SaaS
+            </span>
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+              AI人脈<span class="text-blue-600">コンシェルジュ</span>
+            </h1>
+            <p class="text-base text-gray-600 max-w-lg mx-auto">
+              単なる録音アプリでも、名刺管理でもありません。<br>
+              会話を出典つきで記憶し、約束を守り、最高の紹介を生み出します。
+            </p>
+            <div class="pt-4 flex flex-wrap justify-center gap-2 text-xs text-gray-500">
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">⚡️ 招待文を貼るだけ「3秒予定登録」</span>
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">🤝 2Dインタラクティブ相関図</span>
+              <span class="px-3 py-1.5 rounded-xl bg-gray-100">🔒 厳格な同意 & 90日自動消去</span>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "The Problem",
+        title: "熱心な経営者ほど「脳のメモリ」の限界を迎えている",
+        subtitle: "月20〜30回の1to1・商談を重ねると、誰しもが直面する3つの壁",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-auto py-4">
+            <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold">1</div>
+              <h3 class="font-bold text-sm">記憶の希釈化</h3>
+              <p class="text-xs text-gray-500">「前どこまで話したっけ？」「相手の強みは何だっけ？」人数が増えるほど過去の話題が曖昧になります。</p>
+            </div>
+            <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+              <div class="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold">2</div>
+              <h3 class="font-bold text-sm">約束の抜け漏れ</h3>
+              <p class="text-xs text-gray-500">「あの人を紹介します」「資料送ります」が日々の忙しさで蒸発。悪気がないのに信頼を損ねてしまいます。</p>
+            </div>
+            <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+              <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">3</div>
+              <h3 class="font-bold text-sm">名刺・所属の散乱</h3>
+              <p class="text-xs text-gray-500">名刺は溜まる一方。チャプター移籍や事業のピボットがあっても過去の所属が消え、最新のニーズが追えません。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Core Concept",
+        title: "「信頼を資産に変える」自律型AIループ",
+        subtitle: "予定登録から面談、カルテ更新、紹介推薦までが自動でループする",
+        html: `
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-auto py-6 text-center">
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="text-blue-600 font-bold text-sm">01. 3秒予定登録</div>
+              <p class="text-[11px] text-gray-500 mt-1">招待文を貼るだけで日時・相手・URL・種別を判定</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="text-green-600 font-bold text-sm">02. 同意付き面談</div>
+              <p class="text-[11px] text-gray-500 mt-1">お互いの合意のもと、安心安全な文字起こしを取得</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="text-amber-600 font-bold text-sm">03. 出典付きカルテ</div>
+              <p class="text-[11px] text-gray-500 mt-1">発言エビデンス・約束・強みを自動アップデート</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="text-purple-600 font-bold text-sm">04. 根拠ある紹介</div>
+              <p class="text-[11px] text-gray-500 mt-1">相関図と紹介状ドラフトで高成約なGivers Gain</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Feature 01",
+        title: "招待文を貼るだけ「3秒予定登録」",
+        subtitle: "URLだけでなく日時・相手名・面談種別をAIが自動抽出。重複登録も防止",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4 items-center">
+            <div class="p-4 rounded-2xl bg-gray-100 font-mono text-xs text-gray-600">
+              <div class="text-[10px] text-gray-400 font-bold mb-1">貼り付けたテキスト例:</div>
+              「明後日14時から1to1よろしくお願いします！<br>https://us02web.zoom.us/j/81234567890<br>ID: 812 3456 7890」
+            </div>
+            <div class="space-y-2 text-xs">
+              <div class="text-green-600 font-bold">✅ AIが自動抽出・構造化</div>
+              <div class="p-3 rounded-xl bg-white border border-gray-200 space-y-1">
+                <div>📅 日時: 明後日 14:00〜15:00</div>
+                <div>👤 相手: 候補特定（未登録なら仮登録）</div>
+                <div>🏷 種別: BNI 1to1（ワンタップ切替）</div>
+                <div>🔗 Zoomコード重複検知アラート</div>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Feature 02",
+        title: "発言の「出典」を保持する人物カルテ",
+        subtitle: "いつ誰が言った事実なのかを記録。3回目の面談前でも会話が弾む",
+        html: `
+          <div class="space-y-3 my-auto py-4 text-xs">
+            <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center">
+              <span>📍 「京都・滋賀の古民家再生に特化（補助金申請も対応）」</span>
+              <span class="text-[10px] text-gray-400">2026/10/12 面談録音より確定</span>
+            </div>
+            <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center">
+              <span>🎯 「求めている紹介先: 町家カフェを開業したい個人オーナー」</span>
+              <span class="text-[10px] text-gray-400">本人発言より確定</span>
+            </div>
+            <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center">
+              <span>🤝 「約束: 税理士の田中さんを紹介すると約束済み」</span>
+              <span class="text-[10px] text-amber-600 font-bold">未完了タスクとしてトラッキング</span>
+            </div>
+            <p class="text-[11px] text-gray-500 pt-2">架空の生成（ハルシネーション）を防ぐため、すべての事実に出典タイムスタンプを付与します。</p>
+          </div>
+        `
+      },
+      {
+        badge: "Feature 03",
+        title: "2Dインタラクティブ人脈相関図",
+        subtitle: "「確認済み実関係」と「AI推薦シナジー」を直感的に切り替え表示",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4">
+            <div class="p-5 rounded-2xl bg-gray-900 text-white space-y-2">
+              <span class="text-xs text-green-400 font-bold">● 確認済み実関係モード</span>
+              <h4 class="font-bold text-sm">事実に基づいた確実なネットワーク</h4>
+              <p class="text-xs text-gray-400">実際に面談や名刺交換を行った相手同士の結線のみを描画。推測の線が混ざりません。</p>
+            </div>
+            <div class="p-5 rounded-2xl bg-gray-900 text-white space-y-2">
+              <span class="text-xs text-indigo-400 font-bold">● AI推薦関係モード</span>
+              <h4 class="font-bold text-sm">ビジネスシナジーの潜在的結線</h4>
+              <p class="text-xs text-gray-400">「店舗改装したい飲食店」×「店舗設計」など、両者の強みからAIが紹介ニーズの一致を検出。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Feature 04",
+        title: "失礼のない紹介推薦 & 紹介状ドラフト自動作成",
+        subtitle: "双方の了承を得るための紹介文下書きを作成。プライベート情報は自動除外",
+        html: `
+          <div class="space-y-3 my-auto py-2 text-xs">
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-blue-600 mb-1">AIが作成する紹介状ドラフト例:</div>
+              <p class="text-gray-700 leading-relaxed">
+                「田中先生、お世話になっております。先日お話しされていた『店舗展開を検討中の飲食オーナー様』の件で、京都で古民家・店舗リノベーションを専門にされている山田社長（京都東チャプター）をお引き合わせしたくご連絡いたしました。双方のご都合よろしければ日程調整させていただきます。」
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2 text-[11px] text-gray-500">
+              <span class="px-2 py-0.5 rounded bg-gray-100">✅ 相手の許可確認（両者合意）を必須化</span>
+              <span class="px-2 py-0.5 rounded bg-gray-100">✅ 家族などの極秘プライベート情報は完全排除</span>
+              <span class="px-2 py-0.5 rounded bg-gray-100">✅ 成約後の実績トラッキングまで完備</span>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Feature 05",
+        title: "複数事業・BNI移籍履歴の永続保持",
+        subtitle: "1人が複数の顔を持つ時代。過去のチャプターや役職を上書き消去しません",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4 text-xs">
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1">
+              <h4 class="font-bold text-gray-900">複数事業の同時管理</h4>
+              <p class="text-gray-500">本業の税理士法人、共同創業の飲食事業など、事業ごとに得意分野や対応エリアを分けて管理。</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-1">
+              <h4 class="font-bold text-gray-900">移籍履歴のタイムライン</h4>
+              <p class="text-gray-500">チャプターを移籍しても、過去の役職履歴（前チャプター書記兼会計など）を消さずに蓄積。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Security & Trust",
+        title: "信頼を守る「4重の安全壁」とコンプライアンス",
+        subtitle: "ビジネス人脈における信用毀損は最大の致命傷。最高水準のプライバシー設計",
+        html: `
+          <div class="grid grid-cols-2 gap-3 my-auto py-2 text-xs">
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-blue-600 mb-1">① 事前同意の徹底</div>
+              <p class="text-gray-500 text-[11px]">無断録音・不正ボット排除。拒否・撤回時は直ちに録音を遮断・破棄。</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-amber-600 mb-1">② 音声90日自動消去</div>
+              <p class="text-gray-500 text-[11px]">録音音声は原則90日で自動破棄。プライバシーを守り端末容量も圧迫しません。</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-green-600 mb-1">③ テナント完全分離 (RLS)</div>
+              <p class="text-gray-500 text-[11px]">Row Level Securityにより、他アカウントへの漏洩をデータベース層で遮断。</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <div class="font-bold text-purple-600 mb-1">④ AI学習への流用ゼロ</div>
+              <p class="text-gray-500 text-[11px]">入力された面談内容や名刺データがAIの学習データに使われることはありません。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Before / After",
+        title: "毎月30回1to1を行う経営者 Aさんの1日",
+        subtitle: "面談の質が変わり、フォローアップの速度が3倍になる",
+        html: `
+          <div class="space-y-3 my-auto py-2 text-xs">
+            <div class="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-gray-50 border border-gray-200">
+              <div><strong class="text-red-500">Before:</strong> 面談直前に過去メモやLINEを必死に検索。結局見つからず「初めまして」のように開始。</div>
+              <div><strong class="text-green-600">After:</strong> カルテ1タップ。前回の話題・最新の強み・求める顧客が1分で頭に入り即座に本題へ。</div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-gray-50 border border-gray-200">
+              <div><strong class="text-red-500">Before:</strong> 「〇〇さん紹介しますね！」と盛り上がるも、翌日には忘れてしまい約束未達に。</div>
+              <div><strong class="text-green-600">After:</strong> AIが約束タスクと紹介状ドラフトを自動生成。終了後3分で双方へのフォロー完了。</div>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "ROI & Pricing",
+        title: "月額4,980円で得られる圧倒的な費用対効果",
+        subtitle: "月間7.5時間の時間創出 ＋ 年間1件の紹介成約で投資回収率600%超",
+        html: `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-auto py-4 items-center">
+            <div class="p-6 rounded-3xl bg-blue-50 border border-blue-200 text-center space-y-1">
+              <span class="text-xs font-semibold text-blue-600">標準プラン想定月額</span>
+              <div class="text-4xl font-extrabold text-blue-600">¥4,980 <span class="text-xs font-normal text-gray-500">/ 月</span></div>
+              <p class="text-[11px] text-gray-500">月30〜50回の面談解析・相関図・AI専属秘書機能すべて含む</p>
+            </div>
+            <div class="space-y-2 text-xs">
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <div class="font-bold">⏱ 時間創出: 月額37,500円相当</div>
+                <p class="text-gray-500 text-[11px]">1面談15分の準備削減 × 月30回 ＝ 月7.5時間（時給5,000円換算）</p>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <div class="font-bold">📈 新規成約: 年間数十万〜数百万円</div>
+                <p class="text-gray-500 text-[11px]">約束の抜け漏れがなくなり、年間1件の成約増でも年間利用料を一瞬で回収。</p>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Implementation",
+        title: "アプリストア審査待ちゼロ。最短当日から利用開始",
+        subtitle: "iPhone / Android / PC 全対応。ホーム画面に追加するだけ",
+        html: `
+          <div class="space-y-4 my-auto py-2 text-xs">
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-blue-600 font-bold">STEP 1</span>
+                <div class="font-bold text-xs mt-1">URLアクセス</div>
+                <div class="text-[10px] text-gray-400">即日アカウント発行</div>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-blue-600 font-bold">STEP 2</span>
+                <div class="font-bold text-xs mt-1">ホーム画面追加</div>
+                <div class="text-[10px] text-gray-400">PWAネイティブ動作</div>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+                <span class="text-[10px] text-blue-600 font-bold">STEP 3</span>
+                <div class="font-bold text-xs mt-1">面談登録スタート</div>
+                <div class="text-[10px] text-gray-400">名刺撮影・Zoom貼付</div>
+              </div>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-gray-200 space-y-1">
+              <p><strong>Q: Google Meetや対面面談でも使えますか？</strong><br>A: はい、対面のスマホ録音やGoogle Meetの招待文にも完全対応しています。</p>
+              <p><strong>Q: 相手に怪しまれませんか？</strong><br>A: 「約束を確実に守るための誠実な事前同意」を前提としており、むしろ信頼向上に繋がります。</p>
+            </div>
+          </div>
+        `
+      },
+      {
+        badge: "Get Started",
+        title: "信頼されるビジネスリーダーのための第一歩を、いま。",
+        subtitle: "人を忘れず、大事にし続けるためのAI専属パートナー",
+        html: `
+          <div class="text-center space-y-6 my-auto py-6">
+            <div class="w-16 h-16 mx-auto rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl">
+              ✨
+            </div>
+            <div>
+              <h2 class="text-3xl font-extrabold text-gray-900">今すぐ実機デモをご体験ください</h2>
+              <p class="text-xs text-gray-500 mt-1">名刺スキャンやZoom予定登録をその場でお試しいただけます。</p>
+            </div>
+            <div>
+              <a href="https://ai-network-concierge.vercel.app" target="_blank" class="inline-block px-8 py-3 rounded-2xl bg-blue-600 text-white text-xs font-bold shadow-md hover:bg-blue-700 transition-colors">
+                サービス本番環境を開く →
+              </a>
+            </div>
+            <p class="text-[11px] text-gray-400">URL: https://ai-network-concierge.vercel.app</p>
+          </div>
+        `
+      }
+    ];
+
+    let currentSlide = 0;
+
+    function renderSlide() {
+      const slide = slidesData[currentSlide];
+      document.getElementById('slideCounter').textContent = `Slide ${currentSlide + 1} / ${slidesData.length}`;
+      document.getElementById('prevBtn').disabled = currentSlide === 0;
+      document.getElementById('nextBtn').disabled = currentSlide === slidesData.length - 1;
+
+      document.getElementById('slideContent').innerHTML = `
+        <div>
+          <span class="inline-block px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold">${slide.badge}</span>
+          <h2 class="text-2xl font-bold text-gray-900 mt-2">${slide.title}</h2>
+          <p class="text-xs text-gray-500 mt-1">${slide.subtitle}</p>
+        </div>
+        <div>${slide.html}</div>
+        <div class="pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
+          <span>AI人脈コンシェルジュ — 営業提案資料</span>
+          <span class="font-mono">${currentSlide + 1} / ${slidesData.length}</span>
+        </div>
+      `;
+
+      // Render dots
+      const dots = slidesData.map((_, i) => `
+        <button onclick="goToSlide(${i})" class="h-2 rounded-full transition-all ${i === currentSlide ? 'w-6 bg-blue-600' : 'w-2 bg-gray-300 hover:bg-gray-400'}"></button>
+      `).join('');
+      document.getElementById('dotContainer').innerHTML = dots;
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) { currentSlide--; renderSlide(); }
+    }
+    function nextSlide() {
+      if (currentSlide < slidesData.length - 1) { currentSlide++; renderSlide(); }
+    }
+    function goToSlide(i) {
+      currentSlide = i; renderSlide();
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    renderSlide();
+  </script>
+</body>
+</html>

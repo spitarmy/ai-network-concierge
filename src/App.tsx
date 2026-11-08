@@ -13,6 +13,7 @@ import { AIConciergeView } from './views/AIConciergeView';
 import { ReviewQueueView } from './views/ReviewQueueView';
 import { SettingsView } from './views/SettingsView';
 import { LegalView } from './views/LegalView';
+import { PresentationView } from './views/PresentationView';
 import { store } from './services/store';
 
 export const App: React.FC = () => {
@@ -45,7 +46,7 @@ export const App: React.FC = () => {
       setRefreshKey(k => k + 1);
     }
 
-    // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）への遷移
+    // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）や営業スライド（/deck）への遷移
     const checkPath = () => {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
@@ -53,6 +54,8 @@ export const App: React.FC = () => {
         setCurrentView('privacy');
       } else if (path === '/terms' || hash === '#/terms' || hash === '#terms') {
         setCurrentView('terms');
+      } else if (path === '/deck' || path === '/presentation' || hash === '#/deck' || hash === '#deck' || hash === '#/presentation') {
+        setCurrentView('deck');
       }
     };
     checkPath();
@@ -130,6 +133,10 @@ export const App: React.FC = () => {
 
   const currentTenant = store.getCurrentTenant();
   const reviewCount = store.getReviewQueue().length;
+
+  if (currentView === 'deck') {
+    return <PresentationView onBack={() => setCurrentView('home')} />;
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-apple-bg dark:bg-apple-darkBg text-[#1D1D1F] dark:text-[#F5F5F7]">

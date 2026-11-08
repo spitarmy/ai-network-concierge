@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   Shield, DollarSign, Database,
   CheckCircle2, XCircle, Download, Upload, RefreshCw, Trash2, FileSpreadsheet,
-  Key, Copy, Check, FileText
+  Key, Copy, Check, FileText, Sparkles, ExternalLink
 } from 'lucide-react';
 import { store } from '../services/store';
 
@@ -534,6 +534,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
               </div>
             )}
           </form>
+        </div>
+      </div>
+
+      {/* 営業提案資料 & ピッチデック */}
+      <div className="p-6 rounded-3xl bg-gradient-to-br from-apple-blue/10 via-purple-500/5 to-transparent border border-apple-blue/30 space-y-3 shadow-sm text-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+            <Sparkles className="w-4 h-4 text-apple-blue" />
+            <span>営業提案資料（商談・BNIメンバー向けピッチデック）</span>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-blue text-white font-semibold">全14スライド</span>
+        </div>
+
+        <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
+          BNIチャプターメンバー、士業、経営者、営業リーダー向けの提案スライドです。キーボード操作によるフルスクリーンプレゼン、URL共有、ワンクリックでの16:9横型A4 PDF出力に対応しています。
+        </p>
+
+        <div className="pt-1">
+          <button
+            onClick={() => onNavigate && onNavigate('deck')}
+            className="px-5 py-2.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-semibold hover:opacity-90 flex items-center space-x-2 transition-all shadow-md"
+          >
+            <span>営業提案スライドを開く（プレゼン / PDF印刷）</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 

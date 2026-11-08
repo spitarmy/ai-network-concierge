@@ -16,7 +16,8 @@ export type ViewType =
   | 'review-queue'
   | 'settings'
   | 'privacy'
-  | 'terms';
+  | 'terms'
+  | 'deck';
 
 interface NavigationProps {
   currentView: ViewType;
@@ -99,7 +100,19 @@ export const Navigation: React.FC<NavigationProps> = ({
         </nav>
 
         <div className="p-4 border-t border-apple-border dark:border-apple-darkBorder space-y-2 text-xs text-neutral-500">
-          <div className="flex items-center justify-between text-[11px] text-neutral-400">
+          <button
+            onClick={() => onSelectView('deck')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
+              currentView === 'deck'
+                ? 'bg-apple-blue text-white border-apple-blue shadow-sm'
+                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-apple-border dark:border-apple-darkBorder hover:border-apple-blue/50'
+            }`}
+          >
+            <span>営業提案スライド</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/20">14枚</span>
+          </button>
+
+          <div className="flex items-center justify-between text-[11px] text-neutral-400 pt-1">
             <button
               onClick={() => onSelectView('privacy')}
               className="hover:text-apple-blue dark:hover:text-apple-darkBlue transition-colors"
