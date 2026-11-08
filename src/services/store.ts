@@ -664,23 +664,31 @@ class DataStore {
   private oauthConfig: OAuthIntegrationConfig;
 
   constructor() {
-    const PROD_FLAG_KEY = 'ai_concierge_production_mode_v2';
+    const PROD_CLEAN_KEY_V3 = 'ai_network_concierge_v3_clean_slate';
+    const isCleanV3 = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(PROD_CLEAN_KEY_V3) : null;
     const raw = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
-    const isProdV2 = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(PROD_FLAG_KEY) : null;
 
-    if (raw && isProdV2 === 'true') {
+    if (!isCleanV3) {
+      // ユーザーの指示に基づき、前バージョンまでのサンプルデータを問答無用で全消去
+      this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(PROD_CLEAN_KEY_V3, 'true');
+      }
+      this.persist();
+    } else if (raw) {
       try {
         this.state = JSON.parse(raw);
       } catch (e) {
         this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
       }
     } else {
-      // 本番実運用モードへ移行（サンプルデータを消去しクリーンな状態で起動）
       this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(PROD_FLAG_KEY, 'true');
-      }
       this.persist();
+    }
+
+    // 安全防御: 万が一 state 内にサンプルの山田・田中・佐藤が残っていた場合も強制排除
+    if (this.state.persons && this.state.persons.some(p => ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov'].includes(p.id))) {
+      this.purgeSamplePersons();
     }
 
     // OAuth設定ロード
@@ -694,6 +702,21 @@ class DataStore {
     } else {
       this.oauthConfig = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG));
     }
+  }
+
+  public purgeSamplePersons(): void {
+    const sampleIds = ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov', 'p-tenant2-secret'];
+    this.state.persons = this.state.persons.filter(p => !sampleIds.includes(p.id));
+    this.state.meetings = this.state.meetings.filter(m => !m.id.startsWith('m-'));
+    this.state.facts = this.state.facts.filter(f => !f.id.startsWith('fact-'));
+    this.state.cardScans = this.state.cardScans.filter(c => !c.id.startsWith('cs-yamada'));
+    this.state.reviewQueue = this.state.reviewQueue.filter(q => q.id !== 'rq-1');
+    this.state.referrals = this.state.referrals.filter(r => r.id !== 'ref-1');
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => !m.id.startsWith('om-'));
+    this.state.organizations = this.state.organizations.filter(o => !o.id.startsWith('org-'));
+    this.state.businessOfferings = this.state.businessOfferings.filter(b => !b.id.startsWith('bo-'));
+    this.state.bniMemberships = this.state.bniMemberships.filter(m => !m.id.startsWith('bnim-'));
+    this.persist();
   }
 
   private persist() {

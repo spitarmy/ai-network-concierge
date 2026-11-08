@@ -39,6 +39,12 @@ export const App: React.FC = () => {
       setIsSimpleMode(true);
     }
 
+    // 本番移行: ブラウザキャッシュに古いサンプル人物が残っている場合は即時完全パージ
+    if (store.getPersons().some(p => ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov'].includes(p.id))) {
+      store.purgeSamplePersons();
+      setRefreshKey(k => k + 1);
+    }
+
     // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）への遷移
     const checkPath = () => {
       const path = window.location.pathname.toLowerCase();
