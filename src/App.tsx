@@ -60,6 +60,37 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkPath);
   }, []);
 
+  // PWA自動更新チェッカー（ホーム画面に追加している端末でも新バージョンを自動反映）
+  useEffect(() => {
+    const checkForUpdates = async () => {
+      try {
+        const response = await fetch('/?_v=' + Date.now(), { cache: 'no-store' });
+        if (!response.ok) return;
+        const html = await response.text();
+        const scriptMatch = html.match(/\/assets\/index-[A-Za-z0-9_-]+\.js/);
+        if (scriptMatch) {
+          const currentScript = document.querySelector('script[src*="/assets/index-"]')?.getAttribute('src');
+          if (currentScript && scriptMatch[0] !== currentScript) {
+            // 新バージョンがサーバーにデプロイされているのを検知 -> 自動リロードして最新版を適用
+            window.location.reload();
+          }
+        }
+      } catch {
+        // オフライン時は無視
+      }
+    };
+
+    // 起動時およびバックグラウンドから復帰した時にチェック
+    checkForUpdates();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForUpdates();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   const handleToggleDarkMode = () => {
     setIsDarkMode(prev => {
       const next = !prev;
