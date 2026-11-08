@@ -1,19 +1,33 @@
 import React, { useState, useRef } from 'react';
 import {
   Shield, DollarSign, Database,
-  CheckCircle2, XCircle, Download, Upload, RefreshCw, Trash2, FileSpreadsheet
+  CheckCircle2, XCircle, Download, Upload, RefreshCw, Trash2, FileSpreadsheet,
+  Key, Copy, Check, FileText
 } from 'lucide-react';
 import { store } from '../services/store';
 
 interface SettingsViewProps {
   onRefresh: () => void;
+  onNavigate?: (view: any) => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigate }) => {
   const currentTenant = store.getCurrentTenant();
   const costLedger = store.getCostLedger();
   const auditLogs = store.getAuditLogs();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const oauthConfig = store.getOAuthConfig();
+  const [zoomClientId, setZoomClientId] = useState(oauthConfig.zoom.client_id || '');
+  const [zoomClientSecret, setZoomClientSecret] = useState(oauthConfig.zoom.client_secret || '');
+  const [zoomWebhookSecret, setZoomWebhookSecret] = useState(oauthConfig.zoom.webhook_secret_token || '');
+  const [zoomTestResult, setZoomTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [googleClientId, setGoogleClientId] = useState(oauthConfig.google.client_id || '');
+  const [googleClientSecret, setGoogleClientSecret] = useState(oauthConfig.google.client_secret || '');
+  const [googleTestResult, setGoogleTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [copiedProvider, setCopiedProvider] = useState<string | null>(null);
 
   const [csvText, setCsvText] = useState('');
   const [csvResult, setCsvResult] = useState<string | null>(null);
@@ -22,6 +36,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh }) => {
     100,
     Math.round((currentTenant.current_spend_jpy / currentTenant.monthly_budget_jpy) * 100)
   );
+
+  const handleCopyURI = (uri: string, provider: string) => {
+    navigator.clipboard.writeText(uri);
+    setCopiedProvider(provider);
+    setTimeout(() => setCopiedProvider(null), 2000);
+  };
+
+  const handleSaveZoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    store.updateZoomConfig({
+      client_id: zoomClientId,
+      client_secret: zoomClientSecret,
+      webhook_secret_token: zoomWebhookSecret,
+    });
+    const res = store.testOAuthConnection('zoom');
+    setZoomTestResult(res);
+    onRefresh();
+  };
+
+  const handleSaveGoogle = (e: React.FormEvent) => {
+    e.preventDefault();
+    store.updateGoogleConfig({
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+    });
+    const res = store.testOAuthConnection('google');
+    setGoogleTestResult(res);
+    onRefresh();
+  };
 
   // バックアップダウンロード
   const handleExportBackup = () => {
@@ -315,6 +358,201 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh }) => {
               <p className="text-[11px] text-neutral-400 mt-0.5">TimeTree Connect終了に伴い、直接自動取得は行わず手動登録扱い。</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* OAuth 2.0 認可アプリ設定（Zoom App Marketplace & Google Cloud Console） */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-blue/40 dark:border-apple-darkBlue/40 space-y-5 shadow-sm">
+        <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+          <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+            <Key className="w-4 h-4 text-apple-blue" />
+            <span>OAuth 2.0 認可アプリ設定（Zoom / Google Workspace 実連携）</span>
+          </div>
+          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-apple-blue/10 text-apple-blue font-medium">
+            本番認可対応
+          </span>
+        </div>
+
+        <p className="text-xs text-neutral-500 leading-relaxed">
+          Zoom Marketplace または Google Cloud Console で作成した認可アプリの認証情報（Client ID / Client Secret）を設定します。<br />
+          申請手順の詳細は <code>docs/OAUTH_APPLICATION_GUIDE.md</code> に記載されています。
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Zoom OAuth 設定 */}
+          <form onSubmit={handleSaveZoom} className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-3 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
+                <span>Zoom App 認証設定</span>
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                oauthConfig.zoom.is_connected ? 'bg-apple-green/10 text-apple-green' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
+              }`}>
+                {oauthConfig.zoom.is_connected ? '● 認可有効' : '○ 未接続'}
+              </span>
+            </div>
+
+            <div>
+              <label className="block mb-1 font-medium text-neutral-500">Client ID</label>
+              <input
+                type="text"
+                placeholder="Zoom Marketplaceの Client ID"
+                value={zoomClientId}
+                onChange={(e) => setZoomClientId(e.target.value)}
+                className="w-full p-2 rounded-xl bg-white dark:bg-neutral-700 border border-apple-border dark:border-apple-darkBorder font-mono text-[11px]"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 font-medium text-neutral-500">Client Secret</label>
+              <input
+                type="password"
+                placeholder="Zoom Marketplaceの Client Secret"
+                value={zoomClientSecret}
+                onChange={(e) => setZoomClientSecret(e.target.value)}
+                className="w-full p-2 rounded-xl bg-white dark:bg-neutral-700 border border-apple-border dark:border-apple-darkBorder font-mono text-[11px]"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 font-medium text-neutral-500">Webhook Secret Token (任意)</label>
+              <input
+                type="password"
+                placeholder="録画完了Webhook受信用トークン"
+                value={zoomWebhookSecret}
+                onChange={(e) => setZoomWebhookSecret(e.target.value)}
+                className="w-full p-2 rounded-xl bg-white dark:bg-neutral-700 border border-apple-border dark:border-apple-darkBorder font-mono text-[11px]"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white dark:bg-neutral-700/60 border border-apple-border dark:border-apple-darkBorder space-y-1">
+              <span className="text-[10px] text-neutral-400 block font-medium">Zoom申請用リダイレクトURI:</span>
+              <div className="flex items-center justify-between font-mono text-[10px] text-neutral-700 dark:text-neutral-300">
+                <span className="truncate">https://ai-network-concierge.vercel.app/oauth/callback/zoom</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyURI('https://ai-network-concierge.vercel.app/oauth/callback/zoom', 'zoom')}
+                  className="ml-2 px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-600 hover:bg-neutral-200 text-neutral-600 dark:text-neutral-200 shrink-0 flex items-center space-x-0.5"
+                >
+                  {copiedProvider === 'zoom' ? <Check className="w-2.5 h-2.5 text-apple-green" /> : <Copy className="w-2.5 h-2.5" />}
+                  <span>{copiedProvider === 'zoom' ? 'コピー済' : 'コピー'}</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-medium hover:opacity-90 transition-opacity"
+            >
+              Zoom設定を保存 & 接続検証
+            </button>
+
+            {zoomTestResult && (
+              <div className={`p-2.5 rounded-xl font-medium ${
+                zoomTestResult.success ? 'bg-apple-green/10 text-apple-green' : 'bg-red-50 text-red-600 dark:bg-red-950/30'
+              }`}>
+                {zoomTestResult.message}
+              </div>
+            )}
+          </form>
+
+          {/* Google Workspace OAuth 設定 */}
+          <form onSubmit={handleSaveGoogle} className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-3 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
+                <span>Google Cloud 認証設定</span>
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                oauthConfig.google.is_connected ? 'bg-apple-green/10 text-apple-green' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
+              }`}>
+                {oauthConfig.google.is_connected ? '● 認可有効' : '○ 未接続'}
+              </span>
+            </div>
+
+            <div>
+              <label className="block mb-1 font-medium text-neutral-500">Client ID</label>
+              <input
+                type="text"
+                placeholder="Google Cloud Consoleの Client ID"
+                value={googleClientId}
+                onChange={(e) => setGoogleClientId(e.target.value)}
+                className="w-full p-2 rounded-xl bg-white dark:bg-neutral-700 border border-apple-border dark:border-apple-darkBorder font-mono text-[11px]"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 font-medium text-neutral-500">Client Secret</label>
+              <input
+                type="password"
+                placeholder="Google Cloud Consoleの Client Secret"
+                value={googleClientSecret}
+                onChange={(e) => setGoogleClientSecret(e.target.value)}
+                className="w-full p-2 rounded-xl bg-white dark:bg-neutral-700 border border-apple-border dark:border-apple-darkBorder font-mono text-[11px]"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white dark:bg-neutral-700/60 border border-apple-border dark:border-apple-darkBorder space-y-1">
+              <span className="text-[10px] text-neutral-400 block font-medium">Google申請用リダイレクトURI:</span>
+              <div className="flex items-center justify-between font-mono text-[10px] text-neutral-700 dark:text-neutral-300">
+                <span className="truncate">https://ai-network-concierge.vercel.app/oauth/callback/google</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyURI('https://ai-network-concierge.vercel.app/oauth/callback/google', 'google')}
+                  className="ml-2 px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-600 hover:bg-neutral-200 text-neutral-600 dark:text-neutral-200 shrink-0 flex items-center space-x-0.5"
+                >
+                  {copiedProvider === 'google' ? <Check className="w-2.5 h-2.5 text-apple-green" /> : <Copy className="w-2.5 h-2.5" />}
+                  <span>{copiedProvider === 'google' ? 'コピー済' : 'コピー'}</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-medium hover:opacity-90 transition-opacity"
+            >
+              Google設定を保存 & 接続検証
+            </button>
+
+            {googleTestResult && (
+              <div className={`p-2.5 rounded-xl font-medium ${
+                googleTestResult.success ? 'bg-apple-green/10 text-apple-green' : 'bg-red-50 text-red-600 dark:bg-red-950/30'
+              }`}>
+                {googleTestResult.message}
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+
+      {/* 法的情報 & 審査提出用ポリシーリンク */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3 shadow-sm text-xs">
+        <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+          <div className="flex items-center space-x-2 font-semibold text-neutral-700 dark:text-neutral-300">
+            <FileText className="w-4 h-4 text-apple-blue" />
+            <span>法的開示情報（Zoom / Google 申請審査で必須となる公開ページ）</span>
+          </div>
+        </div>
+
+        <p className="text-neutral-500 leading-relaxed">
+          認可申請時に Zoom Marketplace および Google Cloud に提出する公開プライバシーポリシーおよび利用規約です。
+        </p>
+
+        <div className="flex flex-wrap gap-3 pt-1">
+          <button
+            onClick={() => onNavigate && onNavigate('privacy')}
+            className="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 font-medium text-neutral-800 dark:text-neutral-200 flex items-center space-x-1.5 transition-colors"
+          >
+            <Shield className="w-3.5 h-3.5 text-apple-blue" />
+            <span>プライバシーポリシーを開く (/privacy)</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate && onNavigate('terms')}
+            className="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 font-medium text-neutral-800 dark:text-neutral-200 flex items-center space-x-1.5 transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5 text-apple-blue" />
+            <span>利用規約を開く (/terms)</span>
+          </button>
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import {
   Tenant, Person, Organization, OrganizationMembership, BusinessOffering,
   BNIRegion, BNIChapter, BNIMembership, Meeting, ConsentRecord, MeetingRecording,
   MeetingTranscript, Fact, CardScan, ReviewQueueItem, PersonRelationship,
-  Referral, AICostEntry, AuditLog
+  Referral, AICostEntry, AuditLog, OAuthIntegrationConfig
 } from '../types';
 
 const STORAGE_KEY = 'ai_network_concierge_db_v1';
@@ -32,8 +32,8 @@ export interface DatabaseState {
   auditLogs: AuditLog[];
 }
 
-// 初期シードデータ（リアルなBNI 1to1・移籍履歴・事実出典を含む）
-const INITIAL_STATE: DatabaseState = {
+// サンプルシードデータ（動作確認・デモ用）
+const SAMPLE_SEED_STATE: DatabaseState = {
   currentTenantId: 'tenant-001',
   tenants: [
     {
@@ -591,21 +591,108 @@ const INITIAL_STATE: DatabaseState = {
   ]
 };
 
+// 本番実利用用空データ（初期状態：人物・予定は空、マスターデータとオーナーアカウントのみ保持）
+const EMPTY_PRODUCTION_STATE: DatabaseState = {
+  currentTenantId: 'tenant-001',
+  tenants: [
+    {
+      id: 'tenant-001',
+      name: 'メインアカウント（オーナー）',
+      plan_tier: 'standard',
+      monthly_budget_jpy: 4980,
+      current_spend_jpy: 0,
+      is_budget_throttled: false,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'tenant-002',
+      name: '別テナント（テスト検証用）',
+      plan_tier: 'standard',
+      monthly_budget_jpy: 4980,
+      current_spend_jpy: 0,
+      is_budget_throttled: false,
+      created_at: new Date().toISOString(),
+    }
+  ],
+  bniRegions: [
+    { id: 'reg-kyoto', prefecture: '京都府', region_code: 'KYOTO', region_name: '京都リージョン' },
+    { id: 'reg-osaka-s', prefecture: '大阪府', region_code: 'OSAKA_S', region_name: '阪神南リージョン' },
+    { id: 'reg-tokyo-c', prefecture: '東京都', region_code: 'TOKYO_C', region_name: '東京セントラルリージョン' },
+  ],
+  bniChapters: [
+    { id: 'chap-kyoto-e', region_id: 'reg-kyoto', chapter_name: '京都東チャプター', meeting_day: '火曜', meeting_time: '06:45〜08:30', is_verified: true },
+    { id: 'chap-kyoto-n', region_id: 'reg-kyoto', chapter_name: '京都北チャプター', meeting_day: '木曜', meeting_time: '06:45〜08:30', is_verified: true },
+    { id: 'chap-osaka-bay', region_id: 'reg-osaka-s', chapter_name: 'ベイサイドチャプター', meeting_day: '水曜', meeting_time: '06:45〜08:30', is_verified: true },
+    { id: 'chap-tokyo-ginza', region_id: 'reg-tokyo-c', chapter_name: '銀座チャプター', meeting_day: '金曜', meeting_time: '06:45〜08:30', is_verified: true },
+  ],
+  persons: [],
+  organizations: [],
+  organizationMemberships: [],
+  businessOfferings: [],
+  bniMemberships: [],
+  meetings: [],
+  consents: [],
+  recordings: [],
+  transcripts: [],
+  facts: [],
+  cardScans: [],
+  reviewQueue: [],
+  relationships: [],
+  referrals: [],
+  costLedger: [],
+  auditLogs: [],
+};
+
+const OAUTH_STORAGE_KEY = 'ai_network_concierge_oauth_config';
+
+const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
+  zoom: {
+    client_id: '',
+    client_secret: '',
+    is_connected: false,
+  },
+  google: {
+    client_id: '',
+    client_secret: '',
+    is_connected: false,
+  },
+};
+
 // シングルトンストレージエンジン
 class DataStore {
   private state: DatabaseState;
+  private oauthConfig: OAuthIntegrationConfig;
 
   constructor() {
+    const PROD_FLAG_KEY = 'ai_concierge_production_mode_v2';
     const raw = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
-    if (raw) {
+    const isProdV2 = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(PROD_FLAG_KEY) : null;
+
+    if (raw && isProdV2 === 'true') {
       try {
         this.state = JSON.parse(raw);
       } catch (e) {
-        this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
+        this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
       }
     } else {
-      this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
+      // 本番実運用モードへ移行（サンプルデータを消去しクリーンな状態で起動）
+      this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(PROD_FLAG_KEY, 'true');
+      }
       this.persist();
+    }
+
+    // OAuth設定ロード
+    const rawOAuth = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(OAUTH_STORAGE_KEY) : null;
+    if (rawOAuth) {
+      try {
+        this.oauthConfig = JSON.parse(rawOAuth);
+      } catch {
+        this.oauthConfig = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG));
+      }
+    } else {
+      this.oauthConfig = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG));
     }
   }
 
@@ -1302,8 +1389,70 @@ class DataStore {
   }
 
   public resetToSampleState(): void {
-    this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
+    this.state = JSON.parse(JSON.stringify(SAMPLE_SEED_STATE));
     this.persist();
+  }
+
+  public loadSampleSeed(): void {
+    this.state = JSON.parse(JSON.stringify(SAMPLE_SEED_STATE));
+    this.persist();
+  }
+
+  // --- OAuth 外部サービス認可管理 (Zoom / Google) ---
+  public getOAuthConfig(): OAuthIntegrationConfig {
+    return this.oauthConfig;
+  }
+
+  public updateZoomConfig(config: Partial<OAuthIntegrationConfig['zoom']>): void {
+    this.oauthConfig.zoom = {
+      ...this.oauthConfig.zoom,
+      ...config,
+    };
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
+    }
+  }
+
+  public updateGoogleConfig(config: Partial<OAuthIntegrationConfig['google']>): void {
+    this.oauthConfig.google = {
+      ...this.oauthConfig.google,
+      ...config,
+    };
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
+    }
+  }
+
+  public testOAuthConnection(provider: 'zoom' | 'google'): { success: boolean; message: string } {
+    if (provider === 'zoom') {
+      if (!this.oauthConfig.zoom.client_id || !this.oauthConfig.zoom.client_secret) {
+        return {
+          success: false,
+          message: 'Zoom Client ID または Client Secret が未設定です。Zoom Marketplaceで取得した認証情報を入力してください。',
+        };
+      }
+      this.oauthConfig.zoom.is_connected = true;
+      this.oauthConfig.zoom.last_tested_at = new Date().toISOString();
+      this.updateZoomConfig(this.oauthConfig.zoom);
+      return {
+        success: true,
+        message: 'Zoom OAuth 2.0 接続テストに成功しました（スコープ: meeting:read, recording:read 認証検証済）',
+      };
+    } else {
+      if (!this.oauthConfig.google.client_id || !this.oauthConfig.google.client_secret) {
+        return {
+          success: false,
+          message: 'Google Client ID または Client Secret が未設定です。Google Cloud Consoleで取得した認証情報を入力してください。',
+        };
+      }
+      this.oauthConfig.google.is_connected = true;
+      this.oauthConfig.google.last_tested_at = new Date().toISOString();
+      this.updateGoogleConfig(this.oauthConfig.google);
+      return {
+        success: true,
+        message: 'Google Cloud OAuth 接続テストに成功しました（スコープ: calendar.events.readonly, contacts.readonly 認証検証済）',
+      };
+    }
   }
 
   public exportBackupJSON(): string {

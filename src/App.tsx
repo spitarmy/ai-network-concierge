@@ -12,6 +12,7 @@ import { CardsView } from './views/CardsView';
 import { AIConciergeView } from './views/AIConciergeView';
 import { ReviewQueueView } from './views/ReviewQueueView';
 import { SettingsView } from './views/SettingsView';
+import { LegalView } from './views/LegalView';
 import { store } from './services/store';
 
 export const App: React.FC = () => {
@@ -37,6 +38,20 @@ export const App: React.FC = () => {
     if (savedSimple === 'true') {
       setIsSimpleMode(true);
     }
+
+    // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）への遷移
+    const checkPath = () => {
+      const path = window.location.pathname.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+      if (path === '/privacy' || hash === '#/privacy' || hash === '#privacy') {
+        setCurrentView('privacy');
+      } else if (path === '/terms' || hash === '#/terms' || hash === '#terms') {
+        setCurrentView('terms');
+      }
+    };
+    checkPath();
+    window.addEventListener('hashchange', checkPath);
+    return () => window.removeEventListener('hashchange', checkPath);
   }, []);
 
   const handleToggleDarkMode = () => {
@@ -162,7 +177,24 @@ export const App: React.FC = () => {
           )}
 
           {currentView === 'settings' && (
-            <SettingsView onRefresh={handleRefresh} />
+            <SettingsView
+              onRefresh={handleRefresh}
+              onNavigate={(v) => setCurrentView(v)}
+            />
+          )}
+
+          {currentView === 'privacy' && (
+            <LegalView
+              initialTab="privacy"
+              onBack={() => setCurrentView('home')}
+            />
+          )}
+
+          {currentView === 'terms' && (
+            <LegalView
+              initialTab="terms"
+              onBack={() => setCurrentView('home')}
+            />
           )}
         </main>
       </div>

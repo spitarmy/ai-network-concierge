@@ -14,7 +14,9 @@ export type ViewType =
   | 'meetings'
   | 'concierge'
   | 'review-queue'
-  | 'settings';
+  | 'settings'
+  | 'privacy'
+  | 'terms';
 
 interface NavigationProps {
   currentView: ViewType;
@@ -96,12 +98,31 @@ export const Navigation: React.FC<NavigationProps> = ({
           })}
         </nav>
 
-        <div className="p-4 border-t border-apple-border dark:border-apple-darkBorder text-xs text-neutral-500 flex items-center justify-between">
-          <span className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-apple-green dark:bg-apple-darkGreen inline-block"></span>
-            <span>RLS保護稼働中</span>
-          </span>
-          <span className="text-[11px] font-mono">v1.0-pwa</span>
+        <div className="p-4 border-t border-apple-border dark:border-apple-darkBorder space-y-2 text-xs text-neutral-500">
+          <div className="flex items-center justify-between text-[11px] text-neutral-400">
+            <button
+              onClick={() => onSelectView('privacy')}
+              className="hover:text-apple-blue dark:hover:text-apple-darkBlue transition-colors"
+            >
+              プライバシー
+            </button>
+            <span>•</span>
+            <button
+              onClick={() => onSelectView('terms')}
+              className="hover:text-apple-blue dark:hover:text-apple-darkBlue transition-colors"
+            >
+              利用規約
+            </button>
+            <span>•</span>
+            <span className="font-mono text-[10px]">v1.2</span>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-apple-green dark:bg-apple-darkGreen inline-block"></span>
+              <span>RLS保護稼働中</span>
+            </span>
+          </div>
         </div>
       </aside>
 

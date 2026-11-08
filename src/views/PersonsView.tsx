@@ -20,6 +20,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string>('ALL');
   const [detailTab, setDetailTab] = useState<'overview' | 'orgs' | 'bni' | 'facts' | 'delete'>('overview');
+  const [internalSelectedId, setInternalSelectedId] = useState<string | undefined>();
 
   // カルテ編集モーダル状態
   const [isEditingPerson, setIsEditingPerson] = useState(false);
@@ -70,7 +71,8 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
     return matchQuery && matchTag;
   });
 
-  const selectedPerson = selectedPersonId ? store.getPersonById(selectedPersonId) : undefined;
+  const activePersonId = selectedPersonId || internalSelectedId;
+  const selectedPerson = activePersonId ? store.getPersonById(activePersonId) : undefined;
   const memberships = selectedPerson ? store.getBNIMembershipsForPerson(selectedPerson.id) : [];
   const orgMemberships = selectedPerson ? store.getOrgMembershipsForPerson(selectedPerson.id) : [];
   const businessOfferings = selectedPerson ? store.getBusinessOfferingsForPerson(selectedPerson.id) : [];
@@ -185,7 +187,10 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
       {selectedPerson ? (
         <div className="space-y-6">
           <button
-            onClick={onClosePersonDetail}
+            onClick={() => {
+              setInternalSelectedId(undefined);
+              onClosePersonDetail();
+            }}
             className="inline-flex items-center space-x-1.5 text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -838,10 +843,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
               return (
                 <div
                   key={p.id}
-                  onClick={() => {
-                    (store as any).selectedPersonId = p.id;
-                    onRefresh();
-                  }}
+                  onClick={() => setInternalSelectedId(p.id)}
                   className="cursor-pointer p-4 rounded-2xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder hover:border-apple-blue/50 transition-all flex items-start space-x-3.5 group shadow-sm"
                 >
                   <img
@@ -879,8 +881,16 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
           </div>
 
           {filteredPersons.length === 0 && (
-            <div className="text-center py-12 text-xs text-neutral-400">
-              該当する人物が見つかりませんでした。
+            <div className="p-12 text-center rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3">
+              <Building className="w-8 h-8 text-neutral-400 mx-auto" />
+              <h3 className="font-semibold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+                {searchQuery || selectedTag !== 'ALL' ? '該当する人物が見つかりませんでした' : '登録されている人脈はありません'}
+              </h3>
+              <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                {searchQuery || selectedTag !== 'ALL'
+                  ? '検索条件を変更するか、タグを「全員」に切り替えてみてください。'
+                  : '名刺の撮影・アップロード、または「＋追加」やCSV取込から新しい人脈カルテを登録しましょう。'}
+              </p>
             </div>
           )}
         </div>

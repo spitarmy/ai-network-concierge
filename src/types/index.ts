@@ -306,3 +306,20 @@ export interface AuditLog {
   diff_payload?: Record<string, any>;
   created_at: string;
 }
+
+export interface OAuthIntegrationConfig {
+  zoom: {
+    client_id: string;
+    client_secret: string;
+    account_id?: string;
+    webhook_secret_token?: string;
+    is_connected: boolean;
+    last_tested_at?: string;
+  };
+  google: {
+    client_id: string;
+    client_secret: string;
+    is_connected: boolean;
+    last_tested_at?: string;
+  };
+}

@@ -10,10 +10,10 @@
 
 | テストスイート | 実行コマンド | テスト件数 | 合否結果 | 実行日時 |
 |---|---|---|---|---|
-| **TypeScript 型チェック** | `npm run build` (`tsc && vite build`) | 全モジュール | **PASS (0 errors)** | 2026-11-08 12:23 |
-| **受け入れ自動テスト** | `npm test` (`vitest run`) | 21項目 | **PASS (21/21)** | 2026-11-08 12:23 |
-| **本番ビルド・HTTP検証** | `vite preview` + HTTP Fetch | ステータス 200 OK | **PASS** | 2026-11-08 12:23 |
-| **Vercel 本番デプロイ** | GitHub Push 自動連携 | Production URL | **PASS (200 OK)** | 2026-11-08 12:25 |
+| **TypeScript 型チェック** | `npm run build` (`tsc && vite build`) | 全モジュール | **PASS (0 errors)** | 2026-11-08 12:34 |
+| **受け入れ自動テスト** | `npm test` (`vitest run`) | 23項目 | **PASS (23/23)** | 2026-11-08 12:34 |
+| **本番ビルド・HTTP検証** | `vite preview` + HTTP Fetch | ステータス 200 OK | **PASS** | 2026-11-08 12:34 |
+| **Vercel 本番デプロイ** | GitHub Push 自動連携 | Production URL | **PASS (200 OK)** | 2026-11-08 12:35 |
 
 ---
 
@@ -36,6 +36,8 @@
 | **PROD-03** | CSV一括インポート | 氏名・会社・役職・連絡先・オファリングの一括登録と重複防止 | **PASS** |
 | **PROD-04** | JSONバックアップ & リストア | スキーマ整合性を保った全データエクスポートと安全な復元 | **PASS** |
 | **PROD-05** | 本番利用開始用データ初期化 & サンプル復元 | サンプルデータのワンクリッククリアと安全なクリーン状態確立 | **PASS** |
+| **OAUTH-01** | Zoom/Google 認証情報未設定時の防御 | 未設定時のOAuth認可リクエスト拒否とガイド提示 | **PASS** |
+| **OAUTH-02** | Zoom/Google 認証情報登録と検証ステートマシン | 認証情報設定による `is_connected` 有効化と接続タイムスタンプ記録 | **PASS** |
 
 ---
 

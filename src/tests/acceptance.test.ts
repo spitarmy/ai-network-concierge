@@ -3,7 +3,8 @@ import { store } from '../services/store';
 
 describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲート検証', () => {
   beforeEach(() => {
-    // テストごとにメインテナントにリセット
+    // テストごとにシードデータをロードしメインテナントにリセット
+    store.loadSampleSeed();
     store.setTenantId('tenant-001');
   });
 
@@ -284,6 +285,36 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       // サンプル再投入
       store.resetToSampleState();
       expect(store.getPersons().length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('J. 外部OAuth認可アプリ設定検証 (Zoom & Google - 仕様05, 30)', () => {
+    it('認証情報未入力時の接続テストが適切に拒否されること', () => {
+      const zoomRes = store.testOAuthConnection('zoom');
+      expect(zoomRes.success).toBe(false);
+      expect(zoomRes.message).toContain('未設定');
+
+      const googleRes = store.testOAuthConnection('google');
+      expect(googleRes.success).toBe(false);
+      expect(googleRes.message).toContain('未設定');
+    });
+
+    it('認証情報設定後のOAuth接続テストが成功しステータスが更新されること', () => {
+      store.updateZoomConfig({
+        client_id: 'test-zoom-client-id',
+        client_secret: 'test-zoom-client-secret',
+      });
+      const zoomRes = store.testOAuthConnection('zoom');
+      expect(zoomRes.success).toBe(true);
+      expect(store.getOAuthConfig().zoom.is_connected).toBe(true);
+
+      store.updateGoogleConfig({
+        client_id: 'test-google-client-id.apps.googleusercontent.com',
+        client_secret: 'test-google-client-secret',
+      });
+      const googleRes = store.testOAuthConnection('google');
+      expect(googleRes.success).toBe(true);
+      expect(store.getOAuthConfig().google.is_connected).toBe(true);
     });
   });
 });
