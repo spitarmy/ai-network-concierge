@@ -15,7 +15,7 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [activeTab, setActiveTab] = useState<'text' | 'file' | 'demo'>('text');
+  const [activeTab, setActiveTab] = useState<'text' | 'file'>('text');
   const [transcriptText, setTranscriptText] = useState('');
   const [fileName, setFileName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -28,7 +28,7 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
 
   const handleProcess = () => {
     if (activeTab === 'text' && !transcriptText.trim()) {
-      alert('面談のメモや文字起こしテキストを入力してください。\n（デモを試したい場合は上部の「デモ解析」タブをお選びください）');
+      alert('面談のメモや文字起こしテキストを入力してください');
       return;
     }
     if (activeTab === 'file' && !fileName) {
@@ -129,18 +129,6 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
               <Upload className="w-3.5 h-3.5" />
               <span>音声ファイル添付</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('demo')}
-              className={`flex-1 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 ${
-                activeTab === 'demo'
-                  ? 'bg-white dark:bg-neutral-700 text-purple-700 dark:text-purple-300 shadow-xs font-bold'
-                  : 'text-neutral-500 hover:text-neutral-700'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>デモ解析</span>
-            </button>
           </div>
 
           {/* タブ1: テキスト・メモ貼り付け */}
@@ -153,8 +141,8 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
                 rows={6}
                 value={transcriptText}
                 onChange={(e) => setTranscriptText(e.target.value)}
-                placeholder={`例:\nはじめまして、株式会社〇〇の〇〇です。京都市内でカフェをやっています。\nどんな人を紹介してほしいですか？などの会話や、\n来週カタログをお送りする約束などを貼り付けます。`}
-                className="w-full p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-mono text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                placeholder={`【例】\n木村さんと面談を実施。\n一般社団法人stoneの今後の活動方針について意見交換。\n次回までにイベントの企画概要をまとめて共有する約束をした。`}
+                className="w-full p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-sans text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
               <div className="flex items-center space-x-1 text-[11px] text-neutral-400">
                 <AlertCircle className="w-3 h-3 text-purple-500 shrink-0" />
@@ -184,18 +172,6 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
                   ボイスメモ、ICレコーダー、Zoomクラウド録音の音声ファイルに対応
                 </p>
               </div>
-            </div>
-          )}
-
-          {/* タブ3: デモ解析 */}
-          {activeTab === 'demo' && (
-            <div className="p-4 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder space-y-2">
-              <span className="font-bold text-neutral-800 dark:text-neutral-200">
-                ⚡ 1タップ・シミュレーション解析
-              </span>
-              <p className="text-neutral-500 text-[11px] leading-relaxed">
-                テスト用に、面談での自己紹介・会社概要・盛り上がった話題・次回までの約束の会話サンプルを用いて、AIによるカルテ自動生成とお礼文作成を一括シミュレーションします。
-              </p>
             </div>
           )}
         </div>

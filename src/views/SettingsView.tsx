@@ -5,6 +5,8 @@ import {
   Key, Copy, Check, FileText, Sparkles, ExternalLink
 } from 'lucide-react';
 import { store } from '../services/store';
+import { Smartphone, RotateCw } from 'lucide-react';
+import { forceReloadApp } from '../utils/updateManager';
 
 interface SettingsViewProps {
   onRefresh: () => void;
@@ -211,6 +213,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
           </div>
         </div>
       </div>
+      {/* 📱 PWA / ホーム画面アプリの更新・キャッシュ管理 */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+          <Smartphone className="w-4 h-4 text-apple-blue" />
+          <span>スマホ・ホーム画面（PWA）の最新版更新 & キャッシュ消去</span>
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <p className="text-neutral-500 leading-relaxed">
+            iPhoneやAndroidの「ホーム画面に追加」で利用されている場合、端末内に古い画面データが固定キャッシュされることがあります。<br />
+            下のボタンを押すと、古いキャッシュを破棄してサーバー上の最新バージョン（個別お礼状・関係性グラフ・議事録の修正）を直ちに反映します。
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => forceReloadApp()}
+              className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-medium hover:opacity-90 active:scale-95 transition-all flex items-center space-x-1.5 shadow-sm"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>最新版に強制再読み込み（キャッシュ破棄）</span>
+            </button>
+
+            <span className="text-[11px] text-neutral-400">
+              ※もしボタンを押しても画面が変わらない場合は、ホーム画面のアイコンを長押し削除し、Safariから再度「ホーム画面に追加」してください。
+            </span>
+          </div>
+        </div>
+      </div>
+
+
 
       {/* CSV一括インポート機能 (仕様08, CARD-07) */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic, MessageSquare, ExternalLink } from 'lucide-react';
+import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic, MessageSquare, ExternalLink, Check, RotateCw } from 'lucide-react';
 import { store } from '../services/store';
 import { Person } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
 import { UserAvatar } from '../components/UserAvatar';
+import { MeetingRecordingModal } from '../components/MeetingRecordingModal';
 
 interface HomeViewProps {
   isSimpleMode: boolean;
@@ -22,26 +23,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenIdentify,
   onOpenThankYou,
 }) => {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeSuccess, setAnalyzeSuccess] = useState<string | null>(null);
+  const [recordingMeetingId, setRecordingMeetingId] = useState<string | null>(null);
 
   const persons = store.getPersons();
   const meetings = store.getMeetings();
   const reviewQueue = store.getReviewQueue();
   const referrals = store.getReferrals();
 
-  const handleRunAutoTranscript = (meetingId: string) => {
-    setIsAnalyzing(true);
-    setTimeout(() => {
-      store.processMeetingRecordingAndAutoRegister(meetingId);
-      setIsAnalyzing(false);
-      setAnalyzeSuccess('🎙️ 録音から高橋 誠治様のカルテ・会社・BNI所属・話題・約束をすべて自動生成しました！');
-      setTimeout(() => setAnalyzeSuccess(null), 6000);
-    }, 900);
+  const handleCompleteMeeting = (meetingId: string) => {
+    store.completeMeeting(meetingId);
+    setAnalyzeSuccess('面談を「終了済み」に記録しました');
+    setTimeout(() => setAnalyzeSuccess(null), 3500);
   };
 
-  // 直近の予定（本日以降、または直近の会議）
-  const upcomingMeeting = meetings.find(m => new Date(m.scheduled_start_at).getTime() >= Date.now() - 3600 * 1000 * 2) || meetings[0];
+  // 直近の予定（未完了の面談を最優先、なければ最新の面談）
+  const upcomingMeeting = meetings.find(m => m.status !== 'completed' && new Date(m.scheduled_start_at).getTime() >= Date.now() - 3600 * 1000) || meetings[0];
   const upcomingParticipant: Person | undefined = upcomingMeeting && upcomingMeeting.participant_ids.length > 0
     ? store.getPersonById(upcomingMeeting.participant_ids[0])
     : undefined;
@@ -102,7 +99,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-1.5">
                   {(() => {
-                    const sched = formatMeetingSchedule(upcomingMeeting.scheduled_start_at);
+                    const sched = formatMeetingSchedule(upcomingMeeting.scheduled_start_at, upcomingMeeting.status, upcomingMeeting.recording_status);
                     return (
                       <>
                         <span className="text-xs sm:text-sm font-bold text-apple-blue dark:text-apple-darkBlue bg-apple-blue/10 dark:bg-apple-darkBlue/20 px-2.5 py-0.5 rounded-lg flex items-center space-x-1">
@@ -134,7 +131,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               {upcomingMeeting.meeting_url && (
                 <a
                   href={upcomingMeeting.meeting_url}
@@ -145,6 +142,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span>会議を開く</span>
                 </a>
               )}
+
+              {/* 終了ステータス切替ボタン（開催中になりっぱなしを即座に防ぐ） */}
+              {upcomingMeeting.status !== 'completed' && upcomingMeeting.recording_status !== 'completed' ? (
+                <button
+                  onClick={() => handleCompleteMeeting(upcomingMeeting.id)}
+                  className="inline-flex items-center justify-center space-x-1 px-3 py-2 rounded-xl bg-neutral-100 hover:bg-emerald-50 dark:bg-neutral-800 dark:hover:bg-emerald-950/30 text-neutral-600 hover:text-emerald-600 dark:text-neutral-300 dark:hover:text-emerald-400 text-xs font-medium transition-all shadow-sm border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800"
+                  title="面談が終了したらここをタップして終了状態に切り替えます"
+                >
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>面談を終了済みにする</span>
+                </button>
+              ) : (
+                <span className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500 text-xs font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>終了済み</span>
+                </span>
+              )}
+
               {upcomingParticipant ? (
                 <button
                   onClick={() => onSelectPerson(upcomingParticipant.id)}
@@ -182,7 +197,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           )}
 
-          {/* AI録音事後自動登録バナー（本命のコア体験） */}
+          {/* AI録音・文字起こし解析バナー */}
           {upcomingMeeting.recording_status !== 'completed' ? (
             <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-indigo-500/10 dark:from-purple-950/30 dark:via-blue-950/30 dark:to-indigo-950/30 border border-purple-200/80 dark:border-purple-800/50 space-y-3 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -192,32 +207,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </div>
                   <div>
                     <div className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
-                      <span>🎙️ 面談終了後にAIが録音から自動登録</span>
-                      <span className="text-[10px] px-2 py-0.2 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-normal">
-                        推奨・全自動
-                      </span>
+                      <span>🎙️ 面談終了後にAIが文字起こし・メモから自動解析</span>
                     </div>
                     <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed">
-                      事前入力は不要です。Zoom終了後に録音から相手の本名・会社名・BNI所属・話題・次回約束をAIがすべて自動登録します。
+                      Zoomの文字起こしや会話メモを貼り付けるだけで、相手のお話要約・約束事・お礼状をAIが自動作成します。
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
                   <button
-                    onClick={() => handleRunAutoTranscript(upcomingMeeting.id)}
-                    disabled={isAnalyzing}
-                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 active:scale-95 disabled:opacity-50"
+                    onClick={() => setRecordingMeetingId(upcomingMeeting.id)}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center space-x-1.5 active:scale-95"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>{isAnalyzing ? '録音解析・カルテ生成中...' : '録音をAI解析して自動登録（実演）'}</span>
+                    <span>面談メモ・文字起こしをAI解析</span>
                   </button>
                 </div>
               </div>
 
               {/* 手動入力したい場合の折りたたみリンク */}
               <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 flex items-center justify-between text-[11px] text-neutral-500">
-                <span>※事前に分かっている情報があれば手動入力も可能です</span>
+                <span>※お名前や会社名だけを事前に入力しておくことも可能です</span>
                 <button
                   onClick={() => onOpenIdentify(upcomingMeeting.id)}
                   className="text-apple-blue dark:text-apple-darkBlue hover:underline font-medium"
@@ -234,18 +245,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center space-x-1.5">
-                    <span>面談の録音解析・カルテ生成完了</span>
+                    <span>面談の解析・お礼文準備完了</span>
                     <span className="text-[10px] px-2 py-0.2 rounded-full bg-apple-green/10 text-apple-green font-medium">
                       解析済み
                     </span>
                   </div>
                   <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed">
-                    相手のお話要約と相互の約束事がまとまりました。相手にお礼文と相互確認メッセージを手動送信できます。
+                    お相手のお話要約とお礼文が生成されました。内容の確認・微調整や、別メモでの再解析が可能です。
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+              <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-auto">
+                <button
+                  onClick={() => setRecordingMeetingId(upcomingMeeting.id)}
+                  className="px-3 py-2 rounded-xl border border-blue-300 dark:border-blue-700 bg-white/80 dark:bg-neutral-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-apple-blue dark:text-blue-300 text-xs font-medium transition-colors flex items-center space-x-1"
+                  title="実際の文字起こしやメモを入力してカルテとお礼状を再作成"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>議事録・メモを再解析</span>
+                </button>
                 <button
                   onClick={() => onOpenThankYou(upcomingMeeting.id)}
                   className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center space-x-1.5"
@@ -461,6 +480,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* 面談録音・文字起こし・メモ解析モーダル */}
+      <MeetingRecordingModal
+        isOpen={!!recordingMeetingId}
+        meetingId={recordingMeetingId}
+        onClose={() => setRecordingMeetingId(null)}
+        onSuccess={(mId) => {
+          setAnalyzeSuccess('面談メモから要約とお礼状を生成しました！');
+          onOpenThankYou(mId);
+        }}
+      />
     </div>
   );
 };

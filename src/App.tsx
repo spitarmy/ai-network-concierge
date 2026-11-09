@@ -17,6 +17,7 @@ import { SettingsView } from './views/SettingsView';
 import { LegalView } from './views/LegalView';
 import { PresentationView } from './views/PresentationView';
 import { store } from './services/store';
+import { checkIsUpdateAvailable, forceReloadApp } from './utils/updateManager';
 
 export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('home');
@@ -26,6 +27,7 @@ export const App: React.FC = () => {
   const [thankYouMeetingId, setThankYouMeetingId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSimpleMode, setIsSimpleMode] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [, setRefreshKey] = useState(0);
 
   // 初期ダークモードおよび設定の復元
@@ -67,10 +69,20 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkPath);
   }, []);
 
-  // PWA自動更新チェッカー（ホーム画面に追加している端末でも新バージョンを自動反映）
+  // PWA自動更新チェッカー（ホーム画面に追加している端末でも新バージョンを自動検知）
   useEffect(() => {
     const checkForUpdates = async () => {
       try {
+        // version.json によるタイムスタンプ比較
+        if (typeof __BUILD_TIMESTAMP__ !== 'undefined') {
+          const isNewer = await checkIsUpdateAvailable(__BUILD_TIMESTAMP__);
+          if (isNewer) {
+            setUpdateAvailable(true);
+            return;
+          }
+        }
+
+        // HTMLスクリプトタグによるフォールバック比較
         const response = await fetch('/?_v=' + Date.now(), { cache: 'no-store' });
         if (!response.ok) return;
         const html = await response.text();
@@ -78,8 +90,7 @@ export const App: React.FC = () => {
         if (scriptMatch) {
           const currentScript = document.querySelector('script[src*="/assets/index-"]')?.getAttribute('src');
           if (currentScript && scriptMatch[0] !== currentScript) {
-            // 新バージョンがサーバーにデプロイされているのを検知 -> 自動リロードして最新版を適用
-            window.location.reload();
+            setUpdateAvailable(true);
           }
         }
       } catch {
@@ -89,13 +100,17 @@ export const App: React.FC = () => {
 
     // 起動時およびバックグラウンドから復帰した時にチェック
     checkForUpdates();
+    const interval = setInterval(checkForUpdates, 30000); // 30秒ごとに自動確認
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkForUpdates();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleToggleDarkMode = () => {
@@ -169,7 +184,24 @@ export const App: React.FC = () => {
           onSearchClick={() => setCurrentView('concierge')}
           reviewCount={reviewCount}
           onReviewClick={() => setCurrentView('review-queue')}
+          updateAvailable={updateAvailable}
         />
+
+        {/* 新バージョン配信バナー（PWA・ホーム画面利用時用） */}
+        {updateAvailable && (
+          <div className="bg-gradient-to-r from-apple-blue to-indigo-600 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-between shadow-md z-20 shrink-0 animate-in fade-in slide-in-from-top duration-300">
+            <div className="flex items-center space-x-2 min-w-0 mr-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-300 animate-ping shrink-0" />
+              <span className="truncate">最新版が届いています（個別お礼状・関係性グラフ・議事録の修正を反映）</span>
+            </div>
+            <button
+              onClick={() => forceReloadApp()}
+              className="px-3 py-1 bg-white text-apple-blue rounded-full text-xs font-bold hover:bg-neutral-100 active:scale-95 transition-all shadow shrink-0"
+            >
+              今すぐ更新
+            </button>
+          </div>
+        )}
 
         {/* 画面ビュー切り替え */}
         <main className="flex-1 overflow-y-auto">

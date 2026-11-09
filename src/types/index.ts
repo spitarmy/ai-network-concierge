@@ -130,6 +130,7 @@ export interface Meeting {
   scheduled_end_at?: string;
   raw_invite_text?: string;
   host_type: 'self' | 'external' | 'unknown';
+  status?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   recording_status: 'not_applicable' | 'awaiting_consent' | 'consent_obtained' | 'recording' | 'completed' | 'failed' | 'refused';
   participant_ids: PersonId[];
   created_at: string;

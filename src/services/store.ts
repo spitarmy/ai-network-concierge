@@ -719,6 +719,51 @@ class DataStore {
       this.oauthConfig.zoom = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG.zoom));
       setStorageItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
     }
+
+    // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
+    this.purgeBogusDemoData();
+  }
+
+  public purgeBogusDemoData(): void {
+    let changed = false;
+    if (this.state.facts && this.state.facts.some(f => f.fact_value.includes('LED電飾看板') || f.fact_value.includes('タカハシ看板') || f.fact_value.includes('施工実績カタログ'))) {
+      this.state.facts = this.state.facts.filter(f =>
+        !f.fact_value.includes('LED電飾看板') &&
+        !f.fact_value.includes('タカハシ看板') &&
+        !f.fact_value.includes('施工実績カタログ') &&
+        !f.fact_value.includes('店舗サイン')
+      );
+      changed = true;
+    }
+    if (this.state.organizations && this.state.organizations.some(o => o.name.includes('タカハシ看板'))) {
+      this.state.organizations = this.state.organizations.filter(o => !o.name.includes('タカハシ看板'));
+      changed = true;
+    }
+    if (this.state.organizationMemberships && this.state.organizationMemberships.some(m => m.organization_name.includes('タカハシ看板'))) {
+      this.state.organizationMemberships = this.state.organizationMemberships.filter(m => !m.organization_name.includes('タカハシ看板'));
+      changed = true;
+    }
+    if (this.state.bniMemberships && this.state.bniMemberships.some(m => m.chapter_name.includes('京都南チャプター'))) {
+      this.state.bniMemberships = this.state.bniMemberships.filter(m => !m.chapter_name.includes('京都南チャプター'));
+      changed = true;
+    }
+    if (this.state.businessOfferings && this.state.businessOfferings.some(b => b.service_title.includes('看板'))) {
+      this.state.businessOfferings = this.state.businessOfferings.filter(b => !b.service_title.includes('看板'));
+      changed = true;
+    }
+    if (changed) {
+      this.persist();
+    }
+  }
+
+  public completeMeeting(meetingId: string): void {
+    const tid = this.state.currentTenantId;
+    const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
+    if (meeting) {
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      this.persist();
+    }
   }
 
   public purgeSamplePersons(): void {
@@ -1491,15 +1536,17 @@ class DataStore {
 
       serviceDescription = companyName ? `${companyName}の事業展開・共同取り組み` : topic.slice(0, 40);
     } else {
-      // テキスト未入力（デモ明示時のみのサンプル）
-      realName = isKnownParticipant ? existingParticipant.display_name : '高橋 誠治';
-      companyName = '株式会社タカハシ看板デザイン';
-      title = '代表取締役';
-      bniChapter = '京都南チャプター';
-      bniCategory = '屋外広告・看板施工';
-      topic = '新規出店する町家カフェやクリニック向けLED電飾看板・店舗サイン施工の実績';
-      promise = '次回までに施工実績カタログと店舗サイン事例集を送付する';
-      serviceDescription = 'LED電飾看板・店舗サイン・屋外広告の企画から施工まで一貫対応';
+      // テキスト未入力時の自然なフォールバック（架空の看板会社・LED等のデモデータは一切捏造しない）
+      realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';
+      companyName = existingParticipant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '';
+      title = existingParticipant?.category_tags?.includes('一般社団法人stone') ? '幹部' : '';
+      bniChapter = '';
+      bniCategory = '';
+      topic = isKnownParticipant
+        ? `${realName}様との事業連携・今後の協業に関するお打合せ`
+        : '面談内容の整理・事業に関する意見交換';
+      promise = '面談内容の整理とお礼のご連絡、次回アクションの確認';
+      serviceDescription = companyName ? `${companyName}の事業展開` : '今後の事業連携';
     }
 
     // 人物カルテの特定・作成・昇格
@@ -1512,7 +1559,7 @@ class DataStore {
       serviceDescription: serviceDescription || undefined,
       notes: isRealInput
         ? `[文字起こし・メモ解析] ${new Date().toLocaleDateString('ja-JP')}の面談より記録。話題: ${topic}`
-        : `[デモ録音自動解析] ${new Date().toLocaleDateString('ja-JP')}の1to1面談より自動生成。紹介希望: 新規開業予定の飲食店オーナーやクリニック院長。`,
+        : `[面談記録] ${new Date().toLocaleDateString('ja-JP')}の面談より作成。`,
     });
 
     // 過去の話題・約束をFactsとして自動記録
@@ -1549,6 +1596,7 @@ class DataStore {
 
     // 会議ステータスを完了に更新
     meeting.recording_status = 'completed';
+    meeting.status = 'completed';
 
     // 録音レコードを追加（または既存を更新）
     const existingRec = this.state.recordings.find(r => r.meeting_id === meeting.id);

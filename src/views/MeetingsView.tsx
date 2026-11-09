@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Calendar, Clock, Shield, AlertTriangle, Pin, PinOff,
   CheckCircle2, XCircle, Play, RotateCcw, Download, ExternalLink,
-  MessageSquare, Bot, Edit3, Trash2, X
+  MessageSquare, Bot, Edit3, Trash2, X, Check
 } from 'lucide-react';
 import { store } from '../services/store';
 import { Meeting } from '../types';
@@ -126,8 +126,8 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(m.title)}&dates=${formatICS(startDate)}/${formatICS(endDate)}&details=${encodeURIComponent(m.meeting_url || '')}&location=${encodeURIComponent(m.meeting_url || '')}`;
   };
 
-  const upcomingMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at).isUpcoming);
-  const pastMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at).isPast);
+  const upcomingMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at, m.status, m.recording_status).isUpcoming);
+  const pastMeetings = meetings.filter(m => formatMeetingSchedule(m.scheduled_start_at, m.status, m.recording_status).isPast);
   const activeTab = (tabFilter === 'upcoming' && upcomingMeetings.length === 0 && meetings.length > 0)
     ? 'all'
     : tabFilter;
@@ -232,7 +232,7 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           displayMeetings.map((m) => {
           const consents = store.getConsentsForMeeting(m.id);
           const recording = recordings.find(r => r.meeting_id === m.id);
-          const sched = formatMeetingSchedule(m.scheduled_start_at);
+          const sched = formatMeetingSchedule(m.scheduled_start_at, m.status, m.recording_status);
 
           return (
             <div
@@ -344,6 +344,20 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
                   </span>
 
                   {/* お礼文送信 & ボット派遣 & カレンダー連携ボタン群 */}
+                  {m.status !== 'completed' && m.recording_status !== 'completed' && (
+                    <button
+                      onClick={() => {
+                        store.completeMeeting(m.id);
+                        setRefreshKey(k => k + 1);
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-neutral-700 dark:text-neutral-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-xs font-medium flex items-center space-x-1 transition-colors"
+                      title="面談を終了済みに切り替える"
+                    >
+                      <Check className="w-3 h-3 text-emerald-500" />
+                      <span>終了済みにする</span>
+                    </button>
+                  )}
+
                   {m.recording_status === 'completed' && onOpenThankYou && (
                     <button
                       onClick={() => onOpenThankYou(m.id)}

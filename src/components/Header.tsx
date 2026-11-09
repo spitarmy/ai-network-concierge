@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard, RotateCw } from 'lucide-react';
 import { Tenant } from '../types';
 import { store } from '../services/store';
+import { forceReloadApp } from '../utils/updateManager';
 
 interface HeaderProps {
   currentTenant: Tenant;
@@ -14,6 +15,7 @@ interface HeaderProps {
   onSearchClick: () => void;
   reviewCount: number;
   onReviewClick: () => void;
+  updateAvailable?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSearchClick,
   reviewCount,
   onReviewClick,
+  updateAvailable = false,
 }) => {
   const budgetRatio = currentTenant.current_spend_jpy / currentTenant.monthly_budget_jpy;
   const isBudgetWarning = budgetRatio >= 0.8;
@@ -97,14 +100,21 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* PWA/キャッシュ再読み込みボタン（ホーム画面追加時に1タップで最新化） */}
         <button
-          onClick={() => {
+          onClick={async () => {
             store.purgeSamplePersons();
-            window.location.reload();
+            await forceReloadApp();
           }}
-          title="最新版に再読み込み"
-          className="p-1.5 rounded-lg text-neutral-500 hover:text-apple-blue hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
+          title={updateAvailable ? "新バージョン配信中！タップして最新化" : "最新版に再読み込み"}
+          className={`relative p-1.5 rounded-lg transition-colors shrink-0 ${
+            updateAvailable
+              ? 'text-apple-blue bg-blue-50 dark:bg-blue-950/40 ring-1 ring-apple-blue animate-pulse'
+              : 'text-neutral-500 hover:text-apple-blue hover:bg-neutral-100 dark:hover:bg-neutral-800'
+          }`}
         >
           <RotateCw className="w-4 h-4" />
+          {updateAvailable && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-apple-blue border-2 border-white dark:border-neutral-900" />
+          )}
         </button>
 
         {/* シンプル / ダッシュボード切替 */}
