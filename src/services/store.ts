@@ -725,6 +725,7 @@ class DataStore {
 
     // 勝賀野様と辻 晃典様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
+    this.seedKimuraMeeting();
   }
 
   public purgeBogusDemoData(): void {
@@ -964,6 +965,258 @@ class DataStore {
           }
         ],
         created_at: '2026-11-09T14:10:00Z',
+      });
+    }
+
+    this.persist();
+  }
+
+  
+  public seedKimuraMeeting(): void {
+    const tid = this.state.currentTenantId;
+
+    // 木村 尚史 様 カルテ
+    let kimura = this.state.persons.find(p => p.id === 'p-kimura-naofumi' || p.display_name === '木村 尚史');
+    if (!kimura) {
+      kimura = {
+        id: 'p-kimura-naofumi',
+        tenant_id: tid,
+        display_name: '木村 尚史',
+        phonetic_name: 'きむら なおふみ',
+        status: 'active',
+        category_tags: ['仕事', '知人', '東山高'],
+        avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+        service_areas: ['京都市内', '京都府全域', '関西'],
+        meeting_count: 1,
+        last_interacted_at: '2026-11-09T14:51:00+09:00',
+        notes: '東山高校同窓（サッカー部・江戸の代）。不用品回収事業に従事。勝賀野様の残置物撤去×リユース（先週月曜オープンのリサイクルショップ）と強力に業務提携。即日現地調査物件の見積もり打診。11月18日（水）にリアル飲み会（タメ語解禁の約束）。フットサル大会にも参加予定。',
+        created_at: '2026-11-09T14:29:00Z',
+        updated_at: '2026-11-09T15:05:00Z',
+      };
+      this.state.persons.unshift(kimura);
+    }
+
+    // 関連人物（相関図）: 康二（こうじ）
+    if (!this.state.persons.some(p => p.id === 'p-koji-prov')) {
+      this.state.persons.push({
+        id: 'p-koji-prov',
+        tenant_id: tid,
+        display_name: '康二（バー・リサイクルショップ）',
+        phonetic_name: 'こうじ',
+        status: 'provisional',
+        category_tags: ['仕事', '友人'],
+        service_areas: ['京都市内'],
+        meeting_count: 0,
+        notes: '勝賀野様の仲間。バーやリサイクルショップを運営。木村さんとも共通の知人。フットサル仲間（左足が上達中）。',
+        created_at: '2026-11-09T14:29:00Z',
+        updated_at: '2026-11-09T15:05:00Z',
+      });
+    }
+
+    // 関連人物（相関図）: 江戸（えどの）
+    if (!this.state.persons.some(p => p.id === 'p-edono-prov')) {
+      this.state.persons.push({
+        id: 'p-edono-prov',
+        tenant_id: tid,
+        display_name: '江戸（幼馴染）',
+        phonetic_name: 'えどの',
+        status: 'provisional',
+        category_tags: ['友人', '幼馴染'],
+        service_areas: ['京都市内'],
+        meeting_count: 0,
+        notes: '勝賀野様の幼馴染（ずっと一緒）。東山高校時代に木村さんとも交流があり、木村さんも「久々に会いたい」と発言。',
+        created_at: '2026-11-09T14:29:00Z',
+        updated_at: '2026-11-09T15:05:00Z',
+      });
+    }
+
+    // 関連人物（相関図）: 俊介（不動産）
+    if (!this.state.persons.some(p => p.id === 'p-shunsuke-prov')) {
+      this.state.persons.push({
+        id: 'p-shunsuke-prov',
+        tenant_id: tid,
+        display_name: '俊介（不動産）',
+        phonetic_name: 'しゅんすけ',
+        status: 'provisional',
+        category_tags: ['仕事', '友人'],
+        service_areas: ['京都市内'],
+        meeting_count: 0,
+        notes: '不動産業。勝賀野様と一緒にフットサルをしている。奥様が木村さんの知人。',
+        created_at: '2026-11-09T14:29:00Z',
+        updated_at: '2026-11-09T15:05:00Z',
+      });
+    }
+
+    // 関連人物（相関図）: 伊藤さん（紹介元）
+    if (!this.state.persons.some(p => p.id === 'p-ito-prov')) {
+      this.state.persons.push({
+        id: 'p-ito-prov',
+        tenant_id: tid,
+        display_name: '伊藤さん（幼馴染の奥様・紹介元）',
+        phonetic_name: 'いとうさん',
+        status: 'provisional',
+        category_tags: ['知人', '幼馴染'],
+        service_areas: ['京都市内'],
+        meeting_count: 0,
+        notes: '旦那様が勝賀野様の幼馴染（坂本くん等の仲間）。木村さんを勝賀野様へ紹介したキーパーソン。',
+        created_at: '2026-11-09T14:29:00Z',
+        updated_at: '2026-11-09T15:05:00Z',
+      });
+    }
+
+    // 面談記録
+    let meeting = this.state.meetings.find(m => m.id === 'm-kimura-20261109');
+    if (!meeting) {
+      meeting = {
+        id: 'm-kimura-20261109',
+        tenant_id: tid,
+        title: '木村 尚史様と1to1（不用品回収×残置物撤去・リユース提携・現地見積依頼）',
+        meeting_type: '1to1',
+        provider: 'zoom',
+        meeting_url: 'https://us06web.zoom.us/rec/share/Fcr6mJGN2AIHdNz25VrjG0oY6RRU_OPd_F9EofjC4YIe4uKzc2AwsfXpJKSSeviX.fWGkLoCNQXT8paBm',
+        meeting_code: 'Fcr6mJGN2A',
+        scheduled_start_at: '2026-11-09T14:29:00+09:00',
+        scheduled_end_at: '2026-11-09T14:51:00+09:00',
+        raw_invite_text: '木村 尚史様と1to1面談（ZENNOBATE Meeting Room）\nURL: https://us06web.zoom.us/rec/share/Fcr6mJGN2AIHdNz25VrjG0oY6RRU_OPd_F9EofjC4YIe4uKzc2AwsfXpJKSSeviX.fWGkLoCNQXT8paBm\nPasscode: 3E=2Pd8L',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [kimura.id],
+        created_at: '2026-11-09T14:25:00Z',
+      };
+      this.state.meetings.unshift(meeting);
+    } else {
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.participant_ids = [kimura.id];
+    }
+
+    // 話題 & 約束 Facts
+    const existingFact = this.state.facts.some(f => f.source_id === 'm-kimura-20261109');
+    if (!existingFact && kimura) {
+      this.state.facts.push(
+        {
+          id: 'fact-kimura-1',
+          tenant_id: tid,
+          person_id: kimura.id,
+          fact_category: 'topic',
+          fact_key: '業務提携・シナジー',
+          fact_value: '不用品回収 × 残置物撤去・リユース（先週月曜にオープンしたリサイクルショップ）の業務提携。処分現場から出る回収品をリユースへ循環させ相互送客',
+          source_type: 'meeting_speech',
+          source_id: 'm-kimura-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:51:00Z',
+          created_at: '2026-11-09T14:51:00Z',
+        },
+        {
+          id: 'fact-kimura-2',
+          tenant_id: tid,
+          person_id: kimura.id,
+          fact_category: 'topic',
+          fact_key: '回収・処理エリア',
+          fact_value: '京都市内の大型ゴミ・小型ゴミ・燃えるゴミ処分に対応可能。家の前まで来てもらえるパターンの回収体制',
+          source_type: 'meeting_speech',
+          source_id: 'm-kimura-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:51:00Z',
+          created_at: '2026-11-09T14:51:00Z',
+        },
+        {
+          id: 'fact-kimura-3',
+          tenant_id: tid,
+          person_id: kimura.id,
+          fact_category: 'topic',
+          fact_key: '東山高校同窓の再会',
+          fact_value: '東山高校サッカー部（江戸・康二の代、俊介や伊藤さん夫婦の縁）。勝賀野様の圧倒的な足の速さの思い出で大いに盛り上がる',
+          source_type: 'meeting_speech',
+          source_id: 'm-kimura-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:51:00Z',
+          created_at: '2026-11-09T14:51:00Z',
+        },
+        {
+          id: 'fact-kimura-4',
+          tenant_id: tid,
+          person_id: kimura.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '勝賀野様が本日現地調査した残置物・不用品回収案件について、木村様へ見積もり依頼を送る',
+          source_type: 'meeting_speech',
+          source_id: 'm-kimura-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:51:00Z',
+          created_at: '2026-11-09T14:51:00Z',
+        },
+        {
+          id: 'fact-kimura-5',
+          tenant_id: tid,
+          person_id: kimura.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '11月18日（水）にリアルで再会し飲み会を実施（その時にお互いタメ語を解禁する約束）',
+          source_type: 'meeting_speech',
+          source_id: 'm-kimura-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:51:00Z',
+          created_at: '2026-11-09T14:51:00Z',
+        },
+        {
+          id: 'fact-kimura-6',
+          tenant_id: tid,
+          person_id: kimura.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '勝賀野様・康二らのフットサルチームの次回大会に木村様が参加する',
+          source_type: 'meeting_speech',
+          source_id: 'm-kimura-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:51:00Z',
+          created_at: '2026-11-09T14:51:00Z',
+        }
+      );
+    }
+
+    // 文字起こし全文
+    const existingTranscript = this.state.transcripts.some(t => t.meeting_id === 'm-kimura-20261109');
+    if (!existingTranscript) {
+      this.state.transcripts.push({
+        id: 'tr-kimura-20261109',
+        tenant_id: tid,
+        meeting_id: 'm-kimura-20261109',
+        language: 'ja',
+        full_text: '木村尚史: なおふみです。覚えてますか？\n4/勝賀野 太郎/残置物撤去: 東山サッカー部を知ってる江戸の...なお言われてなかった。あ、そうそうなおなおって言われてて。ちょっとスピーカーにするわ。\n木村尚史: 労働してます。\n4/勝賀野 太郎/残置物撤去: 面影あるわ！卒業してから会ってへんもん。\n4/勝賀野 太郎/残置物撤去: 伊藤さんいるやん。伊藤さんの旦那が俺の幼馴染で、友達で紹介してもらって高校聞いたら東山って。ほな康二知ってますって。ここに書いてあるバーとかリサイクルショップ、康二でやってるんですよ言うて。\n木村尚史: こんな繋がり方ありやと思い。\n4/勝賀野 太郎/残置物撤去: そうそう、最近不用品回収の仕事を始めはったみたいで。\n木村尚史: 代表がいてやってるってことです。\n4/勝賀野 太郎/残置物撤去: 俺に敬語やめてんな、絶対！18日、よかったら来て。\n木村尚史: 是非是非お願いしたいなって。ゴミの仕様がめっちゃ変わってるんで。\n4/勝賀野 太郎/残置物撤去: そうやろうなぁ。何でも言ってくれたら。家の前まで来てもらえるパターンやったら一杯いけるし、京都市内やったら大型ゴミとか全然うち行けるし、燃えるゴミもいけるよ。\n木村尚史: 足がめちゃくちゃ速いイメージというのがやばいくらい早かった。\n4/勝賀野 太郎/残置物撤去: せやなぁ、一番早かったからな。俊介とかとたまに会ってフットサルやってる。俊介は不動産やってる。\n木村尚史: 嫁さんは僕は知ってて。いろんなとこへ繋がって。\n4/勝賀野 太郎/残置物撤去: めっちゃ偶然やなぁ。連絡取り合って色々やってったらいいと思うし、やろうや。リサイクルショップ自体は先週月曜にオープンしたばかり。ちょうど一週間。俺ら事業関連してるから、うまいこといけたら維持できるやろうって。リユースという事業が仕事的にもめちゃくちゃいいから。18日よかったら来てください。普通に一緒に飲みたいっすわ。その時にタメ語解禁しましょう！\n木村尚史: 18日も行く予定で予定空けますんで！\n4/勝賀野 太郎/残置物撤去: また僕一件、今日現地行ってるとこあるんで、それまた見積もりお願いしてもいいですかね？\n木村尚史: え、もう早速そんな話ありがとうございます！\n4/勝賀野 太郎/残置物撤去: 江戸なんか俺もうずっと幼馴染で一緒におるし。\n木村尚史: 江戸に会いたいな。久々にフットサルも行きたいですもん。\n4/勝賀野 太郎/残置物撤去: フットサルは次大会来てください！康二もサッカーできひんのに出てて左足上手くなってきてるから大丈夫！\n木村尚史: それも参加させてもらいます！これからもよろしくお願いします！',
+        summary: '東山高校同窓の再会。不用品回収事業に従事する木村様と、残置物撤去・リユース（先週オープンのリサイクルショップ）を展開する勝賀野様の強力な協業合意。本日現地調査案件の見積もり打診、11月18日のリアル飲み会（タメ語解禁約束）、フットサル大会参加などを決定。',
+        utterances: [
+          {
+            id: 'utt-kimura-1',
+            speaker_label: '木村 尚史',
+            resolved_person_id: kimura.id,
+            resolved_person_name: '木村 尚史',
+            start_seconds: 943,
+            end_seconds: 1325,
+            text: '不用品回収を始めました。勝賀野さんの残置物・リユース事業とぜひ連携したいです。18日の飲み会も予定空けますし、本日の案件見積もりもぜひやらせてください！',
+            confidence: 0.99,
+          }
+        ],
+        created_at: '2026-11-09T14:55:00Z',
       });
     }
 
