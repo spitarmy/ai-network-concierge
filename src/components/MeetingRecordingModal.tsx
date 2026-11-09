@@ -155,22 +155,43 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
           {activeTab === 'file' && (
             <div className="space-y-3">
               <label className="block text-neutral-500 font-semibold">
-                録音ファイル（.m4a, .mp3, .wav）を選択:
+                録音ファイル（.m4a, .mp3, .wav）:
               </label>
-              <div className="border-2 border-dashed border-apple-border dark:border-apple-darkBorder rounded-2xl p-6 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer relative">
+              <div className="border-2 border-dashed border-apple-border dark:border-apple-darkBorder rounded-2xl p-4 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer relative">
                 <input
                   type="file"
                   accept="audio/*,.m4a,.mp3,.wav"
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                <Mic className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-                <p className="font-semibold text-neutral-700 dark:text-neutral-300">
-                  {fileName ? fileName : 'ファイルを選択 または ドロップ'}
+                <Mic className="w-6 h-6 text-purple-500 mx-auto mb-1" />
+                <p className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                  {fileName ? `選択済み: ${fileName}` : 'ファイルを選択 または ドロップ'}
                 </p>
-                <p className="text-[10px] text-neutral-400 mt-1">
-                  ボイスメモ、ICレコーダー、Zoomクラウド録音の音声ファイルに対応
+                <p className="text-[10px] text-neutral-400 mt-0.5">
+                  ボイスメモ、ICレコーダー、Zoom録音の音声ファイル
                 </p>
+              </div>
+
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200/80 dark:border-amber-800/40 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+                <span className="font-bold block">💡 音声解析と確実なお礼文作成のために:</span>
+                <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                  大容量の音声ファイルは端末や環境により読み取りが空振りすることがあります。<br />
+                  下の枠に<strong>「相手のお名前や、今日話した要約・約束メモ」</strong>を1〜2行でも添えていただくと、AIが確実に相手のカルテとお礼状を生成します。
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-neutral-500 font-semibold mb-1">
+                  面談メモ・話題・約束の補足（箇条書きでOK）:
+                </label>
+                <textarea
+                  rows={4}
+                  value={transcriptText.startsWith('[音声ファイル:') ? '' : transcriptText}
+                  onChange={(e) => setTranscriptText(e.target.value)}
+                  placeholder="【例】木村さんと面談。社団法人stoneの今後の企画について意見交換。次回までに企画概要を共有する約束をした。"
+                  className="w-full p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
               </div>
             </div>
           )}
