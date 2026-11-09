@@ -1280,6 +1280,15 @@ class DataStore {
     this.persist();
   }
 
+  
+  public togglePromiseCompleted(factId: string): boolean {
+    const fact = this.state.facts.find(f => f.id === factId);
+    if (!fact) return false;
+    fact.verification_status = fact.verification_status === 'verified' ? 'reported' : 'verified';
+    this.persist();
+    return true;
+  }
+
   public syncZoomInbox(inbox: any[]): boolean {
     if (!Array.isArray(inbox) || inbox.length === 0) return false;
     let added = false;
@@ -1632,6 +1641,11 @@ class DataStore {
   }
 
   // --- 事実 (Facts) ---
+  public getAllFacts(): Fact[] {
+    const tid = this.state.currentTenantId;
+    return this.state.facts.filter(f => f.tenant_id === tid);
+  }
+
   public getFactsForPerson(personId: string): Fact[] {
     const tid = this.state.currentTenantId;
     return this.state.facts.filter(f => f.tenant_id === tid && f.person_id === personId);

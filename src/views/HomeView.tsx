@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, ArrowRight, Sparkles, AlertCircle, Share2, CheckCircle2, Mic, MessageSquare, ExternalLink, Check, RotateCw } from 'lucide-react';
 import { store } from '../services/store';
-import { Person } from '../types';
+import { Person, Fact } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
 import { UserAvatar } from '../components/UserAvatar';
 import { MeetingRecordingModal } from '../components/MeetingRecordingModal';
@@ -30,6 +30,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const meetings = store.getMeetings();
   const reviewQueue = store.getReviewQueue();
   const referrals = store.getReferrals();
+  const allFacts = store.getAllFacts();
+  const promiseFacts = allFacts.filter((f: Fact) => f.fact_category === 'promise');
+  const [completedPromises, setCompletedPromises] = useState<Record<string, boolean>>({});
+
+  const handleTogglePromise = (factId: string) => {
+    setCompletedPromises(prev => ({ ...prev, [factId]: !prev[factId] }));
+    store.togglePromiseCompleted(factId);
+  };
 
   const handleCompleteMeeting = (meetingId: string) => {
     store.completeMeeting(meetingId);
@@ -308,6 +316,66 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </section>
       )}
 
+      {/* 保留中の約束・ToDo リマインダー (期限管理) */}
+      <section className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
+              ✓
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                面談で決まった約束・次回ToDo（期限管理）
+              </h3>
+              <p className="text-[11px] text-neutral-500">
+                1to1での口約束を忘れずに実行し、信頼を最大化します
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-semibold">
+            {promiseFacts.filter((p: Fact) => !completedPromises[p.id]).length} 件未完了
+          </span>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          {promiseFacts.slice(0, 6).map((f: Fact) => {
+            const p = store.getPersonById(f.person_id);
+            const isDone = completedPromises[f.id] || f.verification_status === 'reported';
+
+            return (
+              <div
+                key={f.id}
+                onClick={() => handleTogglePromise(f.id)}
+                className={`p-3 rounded-2xl border transition-all flex items-start space-x-3 cursor-pointer select-none ${
+                  isDone
+                    ? 'bg-neutral-50/50 dark:bg-neutral-900/30 border-neutral-200/50 dark:border-neutral-800 opacity-60'
+                    : 'bg-amber-50/30 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30 hover:bg-amber-50/60'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isDone}
+                  onChange={() => {}}
+                  className="mt-0.5 rounded text-amber-500 focus:ring-amber-400"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-xs font-semibold ${isDone ? 'line-through text-neutral-400' : 'text-neutral-800 dark:text-neutral-100'}`}>
+                      {f.fact_value}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-1 text-[11px] text-neutral-400">
+                    <span>相手: {p ? p.display_name : '面談相手'}</span>
+                    <span>•</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">期日: 3日以内推奨</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* 登録済み予定一覧カード (直近以外にも予定がある場合) */}
       {meetings.length > 1 && (
         <div className="p-5 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3">
@@ -417,14 +485,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-2 text-xs">
                 <div className="flex items-center justify-between font-medium">
                   <span className="text-neutral-700 dark:text-neutral-300">
-                    山田 太郎様 ⇄ 佐藤 由香様
+                    木村 尚史 様 ⇄ ZENNOBATE（勝賀野様）
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-indigo/10 text-apple-indigo font-semibold">
                     合致度高
                   </span>
                 </div>
                 <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                  山田さんが求めている「町家カフェの店舗看板・ロゴデザイン」に、佐藤さんの実績が完全に合致しています。
+                  木村様の「不用品回収」と、勝賀野様の「残置物撤去・リサイクルショップ」で、現場から出る回収品のリユース循環・相互送客の親和性が極めて高いです。
                 </p>
                 <button
                   onClick={() => onNavigate('referrals')}

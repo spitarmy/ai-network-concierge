@@ -19,6 +19,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
   const [recipientName, setRecipientName] = useState('');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [participants, setParticipants] = useState<{ id: string; name: string }[]>([]);
+  const [askCompany, setAskCompany] = useState(false);
 
   useEffect(() => {
     if (isOpen && meetingId) {
@@ -114,7 +115,42 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
             <span>同一のZoom URLであっても、各参加者・面談ごとに完全に分離してカルテ記録とお礼文の作成が行われます。</span>
           </div>
 
-          {/* 文体セレクター */}
+          {/* 会社名聞き落とし防止: 正式社名の確認トグル */}
+          <div className="p-3 bg-neutral-100 dark:bg-neutral-800/80 rounded-2xl border border-apple-border dark:border-apple-darkBorder flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-base">🏢</span>
+              <div>
+                <div className="font-semibold text-neutral-800 dark:text-neutral-200 text-xs">
+                  正式な会社名の確認を一言添える
+                </div>
+                <div className="text-[10px] text-neutral-500">
+                  面談中に社名を聞き落とした場合でも、失礼なく自然にお伺いできます
+                </div>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+              <input
+                type="checkbox"
+                checked={askCompany}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setAskCompany(checked);
+                  const postscript = '\n\n追伸: 大変恐縮ながら、御社の正式な社名表記をお伺いそびれてしまい失礼いたしました。ぜひカルテに大切に記録しておきたく、よろしければ正式な社名を教えていただけますと幸いです！';
+                  if (checked) {
+                    if (!messageText.includes('正式な社名表記')) {
+                      setMessageText(prev => prev + postscript);
+                    }
+                  } else {
+                    setMessageText(prev => prev.replace(postscript, ''));
+                  }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-apple-blue"></div>
+            </label>
+          </div>
+
+                    {/* 文体セレクター */}
           <div>
             <label className="block text-neutral-500 mb-1.5 font-medium">送信先・文体を選択:</label>
             <div className="flex p-1 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder">
