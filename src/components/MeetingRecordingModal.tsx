@@ -27,13 +27,23 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
   const participant = firstPid ? store.getPersonById(firstPid) : undefined;
 
   const handleProcess = () => {
+    if (activeTab === 'text' && !transcriptText.trim()) {
+      alert('面談のメモや文字起こしテキストを入力してください。\n（デモを試したい場合は上部の「デモ解析」タブをお選びください）');
+      return;
+    }
+    if (activeTab === 'file' && !fileName) {
+      alert('録音音声ファイル（.m4a, .mp3等）を選択してください');
+      return;
+    }
+
     setIsProcessing(true);
     setTimeout(() => {
       try {
-        store.processMeetingRecordingAndAutoRegister(
-          meetingId,
-          activeTab === 'text' && transcriptText.trim().length > 0 ? transcriptText : undefined
-        );
+        const textToAnalyze = activeTab === 'text'
+          ? transcriptText.trim()
+          : (activeTab === 'file' ? transcriptText : undefined);
+
+        store.processMeetingRecordingAndAutoRegister(meetingId, textToAnalyze);
         setIsProcessing(false);
         onSuccess(meetingId);
         onClose();

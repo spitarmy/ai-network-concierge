@@ -1211,7 +1211,8 @@ class DataStore {
     const participantIds: string[] = [...(data.participant_ids || [])];
     const candidateName = data.participant_name?.trim() || (data.title ? data.title.split('様')[0].trim() : '');
 
-    if (candidateName && candidateName !== '面談予定') {
+    const placeholderTitles = ['面談予定', '録音から自動解析された面談', 'オンライン面談', '面談'];
+    if (candidateName && !placeholderTitles.includes(candidateName)) {
       // 既存の登録人物から検索
       const existing = this.getPersons().find(
         p => p.display_name === candidateName || p.display_name.startsWith(candidateName)
@@ -1409,74 +1410,109 @@ class DataStore {
     const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
     if (!meeting) throw new Error('Meeting not found');
 
-    const sampleTranscript = transcriptText || `
-高橋: はじめまして！本日は1to1面談のお時間ありがとうございます。株式会社タカハシ看板デザイン 代表取締役の高橋誠治と申します。
-自分: はじめまして、よろしくお願いします！
-高橋: 私はBNI京都南チャプターに所属しておりまして、カテゴリーは屋外広告・看板施工です。最近は新規出店される町家カフェやクリニックのLED電飾看板を多く手掛けています。
-自分: 素晴らしいですね！どんな方をご紹介すると喜ばれますか？
-高橋: これから京都市内で新規開業やリニューアルオープンを控えている飲食店オーナー様がいらっしゃれば是非ご紹介いただきたいです。
-自分: わかりました。来週、心当たりのカフェオーナーの佐藤さんに声をかけてみますね。
-高橋: 本当にありがとうございます！次回までに当社の施工実績カタログと事例集をお送りしますね。
-    `.trim();
-
     const firstPid = meeting.participant_ids[0];
     const existingParticipant = firstPid ? this.getPersonById(firstPid) : undefined;
     const isKnownParticipant = existingParticipant && !existingParticipant.display_name.startsWith('相手未特定');
 
-    // 1. お名前の抽出 (既存参加者が判明している場合はその実名を最優先で維持)
-    let realName = isKnownParticipant ? existingParticipant.display_name : '高橋 誠治';
-    if (transcriptText) {
-      const nameMatch = transcriptText.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎)/);
-      if (nameMatch) {
-        const raw = nameMatch[0];
-        realName = raw.includes(' ') ? raw : `${raw.slice(0, 2)} ${raw.slice(2)}`;
-      } else {
-        const dynamicNameMatch = transcriptText.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:と申します|です|と申します。)/);
-        if (dynamicNameMatch && dynamicNameMatch[1] && !/^(はじめまして|本日|私|代表|社長)$/.test(dynamicNameMatch[1])) {
-          const raw = dynamicNameMatch[1];
-          realName = (raw.length === 4 && !raw.includes(' ')) ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
+    const rawInput = (transcriptText || '').trim();
+    const isRealInput = rawInput.length > 0;
+
+    let realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';
+    let companyName = '';
+    let title = '';
+    let bniChapter = '';
+    let bniCategory = '';
+    let topic = '';
+    let promise = '';
+    let serviceDescription = '';
+
+    if (isRealInput) {
+      const rawLines = rawInput
+        .split(/[\n。！!]/)
+        .map(s => s.replace(/^[^\s:：]{1,10}[:：]\s*/, '').trim())
+        .filter(s => s.length > 3);
+
+      // 1. お名前抽出
+      if (!isKnownParticipant) {
+        const nameMatch = rawInput.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎)/);
+        if (nameMatch) {
+          const raw = nameMatch[0];
+          realName = raw.includes(' ') ? raw : `${raw.slice(0, 2)} ${raw.slice(2)}`;
+        } else {
+          const dynamicNameMatch = rawInput.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:と申します|です|と申します。)/);
+          if (dynamicNameMatch && dynamicNameMatch[1] && !/^(はじめまして|本日|私|代表|社長|会議|面談)$/.test(dynamicNameMatch[1])) {
+            const raw = dynamicNameMatch[1];
+            realName = (raw.length === 4 && !raw.includes(' ')) ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
+          }
         }
       }
-    }
 
-    // 2. 会社名・役職の抽出
-    const existingOrgs = existingParticipant ? this.getOrgMembershipsForPerson(existingParticipant.id) : [];
-    let companyName = existingOrgs[0]?.organization_name || (existingParticipant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '株式会社タカハシ看板デザイン');
-    let title = '代表取締役';
-    const compMatch = sampleTranscript.match(/(?:株式会社|有限会社|合同会社|一般社団法人)[^\s\n、。「」『』()（）]{2,20}/);
-    if (compMatch) companyName = compMatch[0];
-    const titleMatch = sampleTranscript.match(/(代表取締役|代表|理事|幹部|専務取締役|常務取締役|支店長|院長|所長)/);
-    if (titleMatch) title = titleMatch[0];
+      // 2. 会社名・役職の抽出（実文面から抽出。未言及なら架空捏造しない）
+      const compMatch = rawInput.match(/(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[A-Za-z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]{1,15}?(?=[の\s、。\n]|$)/);
+      const existingOrgs = existingParticipant ? this.getOrgMembershipsForPerson(existingParticipant.id) : [];
+      if (compMatch) {
+        companyName = compMatch[0];
+      } else if (existingOrgs.length > 0) {
+        companyName = existingOrgs[0].organization_name;
+      } else if (existingParticipant?.category_tags?.includes('一般社団法人stone')) {
+        companyName = '一般社団法人stone';
+      }
 
-    // 3. BNIチャプター・カテゴリーの抽出
-    let bniChapter = '京都南チャプター';
-    let bniCategory = '屋外広告・看板施工';
-    const chMatch = sampleTranscript.match(/([^\s\n、。「」『』()（）]{2,10}?チャプター)/);
-    if (chMatch) bniChapter = chMatch[0];
-    const catMatch = sampleTranscript.match(/カテゴリーは?([^\s\n、。「」『』()（）]{2,15})/);
-    if (catMatch) bniCategory = catMatch[1];
+      const titleMatch = rawInput.match(/(代表取締役|代表理事|理事|代表|幹部|専務取締役|常務取締役|支店長|院長|所長|役員)/);
+      if (titleMatch) {
+        title = titleMatch[0];
+      } else if (existingParticipant?.category_tags?.includes('一般社団法人stone')) {
+        title = '幹部';
+      }
 
-    // 4. 話題・トピックの抽出
-    let topic = '町家カフェやクリニックのLED電飾看板・店舗サイン施工の事例';
-    if (sampleTranscript.includes('新規出店') || sampleTranscript.includes('看板')) {
+      // 3. BNIチャプター・カテゴリー（明示されている場合のみ抽出。未言及なら架空捏造しない）
+      const chMatch = rawInput.match(/([^\s\n、。「」『』()（）]{2,10}?チャプター)/);
+      if (chMatch) bniChapter = chMatch[0].replace(/^BNI\s*/i, '');
+      const catMatch = rawInput.match(/カテゴリーは?([^\s\n、。「」『』()（）]{2,15})/);
+      if (catMatch) bniCategory = catMatch[1];
+
+      // 4. 約束事項・ToDoの抽出
+      const promiseKeywords = /(?:次回|来週|明日|後ほど|お送り|送ります|送付|共有|確認|連絡|紹介|繋ぎ|打診|調整|検討|提出|作成|報告)/;
+      const promiseSentences = rawLines.filter(l => promiseKeywords.test(l));
+      if (promiseSentences.length > 0) {
+        promise = promiseSentences.slice(0, 2).join(' / ');
+      } else {
+        promise = '面談内容の整理と今後の連携検討';
+      }
+
+      // 5. 話題・トピックの抽出
+      const ignorePatterns = /^(はじめまして|本日は|本日|ありがとう|よろしく|こんにちは|お疲れ様|恐れ入ります)/;
+      const topicSentences = rawLines.filter(l => !ignorePatterns.test(l) && !promiseKeywords.test(l));
+      if (topicSentences.length > 0) {
+        topic = topicSentences.slice(0, 3).join('。 ');
+      } else {
+        topic = rawLines.slice(0, 2).join('。 ') || '事業・取り組みに関する意見交換';
+      }
+
+      serviceDescription = companyName ? `${companyName}の事業展開・共同取り組み` : topic.slice(0, 40);
+    } else {
+      // テキスト未入力（デモ明示時のみのサンプル）
+      realName = isKnownParticipant ? existingParticipant.display_name : '高橋 誠治';
+      companyName = '株式会社タカハシ看板デザイン';
+      title = '代表取締役';
+      bniChapter = '京都南チャプター';
+      bniCategory = '屋外広告・看板施工';
       topic = '新規出店する町家カフェやクリニック向けLED電飾看板・店舗サイン施工の実績';
-    }
-
-    // 5. 約束事項の抽出
-    let promise = '次回までに施工実績カタログと事例集をお送りする';
-    if (sampleTranscript.includes('お送りします')) {
       promise = '次回までに施工実績カタログと店舗サイン事例集を送付する';
+      serviceDescription = 'LED電飾看板・店舗サイン・屋外広告の企画から施工まで一貫対応';
     }
 
     // 人物カルテの特定・作成・昇格
     const { person } = this.identifyMeetingParticipant(meeting.id, {
       realName,
-      companyName,
-      title,
-      bniChapter,
-      bniCategory,
-      serviceDescription: 'LED電飾看板・店舗サイン・屋外広告の企画から施工まで一貫対応',
-      notes: `[録音自動解析] ${new Date().toLocaleDateString('ja-JP')}の1to1面談より自動生成。紹介希望: 新規開業予定の飲食店オーナーやクリニック院長。`,
+      companyName: companyName || undefined,
+      title: title || undefined,
+      bniChapter: bniChapter || undefined,
+      bniCategory: bniCategory || undefined,
+      serviceDescription: serviceDescription || undefined,
+      notes: isRealInput
+        ? `[文字起こし・メモ解析] ${new Date().toLocaleDateString('ja-JP')}の面談より記録。話題: ${topic}`
+        : `[デモ録音自動解析] ${new Date().toLocaleDateString('ja-JP')}の1to1面談より自動生成。紹介希望: 新規開業予定の飲食店オーナーやクリニック院長。`,
     });
 
     // 過去の話題・約束をFactsとして自動記録
@@ -1621,7 +1657,7 @@ class DataStore {
 
 ━━━━━━━━━━━━━━━━━━━
 【本日お伺いした${recipient_name}様のお話】
-・会社/事業: ${company}${chapter ? `（BNI ${chapter}）` : ''}
+・会社/事業: ${company}${chapter ? `（BNI ${chapter.replace(/^BNI\s*/i, '')}）` : ''}
 ・強み/実績: ${partner_business}
 ・求めているご紹介: ${partner_referral}
 

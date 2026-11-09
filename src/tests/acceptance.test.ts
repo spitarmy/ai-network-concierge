@@ -462,7 +462,7 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       expect(thankYouLine.draft_text).toContain('高橋 誠治さん、本日はお忙しい中Zoomでのお時間をいただき');
       expect(thankYouLine.draft_text).toContain('株式会社タカハシ看板デザイン');
       expect(thankYouLine.draft_text).toContain('京都南');
-      expect(thankYouLine.draft_text).toContain('次回までに施工実績カタログ');
+      expect(thankYouLine.draft_text).toContain('施工実績カタログ');
 
       const thankYouBNI = store.generateThankYouDraft(result.meeting.id, 'bni_formal');
       expect(thankYouBNI.draft_text).toContain('Givers Gain');
@@ -670,6 +670,37 @@ describe('AI人脈コンシェルジュ — 受け入れテスト & 品質ゲー
       // 削除できること
       store.deleteRelationship(newRel.id);
       expect(store.getRelationships('actual').some(r => r.id === newRel.id)).toBe(false);
+    });
+
+    it('一般ビジネス・社団法人などの面談文字起こしにおいて、架空のBNIや看板施工を捏造せず実文面通りの話題・約束・お礼文を抽出すること', () => {
+      const stoneMeeting = store.createMeeting({
+        title: '一般社団法人stone 幹部面談',
+        scheduled_start_at: '2026-11-09T21:30:00.000Z',
+        participant_name: 'ツージー',
+      });
+
+      const memo = `
+本日はありがとうございました。一般社団法人stoneの件で意見交換しました。
+今後は学生向けのキャリア支援とAI活用のワークショップを共同で開催していく方針で合意しました。
+来週月曜までに企画書の骨子を作成してLINEで共有しますね。
+      `.trim();
+
+      const result = store.processMeetingRecordingAndAutoRegister(stoneMeeting.id, memo);
+      expect(result.summary.realName).toBe('ツージー');
+      expect(result.summary.companyName).toContain('stone');
+      expect(result.summary.bniChapter).toBe(''); // BNI言及なしのため空であること
+      expect(result.summary.topic).toContain('ワークショップ');
+      expect(result.summary.promise).toContain('企画書の骨子を作成');
+
+      // タカハシ看板やLED看板が一切混入していないこと
+      expect(result.summary.topic).not.toContain('看板');
+      expect(result.summary.promise).not.toContain('施工実績');
+
+      const thankYou = store.generateThankYouDraft(stoneMeeting.id, 'line_casual', result.person.id);
+      expect(thankYou.draft_text).toContain('ツージーさん');
+      expect(thankYou.draft_text).toContain('企画書の骨子');
+      expect(thankYou.draft_text).not.toContain('看板');
+      expect(thankYou.draft_text).not.toContain('京都南');
     });
   });
 });
