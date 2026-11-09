@@ -7,6 +7,7 @@ import {
 import { store } from '../services/store';
 import { Meeting } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
+import { MeetingRecordingModal } from '../components/MeetingRecordingModal';
 
 interface MeetingsViewProps {
   onOpenQuickAdd?: () => void;
@@ -27,6 +28,9 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
   const [editTitle, setEditTitle] = useState('');
   const [editStartAt, setEditStartAt] = useState('');
   const [editUrl, setEditUrl] = useState('');
+
+  // 録音・文字起こし解析モーダル状態
+  const [recordingMeetingId, setRecordingMeetingId] = useState<string | null>(null);
 
   const meetings = store.getMeetings();
   const recordings = store.getRecordings();
@@ -298,14 +302,11 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
                       <h3 className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">{m.title}</h3>
                       {m.recording_status !== 'completed' && (
                         <button
-                          onClick={() => {
-                            store.processMeetingRecordingAndAutoRegister(m.id);
-                            setRefreshKey(k => k + 1);
-                          }}
+                          onClick={() => setRecordingMeetingId(m.id)}
                           className="px-2.5 py-0.5 rounded-lg bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/50 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-[11px] font-semibold transition-colors flex items-center space-x-1"
-                          title="面談後の録音から相手本名・会社・BNI所属・話題・約束をAIがすべて自動登録"
+                          title="面談後の録音や文字起こし・メモから相手本名・会社・話題・約束をAIが自動解析"
                         >
-                          <span>🎙️ 録音から自動登録</span>
+                          <span>🎙️ 録音・文字起こし解析</span>
                         </button>
                       )}
                       {onOpenIdentify && (
@@ -606,6 +607,18 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           </form>
         </div>
       )}
+      {/* 録音・文字起こし解析モーダル */}
+      <MeetingRecordingModal
+        isOpen={!!recordingMeetingId}
+        meetingId={recordingMeetingId}
+        onClose={() => setRecordingMeetingId(null)}
+        onSuccess={(mId) => {
+          setRefreshKey(k => k + 1);
+          if (onOpenThankYou) {
+            onOpenThankYou(mId);
+          }
+        }}
+      />
     </div>
   );
 };
