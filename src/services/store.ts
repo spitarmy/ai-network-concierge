@@ -2304,7 +2304,9 @@ class DataStore {
 
     const company = orgs[0]?.organization_name || (participant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '御社');
     const chapter = bni[0]?.chapter_name || '';
-    const partner_business = topicFact?.fact_value || offerings[0]?.service_title || (participant?.notes?.includes('紹介希望') ? participant.notes : '事業展開・共同取り組み');
+    // 本業・事業内容（雑談・話題とは厳格に分離）
+    const partner_business = offerings[0]?.service_title || (bni[0]?.category ? `${bni[0].category}事業` : '本業・事業展開');
+    const discussion_topic = topicFact?.fact_value || '今後の協業・情報交換';
     const partner_referral = '新規提携先や協業ニーズのある事業者様';
     const my_commitment = '当方からマッチする事業者様への打診とお繋ぎ';
     const action_items = promiseFact?.fact_value || '次回までに参考事例の共有と追加情報のご連絡';
@@ -2320,7 +2322,7 @@ class DataStore {
 ━━━━━━━━━━━━━━━━━━━
 【本日お伺いした${recipient_name}様のお話】
 ・会社/事業: ${company}${chapter ? `（BNI ${chapter.replace(/^BNI\s*/i, '')}）` : ''}
-・強み/実績: ${partner_business}
+・話題・企画: ${discussion_topic}
 ・求めているご紹介: ${partner_referral}
 
 【当方からのお約束・ネクストアクション】
