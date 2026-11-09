@@ -6,6 +6,7 @@ import {
 import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
 import { UserAvatar } from '../components/UserAvatar';
+import { compressImage } from '../utils/imageCompressor';
 
 interface PersonsViewProps {
   selectedPersonId?: string;
@@ -179,19 +180,23 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   };
 
   // 顔写真ファイル選択（カメラ / 写真ライブラリ）
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedPerson) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        store.updatePersonAvatar(selectedPerson.id, dataUrl);
-        setIsAvatarModalOpen(false);
-        onRefresh();
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // 顔写真も256x256の軽量WebP(約10〜20KB)に自動圧縮し、ストレージを保護
+      const result = await compressImage(file, {
+        maxWidth: 256,
+        maxHeight: 256,
+        quality: 0.8,
+        preferredFormat: 'image/webp',
+      });
+      store.updatePersonAvatar(selectedPerson.id, result.dataUrl);
+      setIsAvatarModalOpen(false);
+      onRefresh();
+    } catch (err) {
+      console.error('Avatar compression failed:', err);
+    }
   };
 
   // 顔写真URL登録

@@ -672,7 +672,27 @@ const getStorageItem = (key: string): string | null => {
 };
 const setStorageItem = (key: string, value: string): void => {
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem(key, value);
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn('localStorage容量制限(QuotaExceeded)を検知しました。容量安全保護処理を実行します:', e);
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed.cardScans && Array.isArray(parsed.cardScans)) {
+          // 直近5枚のみ残し、古い名刺の巨大画像Base64を退避（カルテやFacts、要約は100%保護）
+          parsed.cardScans = parsed.cardScans.map((cs: any, idx: number) => {
+            if (idx >= 5 && typeof cs.image_url === 'string' && cs.image_url.startsWith('data:')) {
+              return { ...cs, image_url: '' };
+            }
+            return cs;
+          });
+        }
+        window.localStorage.setItem(key, JSON.stringify(parsed));
+      } catch (innerErr) {
+        console.error('フォールバック保存にも失敗したためメモリに退避します:', innerErr);
+        nodeMemoryStore.set(key, value);
+      }
+    }
   } else {
     nodeMemoryStore.set(key, value);
   }
@@ -2344,6 +2364,8 @@ class DataStore {
     targetPersonId?: string
   ): {
     recipient_name: string;
+    recipient_person_id?: string;
+    is_recipient_name_verified?: boolean;
     draft_text: string;
     meeting_title: string;
     all_participants: { id: string; name: string }[];
@@ -2444,6 +2466,8 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
 
     return {
       recipient_name,
+      recipient_person_id: participant?.id,
+      is_recipient_name_verified: participant?.is_name_verified,
       draft_text,
       meeting_title: meeting?.title || '面談',
       all_participants,
@@ -3002,7 +3026,8 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
       email?: string;
       address?: string;
       website_url?: string;
-    }
+    },
+    sizes?: { originalSize?: number; compressedSize?: number }
   ): CardScan {
     const tid = this.state.currentTenantId;
 
@@ -3030,6 +3055,8 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
       tenant_id: tid,
       matched_person_id: matchedPerson?.id,
       image_url: imageDataUrl,
+      original_size_bytes: sizes?.originalSize,
+      compressed_size_bytes: sizes?.compressedSize,
       raw_extracted: {
         person_name: data.person_name,
         phonetic_name: data.phonetic_name,

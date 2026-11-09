@@ -41,6 +41,7 @@ export interface Person {
   meeting_count: number;
   last_interacted_at?: string;
   notes?: string;
+  is_name_verified?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -231,6 +232,8 @@ export interface CardScan {
     reason: string;
   }[];
   status: 'processing' | 'completed' | 'needs_review';
+  original_size_bytes?: number;
+  compressed_size_bytes?: number;
   created_at: string;
 }
 

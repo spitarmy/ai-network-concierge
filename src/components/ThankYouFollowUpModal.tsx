@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, MessageSquare, Mail, Sparkles } from 'lucide-react';
+import { X, Copy, Check, MessageSquare, Mail, Sparkles, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { store } from '../services/store';
 
 interface ThankYouFollowUpModalProps {
@@ -17,6 +17,8 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
   const [messageText, setMessageText] = useState('');
   const [copied, setCopied] = useState(false);
   const [recipientName, setRecipientName] = useState('');
+  const [kanjiVerified, setKanjiVerified] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [participants, setParticipants] = useState<{ id: string; name: string }[]>([]);
   const [askCompany, setAskCompany] = useState(false);
@@ -30,10 +32,41 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
       if (!selectedPersonId && draft.all_participants && draft.all_participants.length > 0) {
         setSelectedPersonId(draft.all_participants[0].id);
       }
+      // 対象人物の漢字検証フラグをチェック
+      if (draft.recipient_person_id) {
+        const person = store.getPersonById(draft.recipient_person_id);
+        if (person?.is_name_verified) {
+          setKanjiVerified(true);
+        } else {
+          setKanjiVerified(false);
+        }
+      }
     }
   }, [isOpen, meetingId, tone, selectedPersonId]);
 
   if (!isOpen || !meetingId) return null;
+
+  // お名前の漢字変更ハンドラ
+  const handleRecipientNameChange = (newName: string) => {
+    const oldName = recipientName;
+    setRecipientName(newName);
+    setKanjiVerified(false);
+    if (oldName && newName) {
+      setMessageText((prev) => prev.split(oldName).join(newName));
+    }
+  };
+
+  // カルテにお名前の漢字を確定保存
+  const handleSaveVerifiedKanji = () => {
+    if (!selectedPersonId || !recipientName.trim()) return;
+    store.updatePerson(selectedPersonId, {
+      display_name: recipientName.trim(),
+      is_name_verified: true,
+    });
+    setKanjiVerified(true);
+    setSaveSuccessMsg(`「${recipientName.trim()} 様」の漢字をカルテに正式確定しました`);
+    setTimeout(() => setSaveSuccessMsg(''), 3000);
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(messageText);
@@ -66,7 +99,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
-                お礼文 ＆ 相互要約の作成
+                お礼文・相互要約の作成
               </h2>
               <p className="text-xs text-neutral-500">
                 AIが会話と約束を自動要約。確認・微調整してLINE等で手動送信できます
@@ -87,15 +120,18 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
           {participants.length > 1 && (
             <div className="p-3 bg-neutral-100 dark:bg-neutral-800/80 rounded-2xl border border-apple-border dark:border-apple-darkBorder space-y-2">
               <div className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center justify-between">
-                <span>送付相手を選択（参加者ごとに要約とお礼文が独立して生成されます）:</span>
+                <span>送付相手を選択（参加者ごとに要約とお礼文が独立して生成されます）</span>
                 <span className="text-[10px] text-apple-blue font-bold">個別要約対応</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {participants.map(p => (
+                {participants.map((p) => (
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => setSelectedPersonId(p.id)}
+                    onClick={() => {
+                      setSelectedPersonId(p.id);
+                      setRecipientName(p.name);
+                    }}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                       (selectedPersonId === p.id || (!selectedPersonId && participants[0].id === p.id))
                         ? 'bg-apple-blue text-white shadow-xs'
@@ -109,10 +145,60 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
             </div>
           )}
 
-          {/* 同一リンク・人別要約に関する安心ガイド */}
-          <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 text-[11px] text-blue-800 dark:text-blue-300 flex items-center space-x-2">
-            <span className="text-sm">💡</span>
-            <span>同一のZoom URLであっても、各参加者・面談ごとに完全に分離してカルテ記録とお礼文の作成が行われます。</span>
+          {/* お名前・漢字セーフティ確認＆修正ガードレール */}
+          <div className={`p-3.5 rounded-2xl border transition-all ${
+            kanjiVerified
+              ? 'bg-emerald-500/10 border-emerald-500/30'
+              : 'bg-amber-500/10 border-amber-500/30'
+          }`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center space-x-2">
+                {kanjiVerified ? (
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                )}
+                <span className={`font-bold text-xs ${kanjiVerified ? 'text-emerald-900 dark:text-emerald-300' : 'text-amber-900 dark:text-amber-300'}`}>
+                  相手のお名前の漢字確認（重要・誤送信防止）
+                </span>
+              </div>
+              <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                kanjiVerified
+                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+              }`}>
+                {kanjiVerified ? '✅ 漢字確認済み' : '⚠️ 送信前に要確認'}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-normal mb-2">
+              音声認識や文字起こしは同音異字（例:「晃典」と「見典」）を推測誤認する危険があります。失礼を防ぐため、送信前にお名前の漢字に誤りがないかご確認ください。
+            </p>
+
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-neutral-500 font-medium shrink-0">相手のお名前:</span>
+              <input
+                type="text"
+                value={recipientName}
+                onChange={(e) => handleRecipientNameChange(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs font-bold text-neutral-900 dark:text-neutral-100 flex-1 focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                placeholder="お名前の漢字"
+              />
+              <button
+                type="button"
+                onClick={handleSaveVerifiedKanji}
+                className="px-3 py-1.5 rounded-xl bg-apple-blue hover:opacity-90 text-white text-xs font-medium transition-opacity shrink-0 shadow-xs flex items-center space-x-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>漢字をカルテに確定保存</span>
+              </button>
+            </div>
+
+            {saveSuccessMsg && (
+              <div className="mt-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 animate-fadeIn">
+                {saveSuccessMsg}
+              </div>
+            )}
           </div>
 
           {/* 会社名聞き落とし防止: 正式社名の確認トグル */}
@@ -124,7 +210,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
                   正式な会社名の確認を一言添える
                 </div>
                 <div className="text-[10px] text-neutral-500">
-                  面談中に社名を聞き落とした場合でも、失礼なく自然にお伺いできます
+                  面談時に社名を聞き落とした場合でも、失礼なく自然にお伺いできます
                 </div>
               </div>
             </div>
@@ -132,16 +218,17 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
               <input
                 type="checkbox"
                 checked={askCompany}
-                onChange={e => {
+                onChange={(e) => {
                   const checked = e.target.checked;
                   setAskCompany(checked);
-                  const postscript = '\n\n追伸: 大変恐縮ながら、御社の正式な社名表記をお伺いそびれてしまい失礼いたしました。ぜひカルテに大切に記録しておきたく、よろしければ正式な社名を教えていただけますと幸いです！';
+                  const postscript =
+                    '\n\n追伸: 大変恐縮ながら、御社の正式な社名表記をお伺いそびれてしまい失礼いたしました。ぜひカルテに大切に記録しておきたく、よろしければ正式な社名を教えていただけますと幸いです！';
                   if (checked) {
                     if (!messageText.includes('正式な社名表記')) {
-                      setMessageText(prev => prev + postscript);
+                      setMessageText((prev) => prev + postscript);
                     }
                   } else {
-                    setMessageText(prev => prev.replace(postscript, ''));
+                    setMessageText((prev) => prev.replace(postscript, ''));
                   }
                 }}
                 className="sr-only peer"
@@ -150,9 +237,9 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
             </label>
           </div>
 
-                    {/* 文体セレクター */}
+          {/* 文面セレクター */}
           <div>
-            <label className="block text-neutral-500 mb-1.5 font-medium">送信先・文体を選択:</label>
+            <label className="block text-neutral-500 mb-1.5 font-medium">送信先の文面を選択</label>
             <div className="flex p-1 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder">
               <button
                 type="button"
@@ -163,7 +250,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
                     : 'text-neutral-500'
                 }`}
               >
-                🤝 カジュアル（LINE向け）
+                💬 カジュアル（LINE向け）
               </button>
               <button
                 type="button"
@@ -190,10 +277,10 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
             </div>
           </div>
 
-          {/* 文章編集エリア */}
+          {/* 文面編集エリア */}
           <div>
             <div className="flex items-center justify-between text-neutral-500 mb-1.5">
-              <span className="font-medium">生成された送信メッセージ（編集可能）:</span>
+              <span className="font-medium">生成された送信メッセージ（編集可能）</span>
               <span className="text-[11px] text-neutral-400">{messageText.length}文字</span>
             </div>
             <textarea
@@ -208,7 +295,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
           {copied && (
             <div className="p-3 bg-apple-green/10 text-apple-green rounded-xl text-xs flex items-center space-x-2 font-medium animate-fadeIn">
               <Check className="w-4 h-4 shrink-0" />
-              <span>クリップボードにコピーしました！LINEやチャットにそのまま貼り付けできます。</span>
+              <span>クリップボードにコピーしました（LINEやチャットにそのまま貼り付けできます）</span>
             </div>
           )}
 
@@ -220,7 +307,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
               className="py-3 px-4 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white font-semibold text-xs hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center justify-center space-x-1.5"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'コピー完了' : '本文をコピー'}</span>
+              <span>{copied ? 'コピー完了！' : '本文をコピー'}</span>
             </button>
 
             <button
@@ -243,7 +330,7 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
           </div>
 
           <p className="text-center text-[11px] text-neutral-400">
-            ※自動送信は行われません。あなたが内容を確認した上で、手動で送信します。
+            ※自動送信は行われません。あなたが内容を確認した上で、手動で送信します
           </p>
         </div>
       </div>
