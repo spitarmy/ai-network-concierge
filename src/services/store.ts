@@ -722,6 +722,9 @@ class DataStore {
 
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
+
+    // 勝賀野様と辻 晃典様の1to1面談実績を自動登録
+    this.seedTsujiMeeting();
   }
 
   public purgeBogusDemoData(): void {
@@ -764,6 +767,268 @@ class DataStore {
       meeting.recording_status = 'completed';
       this.persist();
     }
+  }
+
+  public seedTsujiMeeting(): void {
+    const tid = this.state.currentTenantId;
+    // 辻 晃典 様が未登録、または更新が必要な場合に自動登録
+    let tsuji = this.state.persons.find(p => p.id === 'p-tsuji-akinori' || p.display_name === '辻 晃典');
+    if (!tsuji) {
+      tsuji = {
+        id: 'p-tsuji-akinori',
+        tenant_id: tid,
+        display_name: '辻 晃典',
+        phonetic_name: 'つじ あきのり',
+        status: 'active',
+        category_tags: ['BNI', '仕事'],
+        avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+        service_areas: ['関西全域', '地元エリア'],
+        meeting_count: 1,
+        last_interacted_at: '2026-11-09T14:09:00+09:00',
+        notes: 'アミューズメントポーカーイベント共同企画。ディーラー（遠藤さん一択）・卓購入、風営法コンプライアンス（紹介制クローズド運営）を推進。30代会社員〜シニア富裕層の常連化動向に精通。',
+        created_at: '2026-11-09T13:29:00Z',
+        updated_at: '2026-11-09T14:15:00Z',
+      };
+      this.state.persons.unshift(tsuji);
+    }
+
+    // 遠藤さん（仮カルテ）
+    let endo = this.state.persons.find(p => p.id === 'p-endo-prov');
+    if (!endo) {
+      endo = {
+        id: 'p-endo-prov',
+        tenant_id: tid,
+        display_name: '遠藤さん（ディーラー）',
+        phonetic_name: 'えんどうさん',
+        status: 'provisional',
+        category_tags: ['仕事', '知人'],
+        service_areas: ['関西全域'],
+        meeting_count: 0,
+        notes: '辻さんとの会話で登場。アミューズメントポーカーのディーラー担当（一択）。勝賀野様と一緒に営業許可・風営法コンプライアンス等を確認中。',
+        created_at: '2026-11-09T13:29:00Z',
+        updated_at: '2026-11-09T14:15:00Z',
+      };
+      this.state.persons.push(endo);
+    }
+
+    // 面談記録
+    let meeting = this.state.meetings.find(m => m.id === 'm-tsuji-20261109');
+    if (!meeting) {
+      meeting = {
+        id: 'm-tsuji-20261109',
+        tenant_id: tid,
+        title: '辻 晃典様と1to1（アミューズメントポーカー企画・許認可・運営体制）',
+        meeting_type: '1to1',
+        provider: 'zoom',
+        meeting_url: 'https://us06web.zoom.us/rec/share/4OZtsxD8c8CkizB04uasy-wEolBH1J5Y7FxUvU2HOkFKG0UCdSJxgsOsWcYzB8Y.b4ERgiPVafkHYMSu',
+        meeting_code: '4OZtsxD8c8',
+        scheduled_start_at: '2026-11-09T13:29:00+09:00',
+        scheduled_end_at: '2026-11-09T14:09:00+09:00',
+        raw_invite_text: '辻 晃典様と1to1面談（ZENNOBATE Meeting Room）\nURL: https://us06web.zoom.us/rec/share/4OZtsxD8c8CkizB04uasy-wEolBH1J5Y7FxUvU2HOkFKG0UCdSJxgsOsWcYzB8Y.b4ERgiPVafkHYMSu\nPasscode: aCf?NV3J',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [tsuji.id],
+        created_at: '2026-11-09T13:25:00Z',
+      };
+      this.state.meetings.unshift(meeting);
+    } else {
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.participant_ids = [tsuji.id];
+    }
+
+    // 話題 Facts
+    const existingFact = this.state.facts.some(f => f.source_id === 'm-tsuji-20261109');
+    if (!existingFact && tsuji) {
+      this.state.facts.push(
+        {
+          id: `fact-tsuji-1`,
+          tenant_id: tid,
+          person_id: tsuji.id,
+          fact_category: 'topic',
+          fact_key: '盛り上がった話題',
+          fact_value: 'アミューズメントポーカーイベント開催・運営体制（ディーラーは遠藤さん一択、卓購入準備、飲食店営業・深夜酒類提供の許可体制）',
+          source_type: 'meeting_speech',
+          source_id: 'm-tsuji-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:09:00Z',
+          created_at: '2026-11-09T14:09:00Z',
+        },
+        {
+          id: `fact-tsuji-2`,
+          tenant_id: tid,
+          person_id: tsuji.id,
+          fact_category: 'topic',
+          fact_key: '集客・運営コンプライアンス',
+          fact_value: '風営法の締め付けを踏まえ、SNS等のオープン公募ではなく身内紹介制で安全に運営する方針で合意',
+          source_type: 'meeting_speech',
+          source_id: 'm-tsuji-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:09:00Z',
+          created_at: '2026-11-09T14:09:00Z',
+        },
+        {
+          id: `fact-tsuji-3`,
+          tenant_id: tid,
+          person_id: tsuji.id,
+          fact_category: 'topic',
+          fact_key: '客層・ターゲット分析',
+          fact_value: '高校生〜70代（75歳シニア女性等）まで通うが、最も多いボリュームゾーンは30代仕事終わりの会社員。固定客・常連化しやすい',
+          source_type: 'meeting_speech',
+          source_id: 'm-tsuji-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:09:00Z',
+          created_at: '2026-11-09T14:09:00Z',
+        },
+        {
+          id: `fact-tsuji-4`,
+          tenant_id: tid,
+          person_id: tsuji.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '勝賀野様が【金曜の晩】を目標に開催段取りを調整し、辻様へLINE連絡する',
+          source_type: 'meeting_speech',
+          source_id: 'm-tsuji-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:09:00Z',
+          created_at: '2026-11-09T14:09:00Z',
+        },
+        {
+          id: `fact-tsuji-5`,
+          tenant_id: tid,
+          person_id: tsuji.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '日程確定に合わせてポーカー卓（テーブル）を購入手配する',
+          source_type: 'meeting_speech',
+          source_id: 'm-tsuji-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:09:00Z',
+          created_at: '2026-11-09T14:09:00Z',
+        },
+        {
+          id: `fact-tsuji-6`,
+          tenant_id: tid,
+          person_id: tsuji.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '勝賀野様が顧問税理士に日当支給・就業規則の相談を実施する',
+          source_type: 'meeting_speech',
+          source_id: 'm-tsuji-20261109',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-09T14:09:00Z',
+          created_at: '2026-11-09T14:09:00Z',
+        }
+      );
+    }
+
+    // 文字起こし全文
+    const existingTranscript = this.state.transcripts.some(t => t.meeting_id === 'm-tsuji-20261109');
+    if (!existingTranscript) {
+      this.state.transcripts.push({
+        id: 'tr-tsuji-20261109',
+        tenant_id: tid,
+        meeting_id: 'm-tsuji-20261109',
+        language: 'ja',
+        full_text: `辻 晃典: ディーラーは誰がやるんですか？遠藤さん。\n4/勝賀野 太郎/残置物撤去: 遠藤さん。\n辻 晃典: ああ。なるほど、一択ですか。\n4/勝賀野 太郎/残置物撤去: 一択です。\n辻 晃典: 一択ね。一択前、あのサファリの卓を借りたじゃないですか？\n4/勝賀野 太郎/残置物撤去: はい。\n辻 晃典: 毎回持ってくんですか？あれを。\n4/勝賀野 太郎/残置物撤去: いやえっとね。前はあの準備が間に合わへんかったからお借りしに行っただけですね。次の予定決まったらすぐ買いますっていう話になってます。\n辻 晃典: あれ、許可はどうなんですか？\n4/勝賀野 太郎/残置物撤去: うちもその飲食店営業許可と深夜酒類提供の許可しか取ってないので。まあその辺ちょっとどうなるんやろうって遠藤さんと今一緒に確認中って感じですね。\n辻 晃典: 結構ね、最近締め付けが厳しいんでね。身内同士でやってるぐらいなら、紹介紹介だけでうちは来てもらってます、ぐらいの方がいいかもしれないですね。ややこしいの取ってしまうとほんと危ないんで。\n4/勝賀野 太郎/残置物撤去: そうですね。もうそれちょっとなんとかうまいこと、形にしていきたいんですよね。\n辻 晃典: 私も毎日のように地元行ってますから、もう顔ぶれはみんな一緒ですもん。下は高二の子と一番上も70代（昨日も75歳の女の人いました）。一番平気で多いのは30代、仕事終わりに結構来ますね。常連は作りやすいと思いますよ。\n4/勝賀野 太郎/残置物撤去: ほんまですね。\n辻 晃典: で、またちょっとその日程とか分かり次第、調整していきたいなと思ってます。\n4/勝賀野 太郎/残置物撤去: わかりました。金曜の晩ですね。\n辻 晃典: 金曜の晩はありがたいですね。\n4/勝賀野 太郎/残置物撤去: はい、了解です。じゃあその日程でちょっとできるだけ段取りするようにしておきます。\n辻 晃典: 一回ね、まあ税理士さんに就業規則とか日当これからつけたいんやけどっていう相談をしといてもいいかもしれないですね。\n4/勝賀野 太郎/残置物撤去: そうですね。もうなんやったら決算の話し合いとかでちょこちょこ会う機会があるんで、一回聞いてみます。だいぶ仲いいんで。\n辻 晃典: じゃあまた今後ともよろしくお願いします。\n4/勝賀野 太郎/残置物撤去: はい、ありがとうございます！失礼いたします。`,
+        summary: 'アミューズメントポーカーイベントの企画打ち合わせ。ディーラー体制（遠藤さん一択）、卓購入準備、身内紹介制による風営法コンプライアンス、30代会社員を中心とした常連化、金曜晩の開催日程調整（勝賀野様よりLINE連絡）、税理士への日当・就業規則相談について合意。',
+        utterances: [
+          {
+            id: 'utt-tsuji-1',
+            speaker_label: '辻 晃典',
+            resolved_person_id: tsuji.id,
+            resolved_person_name: '辻 晃典',
+            start_seconds: 2113,
+            end_seconds: 2394,
+            text: 'ディーラーは遠藤さん一択ですね。紹介制で常連を作りましょう。金曜の晩はありがたいです。税理士さんにも日当相談をしておくと良いですね。',
+            confidence: 0.98,
+          }
+        ],
+        created_at: '2026-11-09T14:10:00Z',
+      });
+    }
+
+    this.persist();
+  }
+
+  public syncZoomInbox(inbox: any[]): boolean {
+    if (!Array.isArray(inbox) || inbox.length === 0) return false;
+    let added = false;
+    const tid = this.state.currentTenantId;
+
+    for (const item of inbox) {
+      const meetingId = `m-zoom-${item.meeting_id || item.id}`;
+      const exists = this.state.meetings.some(m => m.id === meetingId || (item.share_url && m.meeting_url === item.share_url));
+      if (!exists) {
+        const title = item.summary_title || item.topic || 'Zoom 1to1面談';
+        const start = item.start_time || new Date().toISOString();
+        const durationMin = item.duration || 30;
+        const end = new Date(new Date(start).getTime() + durationMin * 60000).toISOString();
+
+        const newMeeting: Meeting = {
+          id: meetingId,
+          tenant_id: tid,
+          title,
+          meeting_type: '1to1',
+          provider: 'zoom',
+          meeting_url: item.share_url || '',
+          scheduled_start_at: start,
+          scheduled_end_at: end,
+          host_type: 'self',
+          recording_status: 'completed',
+          status: 'completed',
+          participant_ids: [],
+          created_at: new Date().toISOString(),
+        };
+
+        this.state.meetings.unshift(newMeeting);
+
+        if (item.summary_overview) {
+          this.state.facts.push({
+            id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            tenant_id: tid,
+            person_id: 'p-zoom-participant',
+            fact_category: 'topic',
+            fact_key: 'ミーティング要約',
+            fact_value: item.summary_overview,
+            source_type: 'meeting_speech',
+            source_id: meetingId,
+            source_evidence: 'Zoom AI Companion自動受信',
+            confidence: 0.98,
+            verification_status: 'verified',
+            visibility: 'referral_eligible',
+            valid_from: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          });
+        }
+
+        added = true;
+      }
+    }
+
+    if (added) {
+      this.persist();
+    }
+    return added;
   }
 
   public purgeSamplePersons(): void {

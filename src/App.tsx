@@ -101,14 +101,37 @@ export const App: React.FC = () => {
     // 起動時およびバックグラウンドから復帰した時にチェック
     checkForUpdates();
     const interval = setInterval(checkForUpdates, 30000); // 30秒ごとに自動確認
+
+    // Zoom Webhook 受信インボックスの自動同期
+    const syncZoomInbox = async () => {
+      try {
+        const res = await fetch('/api/zoom/webhook');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.inbox && data.inbox.length > 0) {
+            const hasNew = store.syncZoomInbox(data.inbox);
+            if (hasNew) {
+              setRefreshKey(k => k + 1);
+            }
+          }
+        }
+      } catch {
+        // オフライン・モック環境時は無視
+      }
+    };
+    syncZoomInbox();
+    const zoomInterval = setInterval(syncZoomInbox, 20000); // 20秒ごとにZoom受信確認
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkForUpdates();
+        syncZoomInbox();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       clearInterval(interval);
+      clearInterval(zoomInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);

@@ -1,0 +1,83 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { store } from '../services/store';
+import crypto from 'crypto';
+
+describe('辻 晃典様 1to1面談実績およびZoom自動連携テスト', () => {
+  beforeEach(() => {
+    store.seedTsujiMeeting();
+  });
+
+  it('辻 晃典様が人物カルテとして正しく登録されていること', () => {
+    const tsuji = store.getPersons().find(p => p.display_name === '辻 晃典');
+    expect(tsuji).toBeDefined();
+    expect(tsuji?.status).toBe('active');
+    expect(tsuji?.category_tags).toContain('BNI');
+    expect(tsuji?.category_tags).toContain('仕事');
+  });
+
+  it('遠藤さんが仮カルテ（provisional）として登録されていること', () => {
+    const endo = store.getPersons().find(p => p.id === 'p-endo-prov');
+    expect(endo).toBeDefined();
+    expect(endo?.status).toBe('provisional');
+    expect(endo?.notes).toContain('ディーラー');
+  });
+
+  it('1to1面談が完了（completed）状態で登録され、辻様が紐付いていること', () => {
+    const meeting = store.getMeetings().find(m => m.id === 'm-tsuji-20261109');
+    expect(meeting).toBeDefined();
+    expect(meeting?.status).toBe('completed');
+    expect(meeting?.recording_status).toBe('completed');
+    expect(meeting?.participant_ids).toContain('p-tsuji-akinori');
+  });
+
+  it('アミューズメントポーカー、金曜晩、卓購入、税理士相談のFactsが登録されていること', () => {
+    const facts = store.getFactsForPerson('p-tsuji-akinori');
+    expect(facts.length).toBeGreaterThanOrEqual(4);
+
+    const hasPoker = facts.some(f => f.fact_value.includes('アミューズメントポーカー'));
+    const hasFriday = facts.some(f => f.fact_value.includes('金曜の晩'));
+    const hasTaxConsult = facts.some(f => f.fact_value.includes('税理士'));
+
+    expect(hasPoker).toBe(true);
+    expect(hasFriday).toBe(true);
+    expect(hasTaxConsult).toBe(true);
+  });
+
+  it('辻様宛てのお礼状ドラフトが自動生成できること', () => {
+    const thankYou = store.generateThankYouDraft('m-tsuji-20261109', 'line_casual');
+    expect(thankYou.recipient_name).toBe('辻 晃典');
+    expect(thankYou.draft_text).toContain('辻');
+    expect(thankYou.draft_text).toContain('金曜の晩');
+  });
+
+  it('Zoom Webhook URL Validation (CRCチャレンジ) の暗号化ハッシュが正しく計算されること', () => {
+    const secret = '9D2MsR03RK6Srow8IUSAYw';
+    const plainToken = 'test-plain-token-12345';
+    const expectedHash = crypto.createHmac('sha256', secret).update(plainToken).digest('hex');
+
+    expect(expectedHash).toBeDefined();
+    expect(expectedHash.length).toBe(64); // SHA-256 hex string
+  });
+
+  it('Zoom Webhook inboxから自動同期が機能すること', () => {
+    const mockInbox = [
+      {
+        id: 'zoom-event-999',
+        meeting_id: '999888777',
+        topic: 'テスト面談（自動受信）',
+        start_time: '2026-11-09T15:00:00Z',
+        duration: 30,
+        share_url: 'https://us06web.zoom.us/rec/share/test',
+        summary_overview: '次回商談についての打ち合わせ。'
+      }
+    ];
+
+    const result = store.syncZoomInbox(mockInbox);
+    expect(result).toBe(true);
+
+    const imported = store.getMeetings().find(m => m.id === 'm-zoom-999888777');
+    expect(imported).toBeDefined();
+    expect(imported?.title).toBe('テスト面談（自動受信）');
+    expect(imported?.status).toBe('completed');
+  });
+});

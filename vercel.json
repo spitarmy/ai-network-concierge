@@ -33,7 +33,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|version.json).*)",
+      "source": "/((?!api/|assets/|version.json).*)",
       "destination": "/index.html"
     }
   ]
