@@ -23,6 +23,27 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(endo?.notes).toContain('ディーラー');
   });
 
+  it('仮カルテの人物を本カルテへ昇格（promotePerson）できること', () => {
+    const endo = store.getPersons().find(p => p.id === 'p-endo-prov');
+    expect(endo?.status).toBe('provisional');
+
+    store.promotePerson('p-endo-prov');
+    const promoted = store.getPersons().find(p => p.id === 'p-endo-prov');
+    expect(promoted?.status).toBe('active');
+  });
+
+  it('仮カルテと本カルテを統合（mergePersons）できること', () => {
+    const kimura = store.getPersons().find(p => p.display_name === '木村 尚史')!;
+    const endo = store.getPersons().find(p => p.id === 'p-endo-prov')!;
+
+    store.mergePersons(kimura.id, endo.id);
+
+    // endo は削除され、kimura に情報が統合されていること
+    expect(store.getPersons().some(p => p.id === 'p-endo-prov')).toBe(false);
+    const updatedKimura = store.getPersonById(kimura.id);
+    expect(updatedKimura?.notes).toContain('ディーラー');
+  });
+
   it('辻様との1to1面談が完了（completed）状態で登録され、辻様が紐付いていること', () => {
     const meeting = store.getMeetings().find(m => m.id === 'm-tsuji-20261109');
     expect(meeting).toBeDefined();
@@ -99,7 +120,7 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
   });
 
   it('Zoom Webhook URL Validation (CRCチャレンジ) の暗号化ハッシュが正しく計算されること', () => {
-    const secret = '9D2MsR03RK6Srow8IUSAYw';
+    const secret = '9D2MsR03RK6Srow8lUSAYw';
     const plainToken = 'test-plain-token-12345';
     const expectedHash = crypto.createHmac('sha256', secret).update(plainToken).digest('hex');
 

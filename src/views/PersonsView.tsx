@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   Search, Shield, Building, Award, History,
-  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload
+  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload, AlertCircle
 } from 'lucide-react';
 import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
@@ -68,6 +68,8 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   const [deleteCertificate, setDeleteCertificate] = useState<string | null>(null);
 
   const persons = store.getPersons();
+  const confirmedCount = persons.filter(p => p.status !== 'provisional').length;
+  const provisionalCount = persons.filter(p => p.status === 'provisional').length;
   const chapters = store.getBNIChapters();
 
   // フィルタリング
@@ -78,8 +80,11 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
       (p.notes && p.notes.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchTag =
-      selectedTag === 'ALL' ||
-      (selectedTag === 'PROVISIONAL' ? p.status === 'provisional' : p.category_tags.includes(selectedTag as CategoryTag));
+      selectedTag === 'ALL'
+        ? p.status !== 'provisional'
+        : selectedTag === 'PROVISIONAL'
+        ? p.status === 'provisional'
+        : p.status !== 'provisional' && p.category_tags.includes(selectedTag as CategoryTag);
 
     return matchQuery && matchTag;
   });
@@ -835,7 +840,19 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
               {isTransferring && (
                 <form onSubmit={handleExecuteTransfer} className="p-4 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder space-y-3 text-xs">
                   <h4 className="font-semibold text-neutral-800 dark:text-neutral-200">新規チャプターへの移籍登録</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {selectedTag === 'PROVISIONAL' && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-200 flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold">会話・1to1の中で名前が出た「仮人脈」です</p>
+                <p className="text-[11px] opacity-90 leading-relaxed">
+                  直接名刺交換や面談を行っていないため、メインの実人脈一覧とは分けて保管しています。後日実際にZoomや面談を行った際は、自動で重複検知され本カルテへ昇格・統合されます。
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block mb-1 text-neutral-500">移籍先チャプター *</label>
                       <select
@@ -1099,7 +1116,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200'
                 }`}
               >
-                全員
+                実人脈（全員） {confirmedCount > 0 && `(${confirmedCount})`}
               </button>
 
               {store.getCategories().map(cat => (
@@ -1124,7 +1141,7 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200'
                 }`}
               >
-                仮カルテ
+                仮人脈・言及 {provisionalCount > 0 && `(${provisionalCount})`}
               </button>
 
               <button

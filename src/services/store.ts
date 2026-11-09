@@ -1223,6 +1223,63 @@ class DataStore {
     this.persist();
   }
 
+  
+  public promotePerson(personId: string): void {
+    const p = this.getPersonById(personId);
+    if (p) {
+      p.status = 'active';
+      // 「（仮）」「（ディーラー）」などの仮タイトルがあれば整理
+      p.display_name = p.display_name.replace(/（仮.*?）|\(仮.*?\)/g, '').trim();
+      p.updated_at = new Date().toISOString();
+      this.persist();
+    }
+  }
+
+  public mergePersons(keepPersonId: string, mergeFromPersonId: string): void {
+    if (keepPersonId === mergeFromPersonId) return;
+    const keep = this.getPersonById(keepPersonId);
+    const source = this.getPersonById(mergeFromPersonId);
+    if (!keep || !source) return;
+
+    // 面談参加者の置換
+    this.state.meetings.forEach(m => {
+      if (m.participant_ids.includes(source.id)) {
+        m.participant_ids = m.participant_ids.map(id => id === source.id ? keep.id : id);
+        m.participant_ids = Array.from(new Set(m.participant_ids));
+      }
+    });
+
+    // Facts の置換
+    this.state.facts.forEach(f => {
+      if (f.person_id === source.id) {
+        f.person_id = keep.id;
+      }
+    });
+
+    // 文字起こし発話者の置換
+    this.state.transcripts.forEach(t => {
+      t.utterances?.forEach(u => {
+        if (u.resolved_person_id === source.id) {
+          u.resolved_person_id = keep.id;
+          u.resolved_person_name = keep.display_name;
+        }
+      });
+    });
+
+    // メモとタグの統合
+    if (source.notes) {
+      keep.notes = (keep.notes ? keep.notes + '\n' : '') + `[会話言及メモを統合]: ${source.notes}`;
+    }
+    if (source.category_tags) {
+      keep.category_tags = Array.from(new Set([...keep.category_tags, ...source.category_tags]));
+    }
+    keep.updated_at = new Date().toISOString();
+
+    // 元の仮カルテを削除
+    this.state.persons = this.state.persons.filter(p => p.id !== source.id);
+    this.persist();
+  }
+
   public syncZoomInbox(inbox: any[]): boolean {
     if (!Array.isArray(inbox) || inbox.length === 0) return false;
     let added = false;
