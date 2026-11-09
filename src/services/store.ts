@@ -1634,6 +1634,102 @@ class DataStore {
     };
   }
 
+  // --- Gemini 音声解析結果を直接カルテ・事実・面談に反映 ---
+  public applyGeminiAudioResult(
+    meetingId: string,
+    result: {
+      partner_name: string;
+      partner_company: string;
+      partner_title: string;
+      bni_chapter: string;
+      bni_category: string;
+      topic: string;
+      promise: string;
+      full_transcript: string;
+    }
+  ): { person: Person; meeting: Meeting } {
+    const tid = this.state.currentTenantId;
+    const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
+    if (!meeting) throw new Error('Meeting not found');
+
+    // 人物を特定または新規登録
+    const { person } = this.identifyMeetingParticipant(meeting.id, {
+      realName: result.partner_name || '面談のお相手',
+      companyName: result.partner_company || undefined,
+      title: result.partner_title || undefined,
+      bniChapter: result.bni_chapter || undefined,
+      bniCategory: result.bni_category || undefined,
+      notes: `[Gemini音声AI解析] ${new Date().toLocaleDateString('ja-JP')}の録音音声より完全自動生成。話題: ${result.topic}`,
+    });
+
+    // 話題と約束をFactとして登録
+    if (result.topic) {
+      this.addFact({
+        person_id: person.id,
+        fact_category: 'topic',
+        fact_key: '盛り上がった話題',
+        fact_value: result.topic,
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Gemini音声AI文字起こし',
+        confidence: 0.98,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: new Date().toISOString(),
+      });
+    }
+
+    if (result.promise) {
+      this.addFact({
+        person_id: person.id,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・宿題',
+        fact_value: result.promise,
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Gemini音声AI文字起こし',
+        confidence: 0.95,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: new Date().toISOString(),
+      });
+    }
+
+    // 会議と文字起こしを保存
+    meeting.recording_status = 'completed';
+    meeting.status = 'completed';
+
+    if (result.full_transcript) {
+      this.state.transcripts.push({
+        id: `tr-${Date.now()}`,
+        tenant_id: tid,
+        meeting_id: meeting.id,
+        language: 'ja',
+        full_text: result.full_transcript,
+        summary: result.topic,
+        utterances: [
+          {
+            id: `utt-${Date.now()}`,
+            speaker_label: person.display_name,
+            resolved_person_id: person.id,
+            resolved_person_name: person.display_name,
+            start_seconds: 0,
+            end_seconds: 60,
+            text: result.full_transcript,
+            confidence: 0.95,
+          }
+        ],
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    // AI原価を計上 (音声認識 + 要約)
+    this.recordAICost('audio_transcribe', 'Gemini 1.5 Flash', 1, 4.5, `面談「${meeting.title}」の音声AI文字起こし・要約`);
+
+    this.persist();
+    return { person, meeting };
+  }
+
   // 面談の事前登録すらしていなかった場合、録音・文字起こしから面談もカルテも一括自動生成
   public autoRegisterFromPostMeetingTranscript(
     transcriptText: string,

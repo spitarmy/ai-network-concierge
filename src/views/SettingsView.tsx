@@ -7,6 +7,7 @@ import {
 import { store } from '../services/store';
 import { Smartphone, RotateCw } from 'lucide-react';
 import { forceReloadApp } from '../utils/updateManager';
+import { getStoredGeminiApiKey, setStoredGeminiApiKey } from '../services/geminiAudioTranscribe';
 
 interface SettingsViewProps {
   onRefresh: () => void;
@@ -31,6 +32,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
   const [googleClientSecret, setGoogleClientSecret] = useState(oauthConfig.google.client_secret || '');
   const [googleTestResult, setGoogleTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  const [geminiApiKey, setGeminiApiKey] = useState(getStoredGeminiApiKey());
+  const [apiKeySaved, setApiKeySaved] = useState(false);
   const [copiedProvider, setCopiedProvider] = useState<string | null>(null);
 
   const [csvText, setCsvText] = useState('');
@@ -243,6 +246,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
       </div>
 
 
+
+      {/* 🤖 音声AI文字起こし設定 (Google Gemini API) */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+          <Sparkles className="w-4 h-4 text-purple-600" />
+          <span>録音音声のAI自動文字起こし連携 (Google Gemini 1.5/2.5 Flash)</span>
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <p className="text-neutral-500 leading-relaxed">
+            iPhoneやZoomの録音音声ファイル（.m4a, .mp3等）をアップロードするだけで、AIが音声を丸ごと聴き取り、一言一句文字起こしした上で、相手の事業・話題・約束・お礼状を完全自動生成します。
+          </p>
+
+          <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-800/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-neutral-700 dark:text-neutral-200">Gemini APIキー</span>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center space-x-0.5"
+              >
+                <span>Google AI Studioで無料キーを取得 →</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="password"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-neutral-850 border border-purple-200 dark:border-purple-800 text-xs font-mono"
+              />
+              <button
+                onClick={() => {
+                  setStoredGeminiApiKey(geminiApiKey);
+                  setApiKeySaved(true);
+                  setTimeout(() => setApiKeySaved(false), 2500);
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all shrink-0"
+              >
+                {apiKeySaved ? '✓ 保存完了' : 'キーを保存'}
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-400">
+              ※Google AI Studioのアカウント（無料）があれば、毎分15回まで完全無料で利用できます。キーはお使いの端末内のみに安全に保存されます。
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* CSV一括インポート機能 (仕様08, CARD-07) */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
