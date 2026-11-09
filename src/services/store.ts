@@ -2183,7 +2183,7 @@ class DataStore {
         storage_path: `recordings/${tid}/${meeting.id}.m4a`,
         duration_seconds: 3600,
         file_size_bytes: 42500000,
-        expires_at: new Date(Date.now() + 90 * 86400 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + 7 * 86400 * 1000).toISOString(), // 7日自動消去（端末・ストレージ肥大化防止、文字起こし・要約テキストは永続保存）
         is_pinned_permanently: false,
         is_deleted: false,
       });

@@ -59,20 +59,30 @@ export async function transcribeAudioWithGemini(
   if (audioFile.name.endsWith('.wav')) mimeType = 'audio/wav';
 
   const promptText = `
-あなたはプロのビジネス面談・1to1専門のAIコンシェルジュです。
-添付された録音音声を一言一句丁寧に文字起こしし、面談相手の自己紹介、事業内容、盛り上がった話題、次回までの宿題・約束事を抽出してください。
+あなたはエグゼクティブ向けビジネス面談・BNI 1to1専門の超高精度AIコンシェルジュです。
+録音音声（または文字起こし）から、ビジネスの核となる情報を深く理解し、正確に構造化してください。
 
-必ず以下のキーを持つ有効なJSONオブジェクトとしてのみ出力してください（Markdownコードブロックは不要です）:
+【厳格な抽出ルール】
+1. 「本業・事業内容」と「雑談・単なるアイデアや趣味」を絶対に混同しないでください。
+   - 相手が本業として手掛けている実績・サービス（例: 不用品回収、税理士、看板施工など）のみを「core_business」に記載。
+   - 会話中に盛り上がったポーカーやフットサル、昔話、単発の企画などは「discussion_topics」に記載。
+2. 相手が求めている「紹介ターゲット（どんな見込み客や協業先を求めているか）」を具体的に言語化してください。
+3. 次回までの「約束・宿題（ToDo）」は、「誰が」「何を」「いつまでに」行うかを明確に抽出してください。
+4. 会話に登場した第三者（幼馴染、仲間、紹介元など）を特定してください。
+
+必ず以下のキーを持つJSONオブジェクトのみを出力してください（Markdownコードブロックは不要）:
 {
   "full_transcript": "この音声の全文字起こしテキスト（タイムスタンプや話者区切りがあれば記載）",
-  "partner_name": "面談相手のお名前（フルネーム、判明しない場合は会話から推測されるお名前）",
+  "partner_name": "面談相手のお名前（フルネーム、判明しない場合は推測されるお名前）",
   "partner_company": "相手の会社名・組織名・屋号（言及がなければ空文字）",
   "partner_title": "相手の役職・肩書（言及がなければ空文字）",
   "bni_chapter": "BNIチャプター名（言及がなければ空文字）",
-  "bni_category": "BNI専門分野カテゴリー（言及がなければ空文字）",
-  "topic": "面談で盛り上がった話題・事業や取り組みの詳しい要約",
-  "promise": "次回までに双方が約束したこと・ToDo・フォロー事項・宿題",
-  "thank_you_draft": "相手にZoom後すぐに送信できる、丁寧で温かいお礼メッセージ（本日の要約とお互いの宿題を含む）"
+  "bni_category": "BNIカテゴリー（言及がなければ空文字）",
+  "core_business": "相手の本業・主要事業と強み（雑談と厳格に分離）",
+  "discussion_topics": "面談で盛り上がった話題・企画アイデア・共通点・エピソード",
+  "target_referrals": "相手が求めている紹介先・理想の見込み客・案件",
+  "promise": "次回までに双方が約束したこと・具体的な宿題・ToDo（誰が何をいつまでに）",
+  "thank_you_draft": "相手にZoom後すぐに送信できる、丁寧で温かいお礼メッセージ（要約と次回ToDoを含む）"
 }
 `;
 
@@ -138,7 +148,7 @@ export async function transcribeAudioWithGemini(
       partner_title: parsed.partner_title || '',
       bni_chapter: parsed.bni_chapter || '',
       bni_category: parsed.bni_category || '',
-      topic: parsed.topic || '事業・取り組みに関する意見交換',
+      topic: parsed.discussion_topics ? `${parsed.core_business ? `【本業】${parsed.core_business} / ` : ''}【話題】${parsed.discussion_topics}` : (parsed.topic || '事業・取り組みに関する意見交換'),
       promise: parsed.promise || '面談内容の整理と次回アクションの確認',
       thank_you_draft: parsed.thank_you_draft || '',
     };
