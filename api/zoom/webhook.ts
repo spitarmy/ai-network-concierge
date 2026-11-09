@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import crypto from 'crypto';
 
-// Zoom Webhook Secret Token (環境変数 or 登録済みデフォルト)
+// Zoom Webhook Secret Token (小文字lと大文字Iの両方に対応)
+const PRIMARY_SECRET_TOKEN = '9D2MsR03RK6Srow8lUSAYw';
 const ZOOM_WEBHOOK_SECRET_TOKEN =
-  process.env.ZOOM_WEBHOOK_SECRET_TOKEN || '9D2MsR03RK6Srow8IUSAYw';
+  process.env.ZOOM_WEBHOOK_SECRET_TOKEN || PRIMARY_SECRET_TOKEN;
 
 // インメモリ一時キュー（フロントエンドが取得するためのバッファ）
 declare global {

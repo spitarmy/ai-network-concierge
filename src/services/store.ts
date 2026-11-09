@@ -651,7 +651,7 @@ const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
     account_id: 'gJtFWtr1RD-fl8oxS0n5wA',
     client_id: '4CnF2ZSRpGgbFFpVO7GzQ',
     client_secret: '7dHhVPmpcp60ij8nLSUSDH0DmyiOkXJc',
-    webhook_secret_token: '9D2MsR03RK6Srow8IUSAYw',
+    webhook_secret_token: '9D2MsR03RK6Srow8lUSAYw',
     is_connected: true,
     last_tested_at: '2026-11-08T12:55:00.000Z',
   },
