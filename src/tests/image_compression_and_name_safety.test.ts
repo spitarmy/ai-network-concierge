@@ -88,6 +88,26 @@ describe('名刺画像圧縮・大容量耐性およびお名前漢字セーフ�
     expect(realPersons.some(p => p.display_name === '遠藤 雄一')).toBe(true);
   });
 
+  it('田中 義博様との1to1面談実績・Facts・お礼状ドラフトが完全に登録されていること', () => {
+    const tanaka = store.getPersons().find(p => p.display_name === '田中 義博');
+    expect(tanaka).toBeDefined();
+    expect(tanaka?.status).toBe('active');
+    expect(tanaka?.is_name_verified).toBe(true);
+
+    const mtg = store.getMeetings().find(m => m.id === 'm-tanaka-20261110');
+    expect(mtg).toBeDefined();
+    expect(mtg?.status).toBe('completed');
+
+    const facts = store.getFactsForPerson(tanaka!.id);
+    expect(facts.length).toBeGreaterThan(3);
+    expect(facts.some(f => f.fact_value.includes('武藤開発'))).toBe(true);
+    expect(facts.some(f => f.fact_value.includes('ランチ'))).toBe(true);
+
+    const draft = store.generateThankYouDraft('m-tanaka-20261110', 'line_casual');
+    expect(draft.recipient_name).toBe('田中 義博');
+    expect(draft.draft_text).toContain('田中');
+  });
+
   it('何千枚登録シミュレーション時でもlocalStorage容量上限でアプリがクラッシュしないこと', () => {
     // 意図的に巨大な文字列でQuotaExceededをシミュレートしてもstoreがエラーを内部吸収して安全に継続
     expect(() => {

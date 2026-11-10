@@ -746,6 +746,7 @@ class DataStore {
     // 勝賀野様と辻 晃典様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
+    this.seedTanakaMeeting();
   }
 
   public purgeBogusDemoData(): void {
@@ -1244,7 +1245,246 @@ class DataStore {
   }
 
   
-  public promotePerson(personId: string, updates?: Partial<Person>): void {
+
+  public seedTanakaMeeting(): void {
+    const tid = this.state.currentTenantId;
+
+    // 田中 義博 様 カルテ
+    let tanaka = this.state.persons.find(p => p.id === 'p-tanaka-yoshihiro' || p.display_name === '田中 義博');
+    if (!tanaka) {
+      tanaka = {
+        id: 'p-tanaka-yoshihiro',
+        tenant_id: tid,
+        display_name: '田中 義博',
+        phonetic_name: 'たなか よしひろ',
+        status: 'active',
+        category_tags: ['仕事', '不動産', '知人'],
+        avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+        service_areas: ['大阪府', '兵庫県', '近畿全域', '全国（函館実績あり）'],
+        meeting_count: 1,
+        last_interacted_at: '2026-11-10T11:34:00+09:00',
+        notes: '武藤開発 代表。大阪拠点で中古マンション中心の買取再販（土地も大阪・兵庫で実施、最遠は函館も実績）。33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳、3歳、1歳）。長野出身→東京（元エンジニア1年半）→大阪転勤で独立10年。趣味はボードゲーム。リクシル不動産三浦さん・入江さん経由で西友寺案件の取引実績あり。夜は飲めないがランチなら京都・大阪とも歓迎。勝賀野様から不動産業者を1名紹介して3名でランチに行く約束。買取物件の残置物撤去・遺品整理（近畿一円・名古屋）を提携。',
+        is_name_verified: true,
+        created_at: '2026-11-10T10:55:00Z',
+        updated_at: '2026-11-10T11:35:00Z',
+      };
+      this.state.persons.unshift(tanaka);
+    }
+
+    // 関連人物（仮人脈）: 三浦さん（リクシル不動産）
+    if (!this.state.persons.some(p => p.id === 'p-miura-prov')) {
+      this.state.persons.push({
+        id: 'p-miura-prov',
+        tenant_id: tid,
+        display_name: '三浦さん（リクシル不動産）',
+        phonetic_name: 'みうらさん',
+        status: 'provisional',
+        category_tags: ['仕事', '不動産'],
+        service_areas: ['関西全域'],
+        meeting_count: 0,
+        notes: 'リクシル不動産。勝賀野様に西友寺の残置物撤去を紹介、田中様とも3件のマンション買取取引実績あり。キーマン。',
+        created_at: '2026-11-10T11:34:00Z',
+        updated_at: '2026-11-10T11:34:00Z',
+      });
+    }
+
+    // 関連人物（仮人脈）: 入江さん
+    if (!this.state.persons.some(p => p.id === 'p-irie-prov')) {
+      this.state.persons.push({
+        id: 'p-irie-prov',
+        tenant_id: tid,
+        display_name: '入江さん',
+        phonetic_name: 'いりえさん',
+        status: 'provisional',
+        category_tags: ['仕事', '不動産'],
+        service_areas: ['関西全域'],
+        meeting_count: 0,
+        notes: '西友寺案件で勝賀野様・三浦様・田中様を繋いだ関係者。',
+        created_at: '2026-11-10T11:34:00Z',
+        updated_at: '2026-11-10T11:34:00Z',
+      });
+    }
+
+    // 会社所属: 武藤開発
+    if (!this.state.organizationMemberships.some(m => m.person_id === tanaka.id)) {
+      this.state.organizationMemberships.push({
+        id: 'om-tanaka-1',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        organization_id: 'org-muto',
+        organization_name: '武藤開発',
+        title: '代表',
+        is_current: true,
+      });
+    }
+
+    // 事業内容オファリング
+    if (!this.state.businessOfferings.some(b => b.person_id === tanaka.id)) {
+      this.state.businessOfferings.push({
+        id: 'bo-tanaka-1',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        service_title: '中古マンション買取再販・不動産買取（近畿・全国）',
+        specialties: '区分マンション買取再販、不動産買取、土地（大阪・兵庫）',
+        target_clients: '買取案件を紹介してくれる不動産業者様、早期現金化を希望する売主様',
+        service_area: '大阪府・兵庫県・京都府・全国',
+        is_active: true,
+      });
+    }
+
+    // 面談記録
+    let meeting = this.state.meetings.find(m => m.id === 'm-tanaka-20261110');
+    if (!meeting) {
+      meeting = {
+        id: 'm-tanaka-20261110',
+        tenant_id: tid,
+        title: '田中 義博様と1to1（武藤開発 / マンション買取再販・残置物撤去提携・不動産業者ランチ）',
+        meeting_type: '1to1',
+        provider: 'zoom',
+        meeting_url: 'https://us06web.zoom.us/j/8492041283',
+        scheduled_start_at: '2026-11-10T10:58:00+09:00',
+        scheduled_end_at: '2026-11-10T11:34:00+09:00',
+        raw_invite_text: '田中 義博様と1to1面談（武藤開発×ZENNOBATE）\n主催: 勝賀野 太郎 / 残置物撤去',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [tanaka.id],
+        created_at: '2026-11-10T10:55:00Z',
+      };
+      this.state.meetings.unshift(meeting);
+    }
+
+    // Facts
+    if (!this.state.facts.some(f => f.person_id === tanaka.id)) {
+      this.state.facts.push(
+        {
+          id: 'fact-tanaka-1',
+          tenant_id: tid,
+          person_id: tanaka.id,
+          fact_category: 'topic',
+          fact_key: '本業・事業内容',
+          fact_value: '大阪拠点で中古マンション中心の買取再販（武藤開発）。不動産業者からの買取案件紹介を希望',
+          source_type: 'meeting_speech',
+          source_id: 'm-tanaka-20261110',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-10T11:34:00Z',
+          created_at: '2026-11-10T11:34:00Z',
+        },
+        {
+          id: 'fact-tanaka-2',
+          tenant_id: tid,
+          person_id: tanaka.id,
+          fact_category: 'topic',
+          fact_key: '業務提携・協業合意',
+          fact_value: 'マンション買取再販時の残置物撤去・遺品整理（近畿一円・名古屋）を勝賀野様へ発注・買取査定相殺連携',
+          source_type: 'meeting_speech',
+          source_id: 'm-tanaka-20261110',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-10T11:34:00Z',
+          created_at: '2026-11-10T11:34:00Z',
+        },
+        {
+          id: 'fact-tanaka-3',
+          tenant_id: tid,
+          person_id: tanaka.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '勝賀野様が買取案件を紹介できる不動産業者を1名誘い、田中様と3名でランチ（京都または大阪）を設定する',
+          source_type: 'meeting_speech',
+          source_id: 'm-tanaka-20261110',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-10T11:34:00Z',
+          created_at: '2026-11-10T11:34:00Z',
+        },
+        {
+          id: 'fact-tanaka-4',
+          tenant_id: tid,
+          person_id: tanaka.id,
+          fact_category: 'promise',
+          fact_key: '保留中の約束・ToDo',
+          fact_value: '田中様がマンション・土地の買取案件発生時に、残置物撤去・買取査定見積もりを勝賀野様へ連絡・相談する',
+          source_type: 'meeting_speech',
+          source_id: 'm-tanaka-20261110',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.98,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-10T11:34:00Z',
+          created_at: '2026-11-10T11:34:00Z',
+        },
+        {
+          id: 'fact-tanaka-5',
+          tenant_id: tid,
+          person_id: tanaka.id,
+          fact_category: 'background',
+          fact_key: '取引接点・経緯',
+          fact_value: 'リクシル不動産の三浦様・入江様を通じて西友寺の案件で請求書をやり取りした間接取引実績あり',
+          source_type: 'meeting_speech',
+          source_id: 'm-tanaka-20261110',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-10T11:34:00Z',
+          created_at: '2026-11-10T11:34:00Z',
+        },
+        {
+          id: 'fact-tanaka-6',
+          tenant_id: tid,
+          person_id: tanaka.id,
+          fact_category: 'preference',
+          fact_key: '人柄・共通点・プライベート',
+          fact_value: '33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳, 3歳, 1歳）。長野出身→東京→大阪で独立10年。趣味はボードゲーム。夜の飲み会は不可だがランチ大歓迎',
+          source_type: 'meeting_speech',
+          source_id: 'm-tanaka-20261110',
+          source_evidence: 'Zoom 1to1面談文字起こし',
+          confidence: 0.99,
+          verification_status: 'verified',
+          visibility: 'referral_eligible',
+          valid_from: '2026-11-10T11:34:00Z',
+          created_at: '2026-11-10T11:34:00Z',
+        }
+      );
+    }
+
+    // 文字起こし & 要約
+    if (!this.state.transcripts.some(t => t.meeting_id === 'm-tanaka-20261110')) {
+      this.state.transcripts.push({
+        id: 'tr-tanaka-20261110',
+        tenant_id: tid,
+        meeting_id: 'm-tanaka-20261110',
+        language: 'ja',
+        full_text: "田中義博: すみません。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: よろしくお願いします。\n田中義博: すみません。日程ちょっと調整いただいてありがとうございました。\n4/勝賀野 太郎/残置物撤去: いえいえ、大丈夫でしたか？娘さん。\n田中義博: もう大変でした。娘も嫁もインフルエンザに感染して、一人で頑張ってました。\n4/勝賀野 太郎/残置物撤去: 回復なされてよかったです！改めまして、株式会社ゼノベイトの勝賀野（しょうがの）と申します。\n田中義博: お世話になります。武藤開発の田中と申します。\n4/勝賀野 太郎/残置物撤去: 間接的にお仕事させてもらいましたよね？リクシル不動産の三浦さんをご紹介いただいてて、入江さんに繋いでいただいた流れで。西友寺の案件で請求書をお送りしたときに。\n田中義博: 僕も請求書来た時に見覚えあるなと思ってました！ありがとうございました。会社は大阪でやっていて、マンション中心に買取再販をやってます。エリアはどこでもやっていて、一番遠いと函館もやってます。土地は大阪や兵庫が多いです。\n4/勝賀野 太郎/残置物撤去: マンションの買取再販なんですね。遺品整理・残置物撤去を10年以上やっていて、近畿一円（京都、大阪、滋賀、奈良、和歌山、兵庫）から愛知・名古屋まで対応してます。先週月曜に桂でリサイクルショップもオープンしました。バーや物販、古物査定ツール「カンテノ」も開発してます。\n田中義博: 僕は33歳（平成5年生まれ）です。\n4/勝賀野 太郎/残置物撤去: 僕32歳（平成6年）です！1歳差ですね！子供が4人います。\n田中義博: うちも子供3人（5歳、3歳、1歳）です。長野出身で東京の不動産会社（元エンジニア1年半）から大阪支店に転勤して独立10年です。趣味はボードゲームで、昔作って売ったりしてました。\n田中義博: 買い取る時は不動産業者さんからの紹介をもらって買ってます。繋がりたい人は不動産業者さんですね。\n4/勝賀野 太郎/残置物撤去: 不動産会社ご紹介させていただきます！夜は奥様の事情で飲みに行けないとのことなので、一人不動産屋さんをお誘いして一緒にランチ行きましょう！京都でも大阪でも行きます！\n田中義博: ぜひお願いします！京都まで行きます！マンション買い取り時の残置物撤去もぜひ依頼させてください！",
+        summary: '武藤開発の田中義博様（33歳・平成5年生まれ同世代）との36分間の1to1面談。リクシル不動産三浦様・入江様経由の西友寺案件での間接取引を契機に、田中様の「マンション買取再販事業」と勝賀野様の「残置物撤去・遺品整理・リユース事業」の相互連携に合意。田中様は買取案件を紹介してくれる不動産業者との繋がりを求めており、勝賀野様が不動産業者を1名誘って3名でランチ（京都または大阪）を設定するToDoを決定。夜の飲み会は不可だがランチは歓迎。子供3人（5歳・3歳・1歳）、長野出身、ボードゲーム好きなどの共通点で意気投合。',
+        utterances: [
+          {
+            id: 'utt-tanaka-1',
+            speaker_label: '田中 義博',
+            resolved_person_id: tanaka.id,
+            resolved_person_name: '田中 義博',
+            start_seconds: 0,
+            end_seconds: 2160,
+            text: '武藤開発の田中です。マンション買取再販を大阪中心・全国で展開しています。不動産業者様からの買取案件ご紹介をお待ちしています。勝賀野さんの残置物撤去もぜひ発注したいですし、不動産業者様との3名ランチも楽しみにしています！',
+            confidence: 0.99,
+          }
+        ],
+        created_at: '2026-11-10T11:35:00Z',
+      });
+    }
+
+    this.persist();
+  }
+
+    public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
       p.status = 'active';
