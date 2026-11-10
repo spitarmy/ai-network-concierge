@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   Search, Shield, Building, Award, History,
-  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload, AlertCircle, UserCheck
+  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload, AlertCircle, UserCheck, Sparkles, MessageSquare
 } from 'lucide-react';
 import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
@@ -12,12 +12,14 @@ interface PersonsViewProps {
   selectedPersonId?: string;
   onClosePersonDetail: () => void;
   onRefresh: () => void;
+  onOpenThankYou?: (meetingId: string) => void;
 }
 
 export const PersonsView: React.FC<PersonsViewProps> = ({
   selectedPersonId,
   onClosePersonDetail,
   onRefresh,
+  onOpenThankYou,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string>('ALL');
@@ -743,7 +745,23 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
 
           {/* 基本情報タブ */}
           {detailTab === 'overview' && (
-            <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 text-xs">
+            <div className="space-y-4 text-xs">
+            <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4">
+              {(orgMemberships.length > 0 || businessOfferings.length > 0) && (
+                <div className="p-3.5 rounded-2xl bg-apple-blue/5 dark:bg-apple-darkBlue/15 border border-apple-blue/20 space-y-1">
+                  <span className="text-[11px] font-bold text-apple-blue dark:text-apple-darkBlue">所属会社・本業</span>
+                  {orgMemberships.map(om => (
+                    <div key={om.id} className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      {om.organization_name} {om.title ? `（${om.title}）` : ''}
+                    </div>
+                  ))}
+                  {businessOfferings.map(bo => (
+                    <div key={bo.id} className="text-neutral-600 dark:text-neutral-300">
+                      事業内容: {bo.service_title}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-neutral-400 font-medium block">連絡先情報</span>
@@ -788,6 +806,67 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* この人物との面談履歴・AI要約・次回約束一覧 */}
+            {(() => {
+              const personMeetings = store.getMeetingsForPerson(selectedPerson.id);
+              const personPromises = facts.filter(f => f.fact_category === 'promise');
+              if (personMeetings.length === 0 && personPromises.length === 0) return null;
+              return (
+                <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      <Sparkles className="w-4 h-4 text-apple-blue" />
+                      <span>面談要約・約束履歴 ({personMeetings.length}件)</span>
+                    </div>
+                  </div>
+
+                  {personPromises.length > 0 && (
+                    <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5">
+                      <span className="font-bold text-amber-800 dark:text-amber-300 block">📌 交わした約束・次回ToDo</span>
+                      <ul className="list-disc list-inside space-y-1 text-neutral-700 dark:text-neutral-300">
+                        {personPromises.map(pf => (
+                          <li key={pf.id}>{pf.fact_value}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {personMeetings.map(pm => {
+                      const tr = store.getTranscriptForMeeting(pm.id);
+                      return (
+                        <div key={pm.id} className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{pm.title}</div>
+                              <div className="text-[11px] text-neutral-400">
+                                {new Date(pm.scheduled_start_at).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            {onOpenThankYou && pm.status === 'completed' && (
+                              <button
+                                onClick={() => onOpenThankYou(pm.id)}
+                                className="px-3 py-1.5 rounded-xl bg-apple-blue text-white font-semibold hover:opacity-90 flex items-center space-x-1"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                <span>お礼文・要約を見る</span>
+                              </button>
+                            )}
+                          </div>
+                          {tr?.summary && (
+                            <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-line">
+                              {tr.summary}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             </div>
           )}
 
@@ -1235,6 +1314,8 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
             {filteredPersons.map(p => {
               const pMemberships = store.getBNIMembershipsForPerson(p.id);
               const activeChapter = pMemberships.find(m => m.status === 'active');
+              const pOrgs = store.getOrgMembershipsForPerson(p.id);
+              const primaryOrg = pOrgs[0];
               return (
                 <div
                   key={p.id}
@@ -1259,8 +1340,12 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                       )}
                     </div>
                     <p className="text-[11px] text-neutral-400 truncate">{p.phonetic_name}</p>
-                    <p className="text-[11px] text-neutral-500 mt-1 truncate">
-                      {activeChapter ? `${activeChapter.chapter_name} (${activeChapter.category})` : '所属設定なし'}
+                    <p className="text-[11px] text-neutral-500 mt-1 truncate font-medium">
+                      {primaryOrg
+                        ? `${primaryOrg.organization_name}${primaryOrg.title ? ` (${primaryOrg.title})` : ''}`
+                        : activeChapter
+                        ? `${activeChapter.chapter_name} (${activeChapter.category})`
+                        : '所属未設定'}
                     </p>
                     <div className="flex items-center space-x-2 mt-2 text-[10px] text-neutral-400">
                       <span className="flex items-center space-x-0.5">

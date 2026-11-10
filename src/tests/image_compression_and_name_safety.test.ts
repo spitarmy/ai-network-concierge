@@ -88,24 +88,91 @@ describe('名刺画像圧縮・大容量耐性およびお名前漢字セーフ�
     expect(realPersons.some(p => p.display_name === '遠藤 雄一')).toBe(true);
   });
 
-  it('田中 義博様との1to1面談実績・Facts・お礼状ドラフトが完全に登録されていること', () => {
+  it('田中 義博様（夢叶開発）との1to1面談実績・Facts・文字起こし・お礼状ドラフトが完全に登録されていること', () => {
     const tanaka = store.getPersons().find(p => p.display_name === '田中 義博');
     expect(tanaka).toBeDefined();
     expect(tanaka?.status).toBe('active');
     expect(tanaka?.is_name_verified).toBe(true);
 
+    const orgs = store.getOrgMembershipsForPerson(tanaka!.id);
+    expect(orgs.some(o => o.organization_name === '夢叶開発')).toBe(true);
+    expect(orgs.some(o => o.organization_name === '武藤開発')).toBe(false);
+
     const mtg = store.getMeetings().find(m => m.id === 'm-tanaka-20261110');
     expect(mtg).toBeDefined();
     expect(mtg?.status).toBe('completed');
+    expect(mtg?.zoom_uuid).toBe('BGodEUwlTyuhgtDOPAVE+w==');
+
+    const tr = store.getTranscriptForMeeting('m-tanaka-20261110');
+    expect(tr).toBeDefined();
+    expect(tr?.summary).toContain('夢叶開発');
 
     const facts = store.getFactsForPerson(tanaka!.id);
     expect(facts.length).toBeGreaterThan(3);
-    expect(facts.some(f => f.fact_value.includes('武藤開発'))).toBe(true);
+    expect(facts.some(f => f.fact_value.includes('夢叶開発'))).toBe(true);
     expect(facts.some(f => f.fact_value.includes('ランチ'))).toBe(true);
 
     const draft = store.generateThankYouDraft('m-tanaka-20261110', 'line_casual');
     expect(draft.recipient_name).toBe('田中 義博');
     expect(draft.draft_text).toContain('田中');
+    expect(draft.draft_text).toContain('夢叶開発');
+  });
+
+  it('同一Zoomルーム(89527504054)でもセッションUUID単位で独立処理され、事前予定「〇〇開発の△△様」と自動統合・本登録昇格されること', () => {
+    // スマホで事前予定「星野開発の星野様と1to1」を登録した状態を再現
+    const scheduled = store.createMeeting({
+      title: '星野開発の星野様と1to1',
+      participant_name: '星野開発の星野',
+      meeting_type: '1to1',
+      provider: 'zoom',
+      scheduled_start_at: '2026-11-12T02:00:00Z',
+    });
+
+    // 社名「星野開発」と人物「星野」に自動分解されていること
+    const prePerson = store.getPersonById(scheduled.participant_ids[0]);
+    expect(prePerson?.display_name).toBe('星野');
+    expect(store.getOrgMembershipsForPerson(prePerson!.id)[0]?.organization_name).toBe('星野開発');
+
+    // 同一パーソナルルーム 89527504054 で新規UUIDのZoomセッションが完了（AI要約＋文字起こし到着）
+    const changed = store.ingestZoomSessions([
+      {
+        uuid: 'UniqueSessionUUID_Hoshino_001==',
+        meeting_id: '89527504054',
+        topic: 'ZENNOBATE Meeting Room',
+        start_time: '2026-11-12T02:01:00Z',
+        duration: 35,
+        share_url: 'https://us06web.zoom.us/rec/share/hoshino_rec',
+        summary_overview: '星野健太と4/勝賀野の間で店舗開発・残置物撤去の協業に合意しました。',
+        summary_details: [{ label: '協業合意', summary: '大阪エリアの店舗物件での連携を決定。' }],
+        next_steps: ['4/勝賀野: 来週火曜に星野健太へ見積フォーマットを送付する'],
+        attendees: ['4/勝賀野 太郎/残置物撤去', '星野健太'],
+        transcript_text: '星野健太: 星野開発の星野です。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: よろしくお願いします！',
+        utterances: [
+          { speaker: '星野健太', start_seconds: 1, end_seconds: 5, text: '星野開発の星野です。よろしくお願いします。' },
+        ],
+      },
+    ]);
+
+    expect(changed).toBe(true);
+
+    // 事前予定が完了ステータスに自動更新され、重複予定が増えていないこと
+    const updatedMtg = store.getMeetings().find(m => m.id === scheduled.id);
+    expect(updatedMtg?.status).toBe('completed');
+    expect(updatedMtg?.zoom_uuid).toBe('UniqueSessionUUID_Hoshino_001==');
+
+    // 人物カルテがフルネーム「星野 健太」かつ実人脈（active）に自動昇格し、社名「星野開発」も保持されていること
+    const promotedPerson = store.getPersonById(prePerson!.id);
+    expect(promotedPerson?.status).toBe('active');
+    expect(promotedPerson?.display_name).toBe('星野 健太');
+    expect(store.getOrgMembershipsForPerson(promotedPerson!.id).some(o => o.organization_name === '星野開発')).toBe(true);
+
+    // AI要約・文字起こし・次回アクションToDoがすべて自動紐付けされていること
+    const tr = store.getTranscriptForMeeting(scheduled.id);
+    expect(tr?.summary).toContain('残置物撤去の協業に合意');
+    expect(tr?.full_text).toContain('星野開発の星野です');
+
+    const pFacts = store.getFactsForPerson(promotedPerson!.id);
+    expect(pFacts.some(f => f.fact_category === 'promise' && f.fact_value.includes('見積フォーマット'))).toBe(true);
   });
 
   it('何千枚登録シミュレーション時でもlocalStorage容量上限でアプリがクラッシュしないこと', () => {

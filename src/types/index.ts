@@ -127,6 +127,7 @@ export interface Meeting {
   provider: MeetingProvider;
   meeting_url?: string;
   meeting_code?: string;
+  zoom_uuid?: string;
   scheduled_start_at: string;
   scheduled_end_at?: string;
   raw_invite_text?: string;
@@ -135,6 +136,7 @@ export interface Meeting {
   recording_status: 'not_applicable' | 'awaiting_consent' | 'consent_obtained' | 'recording' | 'completed' | 'failed' | 'refused';
   participant_ids: PersonId[];
   created_at: string;
+  updated_at?: string;
 }
 
 export interface ConsentRecord {

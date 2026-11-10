@@ -10,10 +10,11 @@
 
 | テストスイート | 実行コマンド | テスト件数 | 合否結果 | 実行日時 |
 |---|---|---|---|---|
-| **TypeScript 型チェック** | `npm run build` (`tsc && vite build`) | 全モジュール | **PASS (0 errors)** | 2026-11-08 12:34 |
-| **受け入れ自動テスト** | `npm test` (`vitest run`) | 23項目 | **PASS (23/23)** | 2026-11-08 12:34 |
-| **本番ビルド・HTTP検証** | `vite preview` + HTTP Fetch | ステータス 200 OK | **PASS** | 2026-11-08 12:34 |
-| **Vercel 本番デプロイ** | GitHub Push 自動連携 | Production URL | **PASS (200 OK)** | 2026-11-08 12:35 |
+| **TypeScript 型チェック** | `npm run typecheck` (`tsc --noEmit`) | 全モジュール (`src/` + `api/`) | **PASS (0 errors)** | 2026-11-10 12:30 |
+| **受け入れ・結合自動テスト** | `npm test` (`vitest run`) | 55項目 | **PASS (55/55)** | 2026-11-10 12:30 |
+| **Zoom Cloud API 実接続検証** | `/api/zoom/sync` 実OAuth + VTT + AI要約取得 | 実セッション3件取得 (20,921字VTT + 要約) | **PASS (200 OK)** | 2026-11-10 12:30 |
+| **PC⇄スマホ クラウド同期検証** | `/api/sync/state` 双方向CRDTマージ検証 | 予定・カルテの端末間統合・重複吸収 | **PASS (200 OK)** | 2026-11-10 12:30 |
+| **本番ビルド・Vercel配信** | `npm run build` + GitHub Push 自動連携 | Production URL | **PASS (200 OK)** | 2026-11-10 12:31 |
 
 ---
 

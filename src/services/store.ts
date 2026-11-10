@@ -645,15 +645,16 @@ const EMPTY_PRODUCTION_STATE: DatabaseState = {
 };
 
 const OAUTH_STORAGE_KEY = 'ai_network_concierge_oauth_config';
+const DELETED_IDS_STORAGE_KEY = 'ai_network_concierge_deleted_ids';
 
 const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
   zoom: {
-    account_id: 'gJtFWtr1RD-fl8oxS0n5wA',
+    account_id: 'gJtFWtr1RD-fI8oxS0n5wA',
     client_id: '4CnF2ZSRpGgbFFpVO7GzQ',
-    client_secret: '7dHhVPmpcp60ij8nLSUSDH0DmyiOkXJc',
+    client_secret: '7dHhVPmpcp60ij8nLSUSDH0DMyiOkXJc',
     webhook_secret_token: '9D2MsR03RK6Srow8lUSAYw',
     is_connected: true,
-    last_tested_at: '2026-11-08T12:55:00.000Z',
+    last_tested_at: '2026-11-10T02:55:00.000Z',
   },
   google: {
     client_id: '',
@@ -702,8 +703,19 @@ const setStorageItem = (key: string, value: string): void => {
 class DataStore {
   private state: DatabaseState;
   private oauthConfig: OAuthIntegrationConfig;
+  private deletedIds: Set<string>;
+  private syncTimer: any = null;
+  private isSyncingCloud = false;
+  public lastSyncedAt: string | null = null;
+  public zoomApiConnected = false;
 
   constructor() {
+    const rawDeleted = getStorageItem(DELETED_IDS_STORAGE_KEY);
+    try {
+      this.deletedIds = new Set<string>(rawDeleted ? JSON.parse(rawDeleted) : []);
+    } catch {
+      this.deletedIds = new Set<string>();
+    }
     const raw = getStorageItem(STORAGE_KEY);
 
     if (raw) {
@@ -734,19 +746,34 @@ class DataStore {
       this.oauthConfig = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG));
     }
 
-    // ユーザー様ご提供のZoom本番認証情報を自動永続化
+    // ユーザー様ご提供のZoom本番認証情報を自動永続化 + 過去OCR誤読(l/I, m/M)の自動修復
+    let oauthHealed = false;
     if (!this.oauthConfig.zoom.client_id) {
       this.oauthConfig.zoom = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG.zoom));
+      oauthHealed = true;
+    }
+    if (this.oauthConfig.zoom.account_id === 'gJtFWtr1RD-fl8oxS0n5wA') {
+      this.oauthConfig.zoom.account_id = 'gJtFWtr1RD-fI8oxS0n5wA';
+      oauthHealed = true;
+    }
+    if (this.oauthConfig.zoom.client_secret === '7dHhVPmpcp60ij8nLSUSDH0DmyiOkXJc') {
+      this.oauthConfig.zoom.client_secret = '7dHhVPmpcp60ij8nLSUSDH0DMyiOkXJc';
+      oauthHealed = true;
+    }
+    if (oauthHealed) {
       setStorageItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
     }
 
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様の1to1面談実績を自動登録
+    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
     this.seedTanakaMeeting();
+
+    // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
+    this.reconcileLegacyAndDuplicateData();
   }
 
   public purgeBogusDemoData(): void {
@@ -843,7 +870,8 @@ class DataStore {
         meeting_type: '1to1',
         provider: 'zoom',
         meeting_url: 'https://us06web.zoom.us/rec/share/4OZtsxD8c8CkizB04uasy-wEolBH1J5Y7FxUvU2HOkFKG0UCdSJxgsOsWcYzB8Y.b4ERgiPVafkHYMSu',
-        meeting_code: '4OZtsxD8c8',
+        meeting_code: '89527504054',
+        zoom_uuid: 'pWMoanR1Tsyn4AKg3armHA==',
         scheduled_start_at: '2026-11-09T13:29:00+09:00',
         scheduled_end_at: '2026-11-09T14:09:00+09:00',
         raw_invite_text: '辻 晃典様と1to1面談（ZENNOBATE Meeting Room）\nURL: https://us06web.zoom.us/rec/share/4OZtsxD8c8CkizB04uasy-wEolBH1J5Y7FxUvU2HOkFKG0UCdSJxgsOsWcYzB8Y.b4ERgiPVafkHYMSu\nPasscode: aCf?NV3J',
@@ -857,6 +885,7 @@ class DataStore {
     } else {
       meeting.status = 'completed';
       meeting.recording_status = 'completed';
+      meeting.zoom_uuid = 'pWMoanR1Tsyn4AKg3armHA==';
       meeting.participant_ids = [tsuji.id];
     }
 
@@ -1095,7 +1124,8 @@ class DataStore {
         meeting_type: '1to1',
         provider: 'zoom',
         meeting_url: 'https://us06web.zoom.us/rec/share/Fcr6mJGN2AIHdNz25VrjG0oY6RRU_OPd_F9EofjC4YIe4uKzc2AwsfXpJKSSeviX.fWGkLoCNQXT8paBm',
-        meeting_code: 'Fcr6mJGN2A',
+        meeting_code: '89527504054',
+        zoom_uuid: 'NSbdMRVpSnWQanT7eywfzw==',
         scheduled_start_at: '2026-11-09T14:29:00+09:00',
         scheduled_end_at: '2026-11-09T14:51:00+09:00',
         raw_invite_text: '木村 尚史様と1to1面談（ZENNOBATE Meeting Room）\nURL: https://us06web.zoom.us/rec/share/Fcr6mJGN2AIHdNz25VrjG0oY6RRU_OPd_F9EofjC4YIe4uKzc2AwsfXpJKSSeviX.fWGkLoCNQXT8paBm\nPasscode: 3E=2Pd8L',
@@ -1109,6 +1139,7 @@ class DataStore {
     } else {
       meeting.status = 'completed';
       meeting.recording_status = 'completed';
+      meeting.zoom_uuid = 'NSbdMRVpSnWQanT7eywfzw==';
       meeting.participant_ids = [kimura.id];
     }
 
@@ -1263,7 +1294,7 @@ class DataStore {
         service_areas: ['大阪府', '兵庫県', '近畿全域', '全国（函館実績あり）'],
         meeting_count: 1,
         last_interacted_at: '2026-11-10T11:34:00+09:00',
-        notes: '武藤開発 代表。大阪拠点で中古マンション中心の買取再販（土地も大阪・兵庫で実施、最遠は函館も実績）。33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳、3歳、1歳）。長野出身→東京（元エンジニア1年半）→大阪転勤で独立10年。趣味はボードゲーム。リクシル不動産三浦さん・入江さん経由で西友寺案件の取引実績あり。夜は飲めないがランチなら京都・大阪とも歓迎。勝賀野様から不動産業者を1名紹介して3名でランチに行く約束。買取物件の残置物撤去・遺品整理（近畿一円・名古屋）を提携。',
+        notes: '夢叶開発 代表。大阪拠点で中古マンション中心の買取再販（土地も大阪・兵庫で実施、最遠は函館も実績）。33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳、3歳、1歳）。長野出身→東京（元エンジニア1年半）→大阪転勤で独立10年。趣味はボードゲーム。リクシル不動産三浦さん・入江さん経由で西友寺案件の取引実績あり。夜は飲めないがランチなら京都・大阪とも歓迎。勝賀野様から不動産業者を1名紹介して3名でランチに行く約束。買取物件の残置物撤去・遺品整理（近畿一円・名古屋）を提携。',
         is_name_verified: true,
         created_at: '2026-11-10T10:55:00Z',
         updated_at: '2026-11-10T11:35:00Z',
@@ -1305,14 +1336,14 @@ class DataStore {
       });
     }
 
-    // 会社所属: 武藤開発
+    // 会社所属: 夢叶開発
     if (!this.state.organizationMemberships.some(m => m.person_id === tanaka.id)) {
       this.state.organizationMemberships.push({
         id: 'om-tanaka-1',
         tenant_id: tid,
         person_id: tanaka.id,
-        organization_id: 'org-muto',
-        organization_name: '武藤開発',
+        organization_id: 'org-yumekana',
+        organization_name: '夢叶開発',
         title: '代表',
         is_current: true,
       });
@@ -1338,20 +1369,29 @@ class DataStore {
       meeting = {
         id: 'm-tanaka-20261110',
         tenant_id: tid,
-        title: '田中 義博様と1to1（武藤開発 / マンション買取再販・残置物撤去提携・不動産業者ランチ）',
+        title: '田中 義博様と1to1（夢叶開発 / マンション買取再販・残置物撤去提携・不動産業者ランチ）',
         meeting_type: '1to1',
         provider: 'zoom',
-        meeting_url: 'https://us06web.zoom.us/j/8492041283',
+        meeting_url: 'https://us06web.zoom.us/rec/share/ai_Rf1Rb_b_ohgxr4_uaWOT7rD3bcK3Wdeajd7Lanf0vvheVeSoSkJHYlm5sivXP.i30mYp4a5gEdA7E1',
+        meeting_code: '89527504054',
+        zoom_uuid: 'BGodEUwlTyuhgtDOPAVE+w==',
         scheduled_start_at: '2026-11-10T10:58:00+09:00',
         scheduled_end_at: '2026-11-10T11:34:00+09:00',
-        raw_invite_text: '田中 義博様と1to1面談（武藤開発×ZENNOBATE）\n主催: 勝賀野 太郎 / 残置物撤去',
+        raw_invite_text: '田中 義博様と1to1面談（夢叶開発×ZENNOBATE）\n主催: 勝賀野 太郎 / 残置物撤去',
         host_type: 'self',
         recording_status: 'completed',
         status: 'completed',
         participant_ids: [tanaka.id],
         created_at: '2026-11-10T10:55:00Z',
+        updated_at: '2026-11-10T11:50:00Z',
       };
       this.state.meetings.unshift(meeting);
+    } else {
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.zoom_uuid = 'BGodEUwlTyuhgtDOPAVE+w==';
+      meeting.meeting_code = '89527504054';
+      meeting.participant_ids = [tanaka.id];
     }
 
     // Facts
@@ -1363,7 +1403,7 @@ class DataStore {
           person_id: tanaka.id,
           fact_category: 'topic',
           fact_key: '本業・事業内容',
-          fact_value: '大阪拠点で中古マンション中心の買取再販（武藤開発）。不動産業者からの買取案件紹介を希望',
+          fact_value: '大阪拠点で中古マンション中心の買取再販（夢叶開発）。不動産業者からの買取案件紹介を希望',
           source_type: 'meeting_speech',
           source_id: 'm-tanaka-20261110',
           source_evidence: 'Zoom 1to1面談文字起こし',
@@ -1463,8 +1503,8 @@ class DataStore {
         tenant_id: tid,
         meeting_id: 'm-tanaka-20261110',
         language: 'ja',
-        full_text: "田中義博: すみません。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: よろしくお願いします。\n田中義博: すみません。日程ちょっと調整いただいてありがとうございました。\n4/勝賀野 太郎/残置物撤去: いえいえ、大丈夫でしたか？娘さん。\n田中義博: もう大変でした。娘も嫁もインフルエンザに感染して、一人で頑張ってました。\n4/勝賀野 太郎/残置物撤去: 回復なされてよかったです！改めまして、株式会社ゼノベイトの勝賀野（しょうがの）と申します。\n田中義博: お世話になります。武藤開発の田中と申します。\n4/勝賀野 太郎/残置物撤去: 間接的にお仕事させてもらいましたよね？リクシル不動産の三浦さんをご紹介いただいてて、入江さんに繋いでいただいた流れで。西友寺の案件で請求書をお送りしたときに。\n田中義博: 僕も請求書来た時に見覚えあるなと思ってました！ありがとうございました。会社は大阪でやっていて、マンション中心に買取再販をやってます。エリアはどこでもやっていて、一番遠いと函館もやってます。土地は大阪や兵庫が多いです。\n4/勝賀野 太郎/残置物撤去: マンションの買取再販なんですね。遺品整理・残置物撤去を10年以上やっていて、近畿一円（京都、大阪、滋賀、奈良、和歌山、兵庫）から愛知・名古屋まで対応してます。先週月曜に桂でリサイクルショップもオープンしました。バーや物販、古物査定ツール「カンテノ」も開発してます。\n田中義博: 僕は33歳（平成5年生まれ）です。\n4/勝賀野 太郎/残置物撤去: 僕32歳（平成6年）です！1歳差ですね！子供が4人います。\n田中義博: うちも子供3人（5歳、3歳、1歳）です。長野出身で東京の不動産会社（元エンジニア1年半）から大阪支店に転勤して独立10年です。趣味はボードゲームで、昔作って売ったりしてました。\n田中義博: 買い取る時は不動産業者さんからの紹介をもらって買ってます。繋がりたい人は不動産業者さんですね。\n4/勝賀野 太郎/残置物撤去: 不動産会社ご紹介させていただきます！夜は奥様の事情で飲みに行けないとのことなので、一人不動産屋さんをお誘いして一緒にランチ行きましょう！京都でも大阪でも行きます！\n田中義博: ぜひお願いします！京都まで行きます！マンション買い取り時の残置物撤去もぜひ依頼させてください！",
-        summary: '武藤開発の田中義博様（33歳・平成5年生まれ同世代）との36分間の1to1面談。リクシル不動産三浦様・入江様経由の西友寺案件での間接取引を契機に、田中様の「マンション買取再販事業」と勝賀野様の「残置物撤去・遺品整理・リユース事業」の相互連携に合意。田中様は買取案件を紹介してくれる不動産業者との繋がりを求めており、勝賀野様が不動産業者を1名誘って3名でランチ（京都または大阪）を設定するToDoを決定。夜の飲み会は不可だがランチは歓迎。子供3人（5歳・3歳・1歳）、長野出身、ボードゲーム好きなどの共通点で意気投合。',
+        full_text: "田中義博: すみません。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: よろしくお願いします。\n田中義博: すみません。日程ちょっと調整いただいてありがとうございました。\n4/勝賀野 太郎/残置物撤去: いえいえ、大丈夫でしたか？娘さん。\n田中義博: もう大変でした。娘も嫁もインフルエンザに感染して、一人で頑張ってました。\n4/勝賀野 太郎/残置物撤去: 回復なされてよかったです！改めまして、株式会社ゼノベイトの勝賀野（しょうがの）と申します。\n田中義博: お世話になります。夢叶開発の田中と申します。\n4/勝賀野 太郎/残置物撤去: 間接的にお仕事させてもらいましたよね？リクシル不動産の三浦さんをご紹介いただいてて、入江さんに繋いでいただいた流れで。西友寺の案件で請求書をお送りしたときに。\n田中義博: 僕も請求書来た時に見覚えあるなと思ってました！ありがとうございました。会社は大阪でやっていて、マンション中心に買取再販をやってます。エリアはどこでもやっていて、一番遠いと函館もやってます。土地は大阪や兵庫が多いです。\n4/勝賀野 太郎/残置物撤去: マンションの買取再販なんですね。遺品整理・残置物撤去を10年以上やっていて、近畿一円（京都、大阪、滋賀、奈良、和歌山、兵庫）から愛知・名古屋まで対応してます。先週月曜に桂でリサイクルショップもオープンしました。バーや物販、古物査定ツール「カンテノ」も開発してます。\n田中義博: 僕は33歳（平成5年生まれ）です。\n4/勝賀野 太郎/残置物撤去: 僕32歳（平成6年）です！1歳差ですね！子供が4人います。\n田中義博: うちも子供3人（5歳、3歳、1歳）です。長野出身で東京の不動産会社（元エンジニア1年半）から大阪支店に転勤して独立10年です。趣味はボードゲームで、昔作って売ったりしてました。\n田中義博: 買い取る時は不動産業者さんからの紹介をもらって買ってます。繋がりたい人は不動産業者さんですね。\n4/勝賀野 太郎/残置物撤去: 不動産会社ご紹介させていただきます！夜は奥様の事情で飲みに行けないとのことなので、一人不動産屋さんをお誘いして一緒にランチ行きましょう！京都でも大阪でも行きます！\n田中義博: ぜひお願いします！京都まで行きます！マンション買い取り時の残置物撤去もぜひ依頼させてください！",
+        summary: '夢叶開発の田中義博様（33歳・平成5年生まれ同世代）との36分間の1to1面談。リクシル不動産三浦様・入江様経由の西友寺案件での間接取引を契機に、田中様の「マンション買取再販事業」と勝賀野様の「残置物撤去・遺品整理・リユース事業」の相互連携に合意。田中様は買取案件を紹介してくれる不動産業者との繋がりを求めており、勝賀野様が不動産業者を1名誘って3名でランチ（京都または大阪）を設定するToDoを決定。夜の飲み会は不可だがランチは歓迎。子供3人（5歳・3歳・1歳）、長野出身、ボードゲーム好きなどの共通点で意気投合。',
         utterances: [
           {
             id: 'utt-tanaka-1',
@@ -1473,7 +1513,7 @@ class DataStore {
             resolved_person_name: '田中 義博',
             start_seconds: 0,
             end_seconds: 2160,
-            text: '武藤開発の田中です。マンション買取再販を大阪中心・全国で展開しています。不動産業者様からの買取案件ご紹介をお待ちしています。勝賀野さんの残置物撤去もぜひ発注したいですし、不動産業者様との3名ランチも楽しみにしています！',
+            text: '夢叶開発の田中です。マンション買取再販を大阪中心・全国で展開しています。不動産業者様からの買取案件ご紹介をお待ちしています。勝賀野さんの残置物撤去もぜひ発注したいですし、不動産業者様との3名ランチも楽しみにしています！',
             confidence: 0.99,
           }
         ],
@@ -1553,65 +1593,483 @@ class DataStore {
     return true;
   }
 
-  public syncZoomInbox(inbox: any[]): boolean {
-    if (!Array.isArray(inbox) || inbox.length === 0) return false;
-    let added = false;
+  private isSelfSpeaker(label: string): boolean {
+    if (!label) return true;
+    return /勝賀野|生姜|善野|ZENNOBATE|ゼノベイト|残置物撤去|残地物撤去|Organizer|^自分$|^ホスト$/i.test(label);
+  }
+
+  private normalizeSpeakerName(raw: string): string {
+    let cleaned = raw
+      .replace(/^[0-9０-９]+s*[/／]s*/, '')
+      .replace(/s*[/／].*$/, '')
+      .replace(/(.*?)|（.*?）/g, '')
+      .replace(/(?:様|さん|氏|代表|社長)$/, '')
+      .trim();
+    if (/^[一-龯]{4}$/.test(cleaned)) {
+      cleaned = `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
+    }
+    return cleaned;
+  }
+
+  private parseCompanyAndPersonHint(rawText: string): { company?: string; personName: string } {
+    const cleaned = rawText
+      .replace(/様と.*$|さんと.*$|との.*$/g, '')
+      .replace(/(?:様|さん|氏)$/, '')
+      .trim();
+    const match = cleaned.match(/^(.{2,20}?)の([^sの]{1,12})$/);
+    if (match && !/^(今日|明日|明後日|来週|今週|本日|次回)$/.test(match[1])) {
+      return {
+        company: match[1].trim(),
+        personName: match[2].trim(),
+      };
+    }
+    return { personName: cleaned };
+  }
+
+  public reconcileLegacyAndDuplicateData(): boolean {
+    let changed = false;
     const tid = this.state.currentTenantId;
 
-    for (const item of inbox) {
-      const meetingId = `m-zoom-${item.meeting_id || item.id}`;
-      const exists = this.state.meetings.some(m => m.id === meetingId || (item.share_url && m.meeting_url === item.share_url));
-      if (!exists) {
-        const title = item.summary_title || item.topic || 'Zoom 1to1面談';
-        const start = item.start_time || new Date().toISOString();
-        const durationMin = item.duration || 30;
-        const end = new Date(new Date(start).getTime() + durationMin * 60000).toISOString();
+    // 1. 旧キャッシュの誤表記「武藤開発」→正式社名「夢叶開発」へ自動修正
+    const fixMuto = (s?: string) => (s && s.includes('武藤開発') ? s.replace(/武藤開発/g, '夢叶開発') : s);
+    for (const org of this.state.organizations || []) {
+      const next = fixMuto(org.name);
+      if (next !== org.name) { org.name = next!; changed = true; }
+    }
+    for (const om of this.state.organizationMemberships || []) {
+      const next = fixMuto(om.organization_name);
+      if (next !== om.organization_name) { om.organization_name = next!; changed = true; }
+    }
+    for (const p of this.state.persons || []) {
+      const next = fixMuto(p.notes);
+      if (next !== p.notes) { p.notes = next; changed = true; }
+    }
+    for (const m of this.state.meetings || []) {
+      const nextT = fixMuto(m.title);
+      const nextR = fixMuto(m.raw_invite_text);
+      if (nextT !== m.title) { m.title = nextT!; changed = true; }
+      if (nextR !== m.raw_invite_text) { m.raw_invite_text = nextR; changed = true; }
+    }
+    for (const f of this.state.facts || []) {
+      const next = fixMuto(f.fact_value);
+      if (next !== f.fact_value) { f.fact_value = next!; changed = true; }
+    }
+    for (const tr of this.state.transcripts || []) {
+      const nextS = fixMuto(tr.summary);
+      const nextF = fixMuto(tr.full_text);
+      if (nextS !== tr.summary) { tr.summary = nextS!; changed = true; }
+      if (nextF !== tr.full_text) { tr.full_text = nextF!; changed = true; }
+    }
 
-        const newMeeting: Meeting = {
-          id: meetingId,
-          tenant_id: tid,
-          title,
-          meeting_type: '1to1',
-          provider: 'zoom',
-          meeting_url: item.share_url || '',
-          scheduled_start_at: start,
-          scheduled_end_at: end,
-          host_type: 'self',
-          recording_status: 'completed',
-          status: 'completed',
-          participant_ids: [],
-          created_at: new Date().toISOString(),
-        };
+    // 2. 旧 syncZoomInbox が作った参加者なしの空枠 m-zoom-89527504054 や孤児Factを除去
+    const orphanMeetings = this.state.meetings.filter(
+      m => m.id === 'm-zoom-89527504054' && (!m.participant_ids || m.participant_ids.length === 0)
+    );
+    if (orphanMeetings.length > 0) {
+      this.state.meetings = this.state.meetings.filter(
+        m => !(m.id === 'm-zoom-89527504054' && (!m.participant_ids || m.participant_ids.length === 0))
+      );
+      this.deletedIds.add('m-zoom-89527504054');
+      changed = true;
+    }
+    const beforeFacts = this.state.facts.length;
+    this.state.facts = this.state.facts.filter(f => f.person_id !== 'p-zoom-participant');
+    if (this.state.facts.length !== beforeFacts) changed = true;
 
-        this.state.meetings.unshift(newMeeting);
+    // 3. スマホ等で事前登録されていた未完了予定（例:「夢叶開発の田中様」）と完了済み面談の自動統合
+    const completedMeetings = this.state.meetings.filter(
+      m => m.tenant_id === tid && (m.status === 'completed' || m.recording_status === 'completed')
+    );
+    const pendingMeetings = this.state.meetings.filter(
+      m => m.tenant_id === tid && m.status !== 'completed' && m.recording_status !== 'completed'
+    );
 
-        if (item.summary_overview) {
-          this.state.facts.push({
-            id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            tenant_id: tid,
-            person_id: 'p-zoom-participant',
-            fact_category: 'topic',
-            fact_key: 'ミーティング要約',
-            fact_value: item.summary_overview,
-            source_type: 'meeting_speech',
-            source_id: meetingId,
-            source_evidence: 'Zoom AI Companion自動受信',
-            confidence: 0.98,
-            verification_status: 'verified',
-            visibility: 'referral_eligible',
-            valid_from: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          });
+    for (const pending of pendingMeetings) {
+      const pendingDate = pending.scheduled_start_at.slice(0, 10);
+      const hint = this.parseCompanyAndPersonHint(pending.title);
+      const pendingPerson = pending.participant_ids[0] ? this.getPersonById(pending.participant_ids[0]) : undefined;
+      const personHint = pendingPerson ? this.parseCompanyAndPersonHint(pendingPerson.display_name) : hint;
+      const surnameHint = (personHint.personName || hint.personName).split(/s+/)[0];
+      const companyHint = personHint.company || hint.company;
+
+      if (!surnameHint || surnameHint.length < 1 || surnameHint.startsWith('相手未特定')) continue;
+
+      const matchedCompleted = completedMeetings.find(cm => {
+        const cmDate = cm.scheduled_start_at.slice(0, 10);
+        const timeDiffHrs = Math.abs(new Date(cm.scheduled_start_at).getTime() - new Date(pending.scheduled_start_at).getTime()) / 3600000;
+        if (cmDate !== pendingDate && timeDiffHrs > 12) return false;
+        const cmPerson = cm.participant_ids[0] ? this.getPersonById(cm.participant_ids[0]) : undefined;
+        return (
+          cm.title.includes(surnameHint) ||
+          (cmPerson && cmPerson.display_name.includes(surnameHint)) ||
+          (companyHint && cm.title.includes(companyHint))
+        );
+      });
+
+      if (matchedCompleted) {
+        const keepPid = matchedCompleted.participant_ids[0];
+        const keepPerson = keepPid ? this.getPersonById(keepPid) : undefined;
+        if (keepPerson && companyHint) {
+          const hasOrg = this.getOrgMembershipsForPerson(keepPerson.id).some(
+            o => o.organization_name === companyHint
+          );
+          if (!hasOrg) {
+            this.addOrganizationMembership(keepPerson.id, companyHint, '代表');
+          }
         }
-
-        added = true;
+        if (keepPerson && pendingPerson && pendingPerson.id !== keepPerson.id) {
+          this.deletedIds.add(pendingPerson.id);
+          this.mergePersons(keepPerson.id, pendingPerson.id);
+        }
+        this.deletedIds.add(pending.id);
+        this.state.meetings = this.state.meetings.filter(m => m.id !== pending.id);
+        this.state.consents = this.state.consents.filter(c => c.meeting_id !== pending.id);
+        changed = true;
       }
     }
 
-    if (added) {
+    if (changed) {
+      this.saveDeletedIds();
       this.persist();
     }
-    return added;
+    return changed;
+  }
+
+  public ingestZoomSessions(sessions: any[], scheduledFromZoom: any[] = []): boolean {
+    const tid = this.state.currentTenantId;
+    let changed = false;
+
+    // 1. Zoomアプリ上で予約されている今後の予定を取り込み
+    for (const sched of scheduledFromZoom || []) {
+      if (!sched.start_time) continue;
+      const code = String(sched.zoom_meeting_id || '');
+      const exists = this.state.meetings.some(
+        m => m.tenant_id === tid && (
+          (sched.uuid && m.zoom_uuid === sched.uuid) ||
+          (code && m.meeting_code === code && m.scheduled_start_at.slice(0, 16) === new Date(sched.start_time).toISOString().slice(0, 16))
+        )
+      );
+      if (!exists && !this.deletedIds.has(`m-zoom-sched-${code}`)) {
+        const topicClean = (sched.topic || '').replace(/ZENNOBATE Meeting Room|さんのZoomミーティング/g, '').trim();
+        const hint = topicClean ? this.parseCompanyAndPersonHint(topicClean) : { personName: '' };
+        const created = this.createMeeting({
+          id: `m-zoom-sched-${code}-${new Date(sched.start_time).getTime()}`,
+          title: sched.topic || 'Zoom予定',
+          participant_name: hint.personName || undefined,
+          meeting_type: '1to1',
+          provider: 'zoom',
+          meeting_url: sched.join_url,
+          meeting_code: code,
+          zoom_uuid: sched.uuid,
+          scheduled_start_at: new Date(sched.start_time).toISOString(),
+          host_type: 'self',
+        });
+        if (created) changed = true;
+      }
+    }
+
+    // 2. 終了・録画・AI要約完了セッションを人物カルテ＆面談履歴へ自動反映
+    for (const session of sessions || []) {
+      const uuid: string | undefined = session.uuid || session.raw_payload?.payload?.object?.uuid || session.raw_payload?.payload?.object?.meeting_uuid;
+      const rawMeetingId = String(session.meeting_id || session.id || '');
+      const safeKey = uuid
+        ? `m-zoom-${uuid.replace(/[^a-zA-Z0-9_-]/g, '')}`
+        : `m-zoom-${rawMeetingId}`;
+
+      if (this.deletedIds.has(safeKey)) continue;
+
+      const startIso = session.start_time ? new Date(session.start_time).toISOString() : new Date().toISOString();
+      const durationMin = session.duration || 30;
+      const endIso = session.end_time
+        ? new Date(session.end_time).toISOString()
+        : new Date(new Date(startIso).getTime() + durationMin * 60000).toISOString();
+
+      // 相手話者名の特定（ホスト自身を除外）
+      const rawCandidates: string[] = [
+        ...(session.attendees || []),
+        ...((session.utterances || []).map((u: any) => u.speaker)),
+      ].filter(Boolean);
+
+      const externalNames = Array.from(
+        new Set(
+          rawCandidates
+            .filter(name => !this.isSelfSpeaker(name))
+            .map(name => this.normalizeSpeakerName(name))
+            .filter(name => name.length >= 2 && name !== '参加者')
+        )
+      );
+
+      let partnerName = externalNames[0] || '';
+      if (!partnerName && session.summary_overview) {
+        const sumMatch = session.summary_overview.match(/([^s、。はと]{2,8})(?:と|氏|様|さん)/);
+        if (sumMatch && !this.isSelfSpeaker(sumMatch[1])) {
+          partnerName = this.normalizeSpeakerName(sumMatch[1]);
+        }
+      }
+      const partnerSurname = partnerName ? partnerName.split(/s+/)[0] : '';
+
+      // 既存会議との照合: (A) zoom_uuid一致 -> (B) ID一致 -> (C) 同時間帯(±4時間)または同日+姓一致の事前予定
+      let targetMeeting = this.state.meetings.find(m =>
+        m.tenant_id === tid && (
+          (uuid && m.zoom_uuid === uuid) ||
+          m.id === safeKey ||
+          (session.share_url && m.meeting_url === session.share_url)
+        )
+      );
+
+      if (!targetMeeting) {
+        const sessionStartMs = new Date(startIso).getTime();
+        targetMeeting = this.state.meetings.find(m => {
+          if (m.tenant_id !== tid) return false;
+          if (m.zoom_uuid && uuid && m.zoom_uuid !== uuid) return false;
+          const diffHrs = Math.abs(new Date(m.scheduled_start_at).getTime() - sessionStartMs) / 3600000;
+          const sameDay = m.scheduled_start_at.slice(0, 10) === startIso.slice(0, 10);
+          if (m.status !== 'completed' && diffHrs <= 4) return true;
+          if (sameDay && partnerSurname && m.title.includes(partnerSurname)) return true;
+          return false;
+        });
+      }
+
+      // 事前予定から会社名ヒント（「夢叶開発の田中」など）を救出
+      let preScheduledCompany = '';
+      if (targetMeeting) {
+        const hintFromTitle = this.parseCompanyAndPersonHint(targetMeeting.title);
+        if (hintFromTitle.company) preScheduledCompany = hintFromTitle.company;
+        const existingP = targetMeeting.participant_ids[0] ? this.getPersonById(targetMeeting.participant_ids[0]) : undefined;
+        if (existingP) {
+          const hintFromPerson = this.parseCompanyAndPersonHint(existingP.display_name);
+          if (hintFromPerson.company) preScheduledCompany = preScheduledCompany || hintFromPerson.company;
+          if (!partnerName && !existingP.display_name.startsWith('相手未特定')) {
+            partnerName = hintFromPerson.personName;
+          }
+        }
+      }
+
+      // 人物カルテの検索・昇格・作成（実面談した相手なので status: 'active' として人物カルテへ正式反映！）
+      let partnerPerson: Person | undefined;
+      if (targetMeeting && targetMeeting.participant_ids.length > 0) {
+        partnerPerson = this.getPersonById(targetMeeting.participant_ids[0]);
+      }
+      if (!partnerPerson && partnerName) {
+        partnerPerson = this.getPersons().find(p =>
+          p.display_name === partnerName ||
+          p.display_name.replace(/s+/g, '') === partnerName.replace(/s+/g, '') ||
+          (partnerSurname.length >= 2 && p.display_name === partnerSurname)
+        );
+      }
+
+      if (partnerPerson) {
+        const shouldUpdateName =
+          partnerName &&
+          (partnerPerson.display_name.startsWith('相手未特定') ||
+           partnerPerson.display_name.includes('の') ||
+           partnerPerson.display_name.length < partnerName.length);
+
+        if (partnerPerson.status === 'provisional' || shouldUpdateName) {
+          partnerPerson.status = 'active';
+          if (shouldUpdateName) {
+            partnerPerson.display_name = partnerName;
+          }
+          partnerPerson.last_interacted_at = endIso;
+          partnerPerson.meeting_count = Math.max(1, partnerPerson.meeting_count || 0);
+          partnerPerson.updated_at = new Date().toISOString();
+          changed = true;
+        }
+      } else if (partnerName) {
+        partnerPerson = this.createPerson({
+          display_name: partnerName,
+          status: 'active',
+          category_tags: ['仕事'],
+          meeting_count: 1,
+          last_interacted_at: endIso,
+          notes: session.summary_overview || 'Zoom面談より自動登録',
+        });
+        changed = true;
+      }
+
+      // 会社名の紐付け（事前入力された社名を最優先し、なければ文字起こし内の明確な法人格のみ抽出）
+      if (partnerPerson) {
+        const existingOrgs = this.getOrgMembershipsForPerson(partnerPerson.id);
+        let companyToLink = preScheduledCompany;
+        if (!companyToLink && existingOrgs.length === 0 && session.transcript_text) {
+          const partnerLines = (session.transcript_text as string)
+            .split('\n')
+            .filter((l: string) => !this.isSelfSpeaker(l.split(':')[0] || ''))
+            .join('\n');
+          const corpMatch = partnerLines.match(/(?:株式会社|合同会社|有限会社|一般社団法人)[A-Za-z0-9぀-ゟ゠-ヿ一-龯]{1,16}/);
+          if (corpMatch && !/ゼノベイト|ZENNOBATE/i.test(corpMatch[0])) {
+            companyToLink = corpMatch[0];
+          }
+        }
+        if (companyToLink && !existingOrgs.some(o => o.organization_name === companyToLink)) {
+          this.addOrganizationMembership(partnerPerson.id, companyToLink, '代表');
+          changed = true;
+        }
+      }
+
+      // 面談レコードの作成または完了更新
+      const defaultTitle = partnerPerson
+        ? `${partnerPerson.display_name}様と1to1面談${preScheduledCompany ? `（${preScheduledCompany}）` : ''}`
+        : (session.summary_title && !session.summary_title.includes('Meeting Summary for')
+            ? session.summary_title
+            : (session.topic && session.topic !== 'ZENNOBATE Meeting Room' ? session.topic : 'Zoom 1to1面談'));
+
+      if (!targetMeeting) {
+        targetMeeting = {
+          id: safeKey,
+          tenant_id: tid,
+          title: defaultTitle,
+          meeting_type: '1to1',
+          provider: 'zoom',
+          meeting_url: session.share_url || '',
+          meeting_code: rawMeetingId || undefined,
+          zoom_uuid: uuid,
+          scheduled_start_at: startIso,
+          scheduled_end_at: endIso,
+          host_type: 'self',
+          recording_status: 'completed',
+          status: 'completed',
+          participant_ids: partnerPerson ? [partnerPerson.id] : [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        this.state.meetings.unshift(targetMeeting);
+        changed = true;
+      } else {
+        if (targetMeeting.status !== 'completed' || targetMeeting.recording_status !== 'completed') {
+          targetMeeting.status = 'completed';
+          targetMeeting.recording_status = 'completed';
+          changed = true;
+        }
+        if (uuid && targetMeeting.zoom_uuid !== uuid) {
+          targetMeeting.zoom_uuid = uuid;
+          changed = true;
+        }
+        if (session.share_url && !targetMeeting.meeting_url) {
+          targetMeeting.meeting_url = session.share_url;
+          changed = true;
+        }
+        if (partnerPerson && !targetMeeting.participant_ids.includes(partnerPerson.id)) {
+          targetMeeting.participant_ids = [partnerPerson.id, ...targetMeeting.participant_ids];
+          changed = true;
+        }
+        if (
+          partnerPerson &&
+          (targetMeeting.title === 'ZENNOBATE Meeting Room' || targetMeeting.title.includes('相手未特定'))
+        ) {
+          targetMeeting.title = defaultTitle;
+          changed = true;
+        }
+      }
+
+      // 要約・文字起こし(MeetingTranscript)の作成・更新
+      const detailSummaryText = Array.isArray(session.summary_details) && session.summary_details.length > 0
+        ? session.summary_details.map((d: any) => `【${d.label}】${d.summary}`).join('\n')
+        : '';
+      const combinedSummary = [session.summary_overview, detailSummaryText].filter(Boolean).join('\n\n');
+
+      if (combinedSummary || session.transcript_text) {
+        const existingTr = this.state.transcripts.find(t => t.meeting_id === targetMeeting!.id);
+        const mappedUtterances = Array.isArray(session.utterances) && session.utterances.length > 0
+          ? session.utterances.slice(0, 300).map((u: any, idx: number) => ({
+              id: `utt-${targetMeeting!.id}-${idx}`,
+              speaker_label: u.speaker,
+              resolved_person_id: !this.isSelfSpeaker(u.speaker) ? partnerPerson?.id : undefined,
+              resolved_person_name: !this.isSelfSpeaker(u.speaker) ? partnerPerson?.display_name : '勝賀野 太郎',
+              start_seconds: u.start_seconds || 0,
+              end_seconds: u.end_seconds || 0,
+              text: u.text,
+              confidence: 0.98,
+            }))
+          : [];
+
+        if (!existingTr) {
+          this.state.transcripts.push({
+            id: `tr-${targetMeeting.id}`,
+            tenant_id: tid,
+            meeting_id: targetMeeting.id,
+            language: 'ja',
+            full_text: session.transcript_text || combinedSummary,
+            summary: session.summary_overview || combinedSummary.slice(0, 400),
+            utterances: mappedUtterances,
+            created_at: new Date().toISOString(),
+          });
+          changed = true;
+        } else {
+          if (session.transcript_text && existingTr.full_text.length < session.transcript_text.length) {
+            existingTr.full_text = session.transcript_text;
+            if (mappedUtterances.length > 0) existingTr.utterances = mappedUtterances;
+            changed = true;
+          }
+          if (session.summary_overview && !existingTr.summary) {
+            existingTr.summary = session.summary_overview;
+            changed = true;
+          }
+        }
+      }
+
+      // Facts（要約トピック & ネクストステップ約束ToDo）を人物カルテへ冪等追加
+      if (partnerPerson) {
+        const existingMeetingFacts = this.state.facts.filter(
+          f => f.person_id === partnerPerson!.id && f.source_id === targetMeeting!.id
+        );
+        if (existingMeetingFacts.length === 0) {
+          if (session.summary_overview) {
+            this.state.facts.push({
+              id: `fact-zoom-sum-${targetMeeting.id}`,
+              tenant_id: tid,
+              person_id: partnerPerson.id,
+              fact_category: 'topic',
+              fact_key: 'Zoom AI面談要約',
+              fact_value: session.summary_overview,
+              source_type: 'meeting_speech',
+              source_id: targetMeeting.id,
+              source_evidence: 'Zoom AI Companion / 自動文字起こし',
+              confidence: 0.98,
+              verification_status: 'verified',
+              visibility: 'referral_eligible',
+              valid_from: endIso,
+              created_at: new Date().toISOString(),
+            });
+            changed = true;
+          }
+
+          if (Array.isArray(session.next_steps)) {
+            session.next_steps.forEach((step: string, idx: number) => {
+              if (!step || !step.trim()) return;
+              this.state.facts.push({
+                id: `fact-zoom-step-${targetMeeting!.id}-${idx}`,
+                tenant_id: tid,
+                person_id: partnerPerson!.id,
+                fact_category: 'promise',
+                fact_key: '次回アクション・約束ToDo',
+                fact_value: step.trim(),
+                source_type: 'meeting_speech',
+                source_id: targetMeeting!.id,
+                source_evidence: 'Zoom AI Companion Next Steps',
+                confidence: 0.96,
+                verification_status: 'verified',
+                visibility: 'referral_eligible',
+                valid_from: endIso,
+                created_at: new Date().toISOString(),
+              });
+              changed = true;
+            });
+          }
+        }
+      }
+    }
+
+    if (changed) {
+      this.reconcileLegacyAndDuplicateData();
+      this.persist();
+    }
+    return changed;
+  }
+
+  public syncZoomInbox(inbox: any[]): boolean {
+    if (!Array.isArray(inbox) || inbox.length === 0) return false;
+    return this.ingestZoomSessions(inbox, []);
   }
 
   public purgeSamplePersons(): void {
@@ -1631,8 +2089,120 @@ class DataStore {
     this.persist();
   }
 
-  private persist() {
+  private saveDeletedIds() {
+    setStorageItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(Array.from(this.deletedIds).slice(-500)));
+  }
+
+  private isBrowserSyncEnabled(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.fetch === 'function' &&
+      !(import.meta as any).env?.VITEST
+    );
+  }
+
+  private persist(skipCloudPush = false) {
     setStorageItem(STORAGE_KEY, JSON.stringify(this.state));
+    if (!skipCloudPush && this.isBrowserSyncEnabled()) {
+      if (this.syncTimer) clearTimeout(this.syncTimer);
+      this.syncTimer = setTimeout(() => {
+        this.pushStateToCloud().catch(() => {});
+      }, 350);
+    }
+  }
+
+  public async pushStateToCloud(): Promise<boolean> {
+    if (!this.isBrowserSyncEnabled() || this.isSyncingCloud) return false;
+    this.isSyncingCloud = true;
+    try {
+      const res = await fetch('/api/sync/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: this.state,
+          deletedIds: Array.from(this.deletedIds),
+        }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      let changed = false;
+      if (Array.isArray(data.deletedIds)) {
+        for (const id of data.deletedIds) {
+          if (!this.deletedIds.has(id)) {
+            this.deletedIds.add(id);
+            changed = true;
+          }
+        }
+        if (changed) this.saveDeletedIds();
+      }
+      if (data.state) {
+        const prevJson = JSON.stringify(this.state.meetings.map((m: any) => [m.id, m.status, m.title])) +
+          JSON.stringify(this.state.persons.map((p: any) => [p.id, p.status, p.display_name]));
+        this.state = data.state;
+        this.reconcileLegacyAndDuplicateData();
+        const nextJson = JSON.stringify(this.state.meetings.map((m: any) => [m.id, m.status, m.title])) +
+          JSON.stringify(this.state.persons.map((p: any) => [p.id, p.status, p.display_name]));
+        this.persist(true);
+        this.lastSyncedAt = new Date().toISOString();
+        return prevJson !== nextJson || changed;
+      }
+      return changed;
+    } catch {
+      return false;
+    } finally {
+      this.isSyncingCloud = false;
+    }
+  }
+
+  public async syncAllWithCloud(): Promise<{ updated: boolean; zoomConnected: boolean; syncedAt: string }> {
+    let updated = false;
+    if (!this.isBrowserSyncEnabled()) {
+      return { updated: false, zoomConnected: false, syncedAt: new Date().toISOString() };
+    }
+
+    // 1. PC ⇄ スマホ クラウド状態同期
+    const stateUpdated = await this.pushStateToCloud();
+    if (stateUpdated) updated = true;
+
+    // 2. Zoom 公式クラウドAPI + Webhook受信箱 一括同期
+    try {
+      const zoomCfg = this.oauthConfig.zoom;
+      const res = await fetch('/api/zoom/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: zoomCfg.account_id,
+          client_id: zoomCfg.client_id,
+          client_secret: zoomCfg.client_secret,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.zoomApiConnected = !!data.api_connected;
+        if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+          const zoomChanged = this.ingestZoomSessions(data.sessions, data.scheduled_meetings || []);
+          if (zoomChanged) {
+            updated = true;
+            await this.pushStateToCloud();
+          }
+        }
+      }
+    } catch {
+      // ignore network error
+    }
+
+    const syncedAt = new Date().toISOString();
+    this.lastSyncedAt = syncedAt;
+    return { updated, zoomConnected: this.zoomApiConnected, syncedAt };
+  }
+
+  public getTranscriptForMeeting(meetingId: string): MeetingTranscript | undefined {
+    const tid = this.state.currentTenantId;
+    return this.state.transcripts.find(t => t.tenant_id === tid && t.meeting_id === meetingId);
+  }
+
+  public getMeetingsForPerson(personId: string): Meeting[] {
+    return this.getMeetings().filter(m => m.participant_ids.includes(personId));
   }
 
   // --- テナント境界（RLS）フィルタ ---
@@ -1776,6 +2346,8 @@ class DataStore {
     this.state.businessOfferings = this.state.businessOfferings.filter(o => o.person_id !== id);
 
     p.status = 'deleted';
+    this.deletedIds.add(id);
+    this.saveDeletedIds();
 
     this.logAudit('RIGHT_TO_BE_FORGOTTEN_PURGED', 'person', id, {
       factsDeleted,
@@ -2105,11 +2677,14 @@ class DataStore {
   public createMeeting(data: Partial<Meeting> & { participant_name?: string }): Meeting {
     const tid = this.state.currentTenantId;
 
-    // 参加者IDの自動補完・名寄せ・仮人物作成
+    // 参加者IDの自動補完・名寄せ・仮人物作成（「夢叶開発の田中」のような社名＋氏名も自動分解）
     const participantIds: string[] = [...(data.participant_ids || [])];
-    const candidateName = data.participant_name?.trim() || (data.title ? data.title.split('様')[0].trim() : '');
+    const rawCandidate = data.participant_name?.trim() || (data.title ? data.title.split('様')[0].trim() : '');
+    const parsedHint = rawCandidate ? this.parseCompanyAndPersonHint(rawCandidate) : { personName: '' };
+    const candidateName = parsedHint.personName;
+    const candidateCompany = parsedHint.company;
 
-    const placeholderTitles = ['面談予定', '録音から自動解析された面談', 'オンライン面談', '面談'];
+    const placeholderTitles = ['面談予定', '録音から自動解析された面談', 'オンライン面談', '面談', 'Zoom予定'];
     if (candidateName && !placeholderTitles.includes(candidateName)) {
       // 既存の登録人物から検索
       const existing = this.getPersons().find(
@@ -2119,14 +2694,22 @@ class DataStore {
         if (!participantIds.includes(existing.id)) {
           participantIds.push(existing.id);
         }
+        if (candidateCompany && !this.getOrgMembershipsForPerson(existing.id).some(o => o.organization_name === candidateCompany)) {
+          this.addOrganizationMembership(existing.id, candidateCompany, '代表');
+        }
       } else {
-        // 見つからない場合は仕様ID 21に従い provisional（仮登録人物）として自動作成
+        // 見つからない場合は仕様ID 21に従い provisional（仮登録人物）として自動作成（面談完了時に自動で本登録へ昇格）
         const provisional = this.createPerson({
           display_name: candidateName,
           status: 'provisional',
           category_tags: [data.meeting_type === '1to1' ? 'BNI' : '仕事'],
-          notes: 'LINE連絡・事前案内から登録。Zoom中に本名・所属を確認予定。',
+          notes: candidateCompany
+            ? `${candidateCompany}。予定登録から自動作成。Zoom完了時に自動で実人脈へ本登録されます。`
+            : 'LINE連絡・事前案内から登録。Zoom中に本名・所属を確認予定。',
         });
+        if (candidateCompany) {
+          this.addOrganizationMembership(provisional.id, candidateCompany, '代表');
+        }
         participantIds.push(provisional.id);
       }
     } else if (participantIds.length === 0) {
@@ -2732,9 +3315,11 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
       .sort((a, b) => {
         const timeA = new Date(a.scheduled_start_at).getTime();
         const timeB = new Date(b.scheduled_start_at).getTime();
-        // 過去2時間以内または将来の予定を「今後の予定」として優先
-        const isUpcomingA = timeA >= now - 3600 * 1000 * 2;
-        const isUpcomingB = timeB >= now - 3600 * 1000 * 2;
+        // 未完了かつ将来の予定のみ「今後の予定」として先頭優先（完了済みは新しい順で並べる）
+        const isDoneA = a.status === 'completed' || a.recording_status === 'completed';
+        const isDoneB = b.status === 'completed' || b.recording_status === 'completed';
+        const isUpcomingA = !isDoneA && timeA >= now - 45 * 60 * 1000;
+        const isUpcomingB = !isDoneB && timeB >= now - 45 * 60 * 1000;
 
         if (isUpcomingA && isUpcomingB) {
           return timeA - timeB; // 直近（近い順）が最上位！
@@ -2752,15 +3337,18 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
   public updateMeeting(id: string, updates: Partial<Meeting>): Meeting {
     const m = this.state.meetings.find(item => item.id === id);
     if (!m) throw new Error('Meeting not found');
-    Object.assign(m, updates);
+    Object.assign(m, updates, { updated_at: new Date().toISOString() });
     this.persist();
     return m;
   }
 
   public deleteMeeting(id: string): void {
+    this.deletedIds.add(id);
+    this.saveDeletedIds();
     this.state.meetings = this.state.meetings.filter(m => m.id !== id);
     this.state.consents = this.state.consents.filter(c => c.meeting_id !== id);
     this.state.recordings = this.state.recordings.filter(r => r.meeting_id !== id);
+    this.state.transcripts = this.state.transcripts.filter(t => t.meeting_id !== id);
     this.persist();
   }
 
@@ -2865,6 +3453,8 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
   }
 
   public deleteRelationship(id: string): void {
+    this.deletedIds.add(id);
+    this.saveDeletedIds();
     this.state.relationships = this.state.relationships.filter(r => r.id !== id);
     this.persist();
   }

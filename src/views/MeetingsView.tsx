@@ -2,26 +2,34 @@ import React, { useState } from 'react';
 import {
   Calendar, Clock, Shield, AlertTriangle, Pin, PinOff,
   CheckCircle2, XCircle, Play, RotateCcw, Download, ExternalLink,
-  MessageSquare, Bot, Edit3, Trash2, X, Check
+  MessageSquare, Bot, Edit3, Trash2, X, Check, Sparkles, FileText, ChevronDown, ChevronUp, RotateCw
 } from 'lucide-react';
 import { store } from '../services/store';
 import { Meeting } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
 import { MeetingRecordingModal } from '../components/MeetingRecordingModal';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface MeetingsViewProps {
   onOpenQuickAdd?: () => void;
   onOpenIdentify?: (meetingId: string) => void;
   onOpenThankYou?: (meetingId: string) => void;
+  onSelectPerson?: (personId: string) => void;
+  onManualSync?: () => Promise<void>;
+  isSyncing?: boolean;
 }
 
 export const MeetingsView: React.FC<MeetingsViewProps> = ({
   onOpenQuickAdd,
   onOpenIdentify,
   onOpenThankYou,
+  onSelectPerson,
+  onManualSync,
+  isSyncing = false,
 }) => {
   const [, setRefreshKey] = useState(0);
-  const [tabFilter, setTabFilter] = useState<'upcoming' | 'all' | 'past'>('upcoming');
+  const [tabFilter, setTabFilter] = useState<'upcoming' | 'all' | 'past'>('all');
+  const [expandedTranscripts, setExpandedTranscripts] = useState<Record<string, boolean>>({});
 
   // 予定編集モーダル状態
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
@@ -147,7 +155,17 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {onManualSync && (
+            <button
+              onClick={() => onManualSync()}
+              disabled={isSyncing}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-all shadow-sm flex items-center space-x-1.5"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Zoom・端末同期中...' : 'Zoom録画・端末同期'}</span>
+            </button>
+          )}
           {onOpenQuickAdd && (
             <button
               onClick={onOpenQuickAdd}
@@ -232,6 +250,14 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
           displayMeetings.map((m) => {
           const consents = store.getConsentsForMeeting(m.id);
           const recording = recordings.find(r => r.meeting_id === m.id);
+          const transcript = store.getTranscriptForMeeting(m.id);
+          const partnerPerson = m.participant_ids[0] ? store.getPersonById(m.participant_ids[0]) : undefined;
+          const partnerOrg = partnerPerson ? store.getOrgMembershipsForPerson(partnerPerson.id)[0] : undefined;
+          const meetingFacts = partnerPerson
+            ? store.getFactsForPerson(partnerPerson.id).filter(f => f.source_id === m.id)
+            : [];
+          const promiseFacts = meetingFacts.filter(f => f.fact_category === 'promise');
+          const isTranscriptOpen = !!expandedTranscripts[m.id];
           const sched = formatMeetingSchedule(m.scheduled_start_at, m.status, m.recording_status);
 
           return (
@@ -400,6 +426,95 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* 参加相手の人物カルテリンク */}
+              {partnerPerson && (
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder text-xs">
+                  <div className="flex items-center space-x-3">
+                    <UserAvatar name={partnerPerson.display_name} avatarUrl={partnerPerson.avatar_url} size="sm" />
+                    <div>
+                      <div className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
+                        <span>{partnerPerson.display_name} 様</span>
+                        {partnerOrg && (
+                          <span className="text-neutral-500 dark:text-neutral-400 font-medium">
+                            （{partnerOrg.organization_name}{partnerOrg.title ? `・${partnerOrg.title}` : ''}）
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-neutral-400">
+                        {partnerPerson.status === 'provisional' ? '予定登録（面談完了で自動的に実人脈カルテへ昇格）' : '実人脈カルテ連携済み'}
+                      </span>
+                    </div>
+                  </div>
+                  {onSelectPerson && (
+                    <button
+                      onClick={() => onSelectPerson(partnerPerson.id)}
+                      className="px-3 py-1.5 rounded-xl bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue dark:text-apple-darkBlue font-semibold transition-colors shrink-0"
+                    >
+                      人物カルテを開く →
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* AI面談要約・次回約束ToDo・文字起こし表示エリア（面談完了時） */}
+              {(transcript || meetingFacts.length > 0) && (
+                <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-800/50 space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 font-bold text-apple-blue dark:text-apple-darkBlue">
+                      <Sparkles className="w-4 h-4" />
+                      <span>AI面談要約 & 抽出された約束事項</span>
+                    </div>
+                    {onOpenThankYou && (
+                      <button
+                        onClick={() => onOpenThankYou(m.id)}
+                        className="px-3 py-1 rounded-xl bg-apple-blue text-white font-semibold hover:opacity-90 transition-opacity flex items-center space-x-1 shadow-2xs"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>LINE用お礼文を作成</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {transcript?.summary && (
+                    <p className="text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-line">
+                      {transcript.summary}
+                    </p>
+                  )}
+
+                  {promiseFacts.length > 0 && (
+                    <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5">
+                      <div className="font-bold text-amber-800 dark:text-amber-300 text-[11px]">
+                        📌 次回アクション・約束ToDo:
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-neutral-700 dark:text-neutral-300">
+                        {promiseFacts.map(pf => (
+                          <li key={pf.id}>{pf.fact_value}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {transcript?.full_text && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTranscripts(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                        className="inline-flex items-center space-x-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-apple-blue"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>{isTranscriptOpen ? '文字起こし全文を閉じる' : '文字起こし全文を表示する'}</span>
+                        {isTranscriptOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                      {isTranscriptOpen && (
+                        <pre className="mt-2 p-3 rounded-xl bg-white dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[11px] text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap max-h-72 overflow-y-auto font-sans leading-relaxed">
+                          {transcript.full_text}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 同意管理ステートマシン実演エリア */}
               <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/40 border border-apple-border dark:border-apple-darkBorder space-y-3">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navigation, ViewType } from './components/Navigation';
 import { Header } from './components/Header';
 import { QuickAddModal } from './components/QuickAddModal';
@@ -28,7 +28,20 @@ export const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSimpleMode, setIsSimpleMode] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [, setRefreshKey] = useState(0);
+
+  const runCloudAndZoomSync = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const res = await store.syncAllWithCloud();
+      if (res.updated) {
+        setRefreshKey(k => k + 1);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
 
   // 初期ダークモードおよび設定の復元
   useEffect(() => {
@@ -52,6 +65,11 @@ export const App: React.FC = () => {
       setRefreshKey(k => k + 1);
     }
 
+    // 旧キャッシュの誤表記や重複予定を自動統合
+    if (store.reconcileLegacyAndDuplicateData()) {
+      setRefreshKey(k => k + 1);
+    }
+
     // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）や営業スライド（/deck）への遷移
     const checkPath = () => {
       const path = window.location.pathname.toLowerCase();
@@ -69,11 +87,10 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkPath);
   }, []);
 
-  // PWA自動更新チェッカー（ホーム画面に追加している端末でも新バージョンを自動検知）
+  // PWA自動更新チェッカー & PC/スマホ・Zoom全自動クラウド同期エンジン
   useEffect(() => {
     const checkForUpdates = async () => {
       try {
-        // version.json によるタイムスタンプ比較
         if (typeof __BUILD_TIMESTAMP__ !== 'undefined') {
           const isNewer = await checkIsUpdateAvailable(__BUILD_TIMESTAMP__);
           if (isNewer) {
@@ -82,7 +99,6 @@ export const App: React.FC = () => {
           }
         }
 
-        // HTMLスクリプトタグによるフォールバック比較
         const response = await fetch('/?_v=' + Date.now(), { cache: 'no-store' });
         if (!response.ok) return;
         const html = await response.text();
@@ -98,43 +114,28 @@ export const App: React.FC = () => {
       }
     };
 
-    // 起動時およびバックグラウンドから復帰した時にチェック
     checkForUpdates();
-    const interval = setInterval(checkForUpdates, 30000); // 30秒ごとに自動確認
+    runCloudAndZoomSync();
 
-    // Zoom Webhook 受信インボックスの自動同期
-    const syncZoomInbox = async () => {
-      try {
-        const res = await fetch('/api/zoom/webhook');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.inbox && data.inbox.length > 0) {
-            const hasNew = store.syncZoomInbox(data.inbox);
-            if (hasNew) {
-              setRefreshKey(k => k + 1);
-            }
-          }
-        }
-      } catch {
-        // オフライン・モック環境時は無視
-      }
-    };
-    syncZoomInbox();
-    const zoomInterval = setInterval(syncZoomInbox, 20000); // 20秒ごとにZoom受信確認
+    const updateInterval = setInterval(checkForUpdates, 30000);
+    const syncInterval = setInterval(runCloudAndZoomSync, 12000); // 12秒ごとにPC・スマホ・Zoom自動同期
 
-    const handleVisibilityChange = () => {
+    const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         checkForUpdates();
-        syncZoomInbox();
+        runCloudAndZoomSync();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
     return () => {
-      clearInterval(interval);
-      clearInterval(zoomInterval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(updateInterval);
+      clearInterval(syncInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
     };
-  }, []);
+  }, [runCloudAndZoomSync]);
 
   const handleToggleDarkMode = () => {
     setIsDarkMode(prev => {
@@ -160,6 +161,9 @@ export const App: React.FC = () => {
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
+    store.pushStateToCloud().then(updated => {
+      if (updated) setRefreshKey(prev => prev + 1);
+    });
   };
 
   const handleSelectPerson = (personId: string) => {
@@ -208,6 +212,8 @@ export const App: React.FC = () => {
           reviewCount={reviewCount}
           onReviewClick={() => setCurrentView('review-queue')}
           updateAvailable={updateAvailable}
+          isSyncing={isSyncing}
+          onManualSync={runCloudAndZoomSync}
         />
 
         {/* 新バージョン配信バナー（PWA・ホーム画面利用時用） */}
@@ -215,7 +221,7 @@ export const App: React.FC = () => {
           <div className="bg-gradient-to-r from-apple-blue to-indigo-600 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-between shadow-md z-20 shrink-0 animate-in fade-in slide-in-from-top duration-300">
             <div className="flex items-center space-x-2 min-w-0 mr-2">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-300 animate-ping shrink-0" />
-              <span className="truncate">最新版が届いています（個別お礼状・関係性グラフ・議事録の修正を反映）</span>
+              <span className="truncate">最新版が届いています（PC/スマホ自動同期・Zoom全自動要約・夢叶開発カルテ反映）</span>
             </div>
             <button
               onClick={() => forceReloadApp()}
@@ -244,6 +250,7 @@ export const App: React.FC = () => {
               selectedPersonId={selectedPersonId}
               onClosePersonDetail={() => setSelectedPersonId(undefined)}
               onRefresh={handleRefresh}
+              onOpenThankYou={(mId) => setThankYouMeetingId(mId)}
             />
           )}
 
@@ -271,6 +278,9 @@ export const App: React.FC = () => {
               onOpenQuickAdd={() => setIsQuickAddOpen(true)}
               onOpenIdentify={(mId) => setIdentifyingMeetingId(mId)}
               onOpenThankYou={(mId) => setThankYouMeetingId(mId)}
+              onSelectPerson={handleSelectPerson}
+              onManualSync={runCloudAndZoomSync}
+              isSyncing={isSyncing}
             />
           )}
 

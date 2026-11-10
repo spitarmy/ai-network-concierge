@@ -49,9 +49,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   // 直近の予定（未完了の面談を最優先、なければ最新の面談）
   const upcomingMeeting = meetings.find(m => m.status !== 'completed' && new Date(m.scheduled_start_at).getTime() >= Date.now() - 3600 * 1000) || meetings[0];
+  const latestCompletedMeeting = meetings
+    .filter(m => m.status === 'completed' || m.recording_status === 'completed')
+    .sort((a, b) => new Date(b.scheduled_start_at).getTime() - new Date(a.scheduled_start_at).getTime())[0];
   const upcomingParticipant: Person | undefined = upcomingMeeting && upcomingMeeting.participant_ids.length > 0
     ? store.getPersonById(upcomingMeeting.participant_ids[0])
     : undefined;
+  const upcomingOrg = upcomingParticipant ? store.getOrgMembershipsForPerson(upcomingParticipant.id)[0] : undefined;
 
   // 参加者の前回話題・未完了約束を取得
   const participantFacts = upcomingParticipant ? store.getFactsForPerson(upcomingParticipant.id) : [];
@@ -127,6 +131,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span className="text-xs uppercase font-mono font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md">
                     {upcomingMeeting.provider}
                   </span>
+                  {upcomingOrg && (
+                    <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                      • {upcomingOrg.organization_name}{upcomingOrg.title ? `（${upcomingOrg.title}）` : ''}
+                    </span>
+                  )}
                   {currentChapter && (
                     <span className="text-xs text-neutral-400">
                       • {currentChapter.region_name}・{currentChapter.chapter_name}
@@ -317,6 +326,57 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </button>
         </section>
       )}
+
+      {/* 今後の予定がある時でも、直近に完了したZoom面談のAI要約・お礼状が埋もれないよう常時表示 */}
+      {latestCompletedMeeting && upcomingMeeting && latestCompletedMeeting.id !== upcomingMeeting.id && (() => {
+        const cp = latestCompletedMeeting.participant_ids[0]
+          ? store.getPersonById(latestCompletedMeeting.participant_ids[0])
+          : undefined;
+        const cpOrg = cp ? store.getOrgMembershipsForPerson(cp.id)[0] : undefined;
+        const tr = store.getTranscriptForMeeting(latestCompletedMeeting.id);
+        return (
+          <section className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-blue-50/90 to-indigo-50/80 dark:from-blue-950/35 dark:to-indigo-950/30 border border-blue-200/80 dark:border-blue-800/60 space-y-3 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                {cp && <UserAvatar name={cp.display_name} avatarUrl={cp.avatar_url} size="sm" />}
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-apple-green/15 text-apple-green">
+                      ✅ 直近完了したZoom面談・AI要約済み
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mt-1">
+                    {cp ? `${cp.display_name} 様` : latestCompletedMeeting.title}
+                    {cpOrg ? `（${cpOrg.organization_name}）` : ''}
+                  </h3>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 shrink-0">
+                {cp && (
+                  <button
+                    onClick={() => onSelectPerson(cp.id)}
+                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50"
+                  >
+                    人物カルテ →
+                  </button>
+                )}
+                <button
+                  onClick={() => onOpenThankYou(latestCompletedMeeting.id)}
+                  className="px-3.5 py-1.5 rounded-xl bg-apple-blue text-white text-xs font-semibold hover:opacity-90 flex items-center space-x-1 shadow-2xs"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>お礼文・相互要約を送る</span>
+                </button>
+              </div>
+            </div>
+            {tr?.summary && (
+              <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed line-clamp-3">
+                {tr.summary}
+              </p>
+            )}
+          </section>
+        );
+      })()}
 
       {/* 保留中の約束・ToDo リマインダー (期限管理) */}
       <section className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3.5 shadow-sm">

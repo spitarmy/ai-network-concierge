@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard, RotateCw } from 'lucide-react';
+import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard, RotateCw, Cloud } from 'lucide-react';
 import { Tenant } from '../types';
 import { store } from '../services/store';
 import { forceReloadApp } from '../utils/updateManager';
@@ -16,6 +16,8 @@ interface HeaderProps {
   reviewCount: number;
   onReviewClick: () => void;
   updateAvailable?: boolean;
+  isSyncing?: boolean;
+  onManualSync?: () => Promise<void>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   reviewCount,
   onReviewClick,
   updateAvailable = false,
+  isSyncing = false,
+  onManualSync,
 }) => {
   const budgetRatio = currentTenant.current_spend_jpy / currentTenant.monthly_budget_jpy;
   const isBudgetWarning = budgetRatio >= 0.8;
@@ -60,81 +64,88 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-1 sm:space-x-2.5 shrink-0">
           {/* テナント切替（PC表示・スマホでは非表示にして見切れ防止） */}
           <select
-          value={currentTenant.id}
-          onChange={(e) => onSelectTenant(e.target.value)}
-          aria-label="テナント切り替え"
-          className="hidden md:block text-xs bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:outline-none max-w-[130px] truncate"
-        >
-          {tenants.map(t => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-
-        {/* 原価・節約モードインジケータ */}
-        <div
-          title={`月間AI予算: ¥${currentTenant.current_spend_jpy.toLocaleString()} / ¥${currentTenant.monthly_budget_jpy.toLocaleString()}`}
-          className={`hidden lg:flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
-            isBudgetWarning
-              ? 'bg-amber-100 dark:bg-amber-950/50 text-apple-amber dark:text-apple-darkAmber'
-              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
-          }`}
-        >
-          {isBudgetWarning && <AlertTriangle className="w-3.5 h-3.5" />}
-          <span>
-            {currentTenant.is_budget_throttled ? '節約モード' : `原価 ¥${Math.round(currentTenant.current_spend_jpy)}`}
-          </span>
-        </div>
-
-        {/* レビューキュー通知 */}
-        {reviewCount > 0 && (
-          <button
-            onClick={onReviewClick}
-            className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-apple-amber/10 dark:bg-apple-darkAmber/20 text-apple-amber dark:text-apple-darkAmber text-xs font-semibold hover:opacity-80 transition-opacity"
-            title={`${reviewCount}件の確認待ちがあります`}
+            value={currentTenant.id}
+            onChange={(e) => onSelectTenant(e.target.value)}
+            aria-label="テナント切り替え"
+            className="hidden md:block text-xs bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:outline-none max-w-[130px] truncate"
           >
-            <span className="w-2 h-2 rounded-full bg-apple-amber dark:bg-apple-darkAmber animate-pulse"></span>
-            <span className="hidden sm:inline">確認待ち</span>
-            <span>{reviewCount}</span>
+            {tenants.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+
+          {/* PC/スマホ・Zoomクラウド同期インジケータ & 即時同期ボタン */}
+          <button
+            onClick={async () => {
+              if (onManualSync) {
+                await onManualSync();
+              }
+              if (updateAvailable) {
+                store.purgeSamplePersons();
+                await forceReloadApp();
+              }
+            }}
+            title={updateAvailable ? '新バージョン配信中！タップして同期＆最新化' : 'PC・スマホ間データ＆Zoom録画・要約を今すぐ同期'}
+            className={`relative flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all shrink-0 ${
+              updateAvailable
+                ? 'text-apple-blue bg-blue-50 dark:bg-blue-950/40 ring-1 ring-apple-blue animate-pulse'
+                : 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5 hidden sm:inline" />
+            <RotateCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isSyncing ? '同期中...' : '同期済'}</span>
+            {updateAvailable && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-apple-blue border-2 border-white dark:border-neutral-900" />
+            )}
           </button>
-        )}
 
-        {/* PWA/キャッシュ再読み込みボタン（ホーム画面追加時に1タップで最新化） */}
-        <button
-          onClick={async () => {
-            store.purgeSamplePersons();
-            await forceReloadApp();
-          }}
-          title={updateAvailable ? "新バージョン配信中！タップして最新化" : "最新版に再読み込み"}
-          className={`relative p-1.5 rounded-lg transition-colors shrink-0 ${
-            updateAvailable
-              ? 'text-apple-blue bg-blue-50 dark:bg-blue-950/40 ring-1 ring-apple-blue animate-pulse'
-              : 'text-neutral-500 hover:text-apple-blue hover:bg-neutral-100 dark:hover:bg-neutral-800'
-          }`}
-        >
-          <RotateCw className="w-4 h-4" />
-          {updateAvailable && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-apple-blue border-2 border-white dark:border-neutral-900" />
+          {/* 原価・節約モードインジケータ */}
+          <div
+            title={`月間AI予算: ¥${currentTenant.current_spend_jpy.toLocaleString()} / ¥${currentTenant.monthly_budget_jpy.toLocaleString()}`}
+            className={`hidden lg:flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
+              isBudgetWarning
+                ? 'bg-amber-100 dark:bg-amber-950/50 text-apple-amber dark:text-apple-darkAmber'
+                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
+            }`}
+          >
+            {isBudgetWarning && <AlertTriangle className="w-3.5 h-3.5" />}
+            <span>
+              {currentTenant.is_budget_throttled ? '節約モード' : `原価 ¥${Math.round(currentTenant.current_spend_jpy)}`}
+            </span>
+          </div>
+
+          {/* レビューキュー通知 */}
+          {reviewCount > 0 && (
+            <button
+              onClick={onReviewClick}
+              className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-apple-amber/10 dark:bg-apple-darkAmber/20 text-apple-amber dark:text-apple-darkAmber text-xs font-semibold hover:opacity-80 transition-opacity"
+              title={`${reviewCount}件の確認待ちがあります`}
+            >
+              <span className="w-2 h-2 rounded-full bg-apple-amber dark:bg-apple-darkAmber animate-pulse"></span>
+              <span className="hidden sm:inline">確認待ち</span>
+              <span>{reviewCount}</span>
+            </button>
           )}
-        </button>
 
-        {/* シンプル / ダッシュボード切替 */}
-        <button
-          onClick={onToggleSimpleMode}
-          title={isSimpleMode ? 'ダッシュボードモードへ切替' : 'シンプルモードへ切替'}
-          className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
-        >
-          {isSimpleMode ? <LayoutDashboard className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
-        </button>
+          {/* シンプル / ダッシュボード切替 */}
+          <button
+            onClick={onToggleSimpleMode}
+            title={isSimpleMode ? 'ダッシュボードモードへ切替' : 'シンプルモードへ切替'}
+            className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
+          >
+            {isSimpleMode ? <LayoutDashboard className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
+          </button>
 
-        {/* ライト / ダーク切替 */}
-        <button
-          onClick={onToggleDarkMode}
-          title={isDarkMode ? 'ライトモードへ' : 'ダークモードへ'}
-          className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
-        >
-          {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-        </button>
-      </div>
+          {/* ライト / ダーク切替 */}
+          <button
+            onClick={onToggleDarkMode}
+            title={isDarkMode ? 'ライトモードへ' : 'ダークモードへ'}
+            className="p-1.5 rounded-xl text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0"
+          >
+            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
     </header>
   );
