@@ -1244,12 +1244,16 @@ class DataStore {
   }
 
   
-  public promotePerson(personId: string): void {
+  public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
       p.status = 'active';
       // 「（仮）」「（ディーラー）」などの仮タイトルがあれば整理
-      p.display_name = p.display_name.replace(/（仮.*?）|\(仮.*?\)/g, '').trim();
+      p.display_name = p.display_name.replace(/（仮.*?）|\(仮.*?\)|（ディーラー.*?）|\(ディーラー.*?\)/g, '').trim();
+      if (updates) {
+        Object.assign(p, updates);
+        p.status = 'active';
+      }
       p.updated_at = new Date().toISOString();
       this.persist();
     }

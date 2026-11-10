@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   Search, Shield, Building, Award, History,
-  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload, AlertCircle
+  Trash2, Plus, ArrowLeft, Tag, Edit3, X, Camera, Check, FolderPlus, Upload, AlertCircle, UserCheck
 } from 'lucide-react';
 import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
@@ -34,6 +34,10 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [quickNewCategoryInput, setQuickNewCategoryInput] = useState('');
   const [isAddingQuickCategory, setIsAddingQuickCategory] = useState(false);
+
+  // 仮人脈・本登録用トースト & 昇格フラグ
+  const [promoteToActive, setPromoteToActive] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // カルテ編集モーダル状態
   const [isEditingPerson, setIsEditingPerson] = useState(false);
@@ -107,25 +111,54 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
     setEditServiceAreas(selectedPerson.service_areas.join(', '));
     setEditNotes(selectedPerson.notes || '');
     setEditCategoryTags([...(selectedPerson.category_tags || [])]);
+    setPromoteToActive(false);
     setIsEditingPerson(true);
+  };
+
+  const handlePromote = (personId: string, customName?: string) => {
+    const p = store.getPersonById(personId);
+    const name = customName || p?.display_name || '人物';
+    store.promotePerson(personId, customName ? { display_name: customName, is_name_verified: true } : { is_name_verified: true });
+    setToastMsg(`「${name} 様」を実人脈カルテに本登録しました！相関図やホーム画面にも反映されます。`);
+    setTimeout(() => setToastMsg(null), 4000);
+    onRefresh();
   };
 
   const handleSavePersonEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPerson || !editName.trim()) return;
 
-    store.updatePerson(selectedPerson.id, {
-      display_name: editName,
-      phonetic_name: editPhonetic,
-      primary_phone: editPhone || undefined,
-      primary_email: editEmail || undefined,
-      office_address: editAddress || undefined,
-      service_areas: editServiceAreas ? editServiceAreas.split(',').map(s => s.trim()).filter(Boolean) : [],
-      notes: editNotes,
-      category_tags: editCategoryTags,
-    });
+    if (promoteToActive) {
+      store.promotePerson(selectedPerson.id, {
+        display_name: editName.trim(),
+        phonetic_name: editPhonetic.trim(),
+        primary_phone: editPhone || undefined,
+        primary_email: editEmail || undefined,
+        office_address: editAddress || undefined,
+        service_areas: editServiceAreas ? editServiceAreas.split(',').map(s => s.trim()).filter(Boolean) : [],
+        notes: editNotes,
+        category_tags: editCategoryTags,
+        is_name_verified: true,
+      });
+      setToastMsg(`「${editName.trim()} 様」の漢字を修正し、実人脈カルテに本登録しました！`);
+    } else {
+      store.updatePerson(selectedPerson.id, {
+        display_name: editName.trim(),
+        phonetic_name: editPhonetic.trim(),
+        primary_phone: editPhone || undefined,
+        primary_email: editEmail || undefined,
+        office_address: editAddress || undefined,
+        service_areas: editServiceAreas ? editServiceAreas.split(',').map(s => s.trim()).filter(Boolean) : [],
+        notes: editNotes,
+        category_tags: editCategoryTags,
+        is_name_verified: true,
+      });
+      setToastMsg(`「${editName.trim()} 様」の漢字・カルテ情報を更新しました。`);
+    }
 
+    setTimeout(() => setToastMsg(null), 4000);
     setIsEditingPerson(false);
+    setPromoteToActive(false);
     onRefresh();
   };
 
@@ -284,6 +317,14 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 pb-28 animate-fadeIn">
+      {/* 操作トースト通知 */}
+      {toastMsg && (
+        <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 rounded-2xl text-xs font-semibold flex items-center space-x-2 animate-fadeIn shadow-sm">
+          <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
       {/* 詳細画面表示時 */}
       {selectedPerson ? (
         <div className="space-y-6">
@@ -344,14 +385,44 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                 </div>
               </div>
 
-              <button
-                onClick={handleOpenEditModal}
-                className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center space-x-1.5 self-start sm:self-auto shadow-sm"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>カルテ情報を編集</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                {selectedPerson.status === 'provisional' && (
+                  <button
+                    type="button"
+                    onClick={() => handlePromote(selectedPerson.id)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold hover:opacity-90 transition-opacity flex items-center space-x-1.5 shadow-sm"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>本人脈へ本登録する</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleOpenEditModal}
+                  className="px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center space-x-1.5 shadow-sm"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>{selectedPerson.status === 'provisional' ? '漢字・情報を編集' : 'カルテ情報を編集'}</span>
+                </button>
+              </div>
             </div>
+
+            {selectedPerson.status === 'provisional' && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>会話・1to1で言及された仮人脈です:</strong> お名前の漢字や読み仮名・事業情報を編集したり、「本人脈へ本登録する」ボタンで正式な実人脈（相関図）へ昇格できます。
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePromote(selectedPerson.id)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 shadow-xs ml-3"
+                >
+                  今すぐ本登録
+                </button>
+              </div>
+            )}
 
             {/* カテゴリー手動割り振り・作成バー */}
             <div className="pt-3 border-t border-apple-border dark:border-apple-darkBorder flex flex-col sm:flex-row sm:items-center gap-2 text-xs">
@@ -1199,6 +1270,43 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                       <span>•</span>
                       <span>面談 {p.meeting_count}回</span>
                     </div>
+
+                    {p.status === 'provisional' && (
+                      <div className="flex items-center space-x-2 pt-2.5 border-t border-apple-border dark:border-apple-darkBorder mt-2.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInternalSelectedId(p.id);
+                            setEditName(p.display_name);
+                            setEditPhonetic(p.phonetic_name);
+                            setEditPhone(p.primary_phone || '');
+                            setEditEmail(p.primary_email || '');
+                            setEditAddress(p.office_address || '');
+                            setEditServiceAreas(p.service_areas.join(', '));
+                            setEditNotes(p.notes || '');
+                            setEditCategoryTags([...(p.category_tags || [])]);
+                            setPromoteToActive(false);
+                            setIsEditingPerson(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-medium flex items-center space-x-1 transition-colors"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>漢字・詳細を編集</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePromote(p.id);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold flex items-center space-x-1 transition-colors shadow-xs ml-auto"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          <span>本登録に追加</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

@@ -68,6 +68,26 @@ describe('名刺画像圧縮・大容量耐性およびお名前漢字セーフ�
     expect(provisionalPersons.some(p => p.id === 'p-endo-prov')).toBe(true);
   });
 
+  it('仮登録の人物の漢字や詳細を編集し、実人脈へ本登録（昇格）できること', () => {
+    // 遠藤さんを正しい漢字「遠藤 雄一」に編集して本登録へ昇格
+    store.promotePerson('p-endo-prov', {
+      display_name: '遠藤 雄一',
+      phonetic_name: 'えんどう ゆういち',
+      is_name_verified: true,
+    });
+
+    const endo = store.getPersonById('p-endo-prov');
+    expect(endo).toBeDefined();
+    expect(endo?.status).toBe('active');
+    expect(endo?.display_name).toBe('遠藤 雄一');
+    expect(endo?.phonetic_name).toBe('えんどう ゆういち');
+    expect(endo?.is_name_verified).toBe(true);
+
+    // 実人脈一覧に正式追加されていること
+    const realPersons = store.getPersons().filter(p => p.status !== 'provisional');
+    expect(realPersons.some(p => p.display_name === '遠藤 雄一')).toBe(true);
+  });
+
   it('何千枚登録シミュレーション時でもlocalStorage容量上限でアプリがクラッシュしないこと', () => {
     // 意図的に巨大な文字列でQuotaExceededをシミュレートしてもstoreがエラーを内部吸収して安全に継続
     expect(() => {
