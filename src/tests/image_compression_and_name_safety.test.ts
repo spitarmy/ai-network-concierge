@@ -53,6 +53,21 @@ describe('名刺画像圧縮・大容量耐性およびお名前漢字セーフ�
     expect(draft.is_recipient_name_verified).toBe(true);
   });
 
+  it('相関図（GraphView）のデフォルト描画対象から仮登録（provisional）の人物が確実に除外されること', () => {
+    const allPersons = store.getPersons();
+    const realPersons = allPersons.filter(p => p.status !== 'provisional');
+    const provisionalPersons = allPersons.filter(p => p.status === 'provisional');
+
+    // 辻様、木村様などの実面談人物は実人脈に含まれる
+    expect(realPersons.some(p => p.display_name === '辻 晃典')).toBe(true);
+    expect(realPersons.some(p => p.display_name === '木村 尚史')).toBe(true);
+
+    // 会話で登場しただけの仮人物（遠藤さん、康二、江戸、俊介、伊藤さん）は実人脈に含まれない
+    expect(realPersons.some(p => p.status === 'provisional')).toBe(false);
+    expect(provisionalPersons.length).toBeGreaterThan(0);
+    expect(provisionalPersons.some(p => p.id === 'p-endo-prov')).toBe(true);
+  });
+
   it('何千枚登録シミュレーション時でもlocalStorage容量上限でアプリがクラッシュしないこと', () => {
     // 意図的に巨大な文字列でQuotaExceededをシミュレートしてもstoreがエラーを内部吸収して安全に継続
     expect(() => {

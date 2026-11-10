@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Info, ShieldCheck, Network, Plus, Trash2, X, Link as LinkIcon, UserCheck } from 'lucide-react';
+import { Sparkles, Info, ShieldCheck, Network, Plus, Trash2, X, Link as LinkIcon, UserCheck, Eye, EyeOff } from 'lucide-react';
 import { store } from '../services/store';
 import { UserAvatar } from '../components/UserAvatar';
 
@@ -9,6 +9,7 @@ interface GraphViewProps {
 
 export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
   const [mode, setMode] = useState<'actual' | 'ai_suggested'>('actual');
+  const [showProvisional, setShowProvisional] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isAddRelModalOpen, setIsAddRelModalOpen] = useState(false);
   const [fromPersonId, setFromPersonId] = useState('');
@@ -16,8 +17,20 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
   const [relType, setRelType] = useState('紹介元 / 紹介先');
   const [evidenceText, setEvidenceText] = useState('');
 
-  const persons = store.getPersons();
-  const relationships = store.getRelationships(mode);
+  const allPersons = store.getPersons();
+  // 実人脈（確定済み）と会話での仮言及を明確に分離
+  const realPersons = allPersons.filter(p => p.status !== 'provisional');
+  const provisionalPersons = allPersons.filter(p => p.status === 'provisional');
+  // デフォルトでは仮登録・言及者は相関図に混入させない
+  const persons = showProvisional ? allPersons : realPersons;
+
+  const rawRelationships = store.getRelationships(mode);
+  const relationships = rawRelationships.filter(rel => {
+    if (showProvisional) return true;
+    const fromP = store.getPersonById(rel.from_person_id);
+    const toP = store.getPersonById(rel.to_person_id);
+    return fromP?.status !== 'provisional' && toP?.status !== 'provisional';
+  });
 
   const handleCreateRelationship = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,12 +65,28 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
           <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">人脈相関図 (2D Graph)</h1>
           <p className="text-xs text-neutral-500">
             {mode === 'actual'
-              ? '「確認済み実関係」のみを描画。推測関係は混入しません (仕様09, GRAPH-01)'
+              ? '「確認済み実関係」のみを描画。推測関係や仮登録は混入しません (仕様09, GRAPH-01)'
               : '「AI紹介推薦」に基づく潜在的な相関関係と根拠を表示 (仕様09, GRAPH-02)'}
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 実人脈のみ / 仮登録表示切替トグル */}
+          {provisionalPersons.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowProvisional(!showProvisional)}
+              className={`px-3 py-1.5 rounded-xl font-medium transition-all text-xs flex items-center space-x-1.5 border ${
+                showProvisional
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                  : 'bg-neutral-100 dark:bg-neutral-800 border-apple-border dark:border-apple-darkBorder text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+              }`}
+            >
+              {showProvisional ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showProvisional ? '仮登録を非表示にする' : `会話言及・仮(${provisionalPersons.length})を表示`}</span>
+            </button>
+          )}
+
           {/* 2モード切替ピル */}
           <div className="flex p-1 rounded-2xl bg-neutral-200/60 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-xs self-start sm:self-auto">
             <button
@@ -111,9 +140,14 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
           <span className="flex items-center space-x-1.5">
             <span className={`w-2 h-2 rounded-full ${mode === 'actual' ? 'bg-apple-green' : 'bg-apple-indigo'} animate-pulse`}></span>
             <span>{mode === 'actual' ? '実関係モード（根拠セグメント確定済み）' : 'AI推薦モード（紹介ニーズ合致）'}</span>
+            {!showProvisional && (
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-neutral-800 border border-neutral-700 text-neutral-300">
+                実人脈のみ描画中
+              </span>
+            )}
           </span>
           <span className="text-[11px] font-mono bg-neutral-800/80 px-2.5 py-1 rounded-lg border border-neutral-700">
-            登録人脈: {persons.length}名 / 実関係エッジ: {relationships.length}件
+            描画人脈: {persons.length}名 {provisionalPersons.length > 0 && !showProvisional && `(仮除外: ${provisionalPersons.length}名)`} / 関係エッジ: {relationships.length}件
           </span>
         </div>
 
@@ -155,7 +189,14 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                       onClick={() => onSelectPerson(p.id)}
                       className="cursor-pointer group flex flex-col items-center space-y-2 p-3 rounded-2xl bg-neutral-800/50 hover:bg-neutral-800 border border-neutral-700/60 hover:border-apple-blue/50 transition-all hover:scale-105"
                     >
-                      <UserAvatar name={p.display_name} avatarUrl={p.avatar_url} size="xl" />
+                      <div className="relative">
+                        <UserAvatar name={p.display_name} avatarUrl={p.avatar_url} size="xl" />
+                        {p.status === 'provisional' && (
+                          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500 text-black shadow-xs">
+                            仮
+                          </span>
+                        )}
+                      </div>
                       <div className="text-center">
                         <div className="text-xs font-bold text-white group-hover:text-apple-blue transition-colors">
                           {p.display_name}
@@ -196,8 +237,11 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                       >
                         <UserAvatar name={fromP.display_name} avatarUrl={fromP.avatar_url} size="lg" />
                         <div>
-                          <div className="text-xs font-bold text-white group-hover:text-apple-blue">
-                            {fromP.display_name}
+                          <div className="text-xs font-bold text-white group-hover:text-apple-blue flex items-center space-x-1">
+                            <span>{fromP.display_name}</span>
+                            {fromP.status === 'provisional' && (
+                              <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
+                            )}
                           </div>
                           <div className="text-[10px] text-neutral-400">
                             {fromP.category_tags[0] || '人脈メンバー'}
@@ -229,8 +273,11 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                         className="cursor-pointer group flex items-center space-x-3"
                       >
                         <div>
-                          <div className="text-xs font-bold text-white group-hover:text-apple-blue text-right">
-                            {toP.display_name}
+                          <div className="text-xs font-bold text-white group-hover:text-apple-blue text-right flex items-center justify-end space-x-1">
+                            <span>{toP.display_name}</span>
+                            {toP.status === 'provisional' && (
+                              <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
+                            )}
                           </div>
                           <div className="text-[10px] text-neutral-400 text-right">
                             {toP.category_tags[0] || '人脈メンバー'}
@@ -255,7 +302,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
               {/* 関係性に含まれていない他の独立人脈ノード */}
               {persons.some(p => !relationships.some(r => r.from_person_id === p.id || r.to_person_id === p.id)) && (
                 <div className="pt-4 border-t border-neutral-800">
-                  <div className="text-[11px] text-neutral-400 mb-3 text-center">その他の独立人脈（接点未確認）:</div>
+                  <div className="text-[11px] text-neutral-400 mb-3 text-center">その他の独立実人脈（接点未確認）:</div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
                     {persons
                       .filter(p => !relationships.some(r => r.from_person_id === p.id || r.to_person_id === p.id))
@@ -267,6 +314,9 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                         >
                           <UserAvatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
                           <span className="text-xs text-white group-hover:text-apple-blue">{p.display_name}</span>
+                          {p.status === 'provisional' && (
+                            <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
+                          )}
                         </div>
                       ))}
                   </div>
@@ -309,7 +359,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                   className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7]"
                 >
                   {persons.map(p => (
-                    <option key={p.id} value={p.id}>{p.display_name}</option>
+                    <option key={p.id} value={p.id}>{p.display_name} {p.status === 'provisional' ? '(仮登録)' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -322,7 +372,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                   className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7]"
                 >
                   {persons.filter(p => p.id !== fromPersonId).map(p => (
-                    <option key={p.id} value={p.id}>{p.display_name}</option>
+                    <option key={p.id} value={p.id}>{p.display_name} {p.status === 'provisional' ? '(仮登録)' : ''}</option>
                   ))}
                 </select>
               </div>

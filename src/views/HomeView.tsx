@@ -27,6 +27,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [recordingMeetingId, setRecordingMeetingId] = useState<string | null>(null);
 
   const persons = store.getPersons();
+  const realPersons = persons.filter(p => p.status !== 'provisional');
+  const provisionalPersons = persons.filter(p => p.status === 'provisional');
   const meetings = store.getMeetings();
   const reviewQueue = store.getReviewQueue();
   const referrals = store.getReferrals();
@@ -510,16 +512,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* 最近更新された人物カード */}
           <div className="p-5 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">登録済み人脈</span>
+              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">実人脈カルテ</span>
               <button
                 onClick={() => onNavigate('persons')}
                 className="text-[11px] text-apple-blue dark:text-apple-darkBlue hover:underline"
               >
-                全員見る ({persons.length}名)
+                実人脈を見る ({realPersons.length}名)
               </button>
             </div>
             <div className="space-y-2">
-              {persons.slice(0, 3).map(p => (
+              {realPersons.slice(0, 3).map(p => (
                 <div
                   key={p.id}
                   onClick={() => onSelectPerson(p.id)}
@@ -532,11 +534,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       size="sm"
                     />
                     <div>
-                      <div className="text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
-                        <span>{p.display_name}</span>
-                        {p.status === 'provisional' && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-500">仮</span>
-                        )}
+                      <div className="text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">
+                        {p.display_name}
                       </div>
                       <span className="text-[10px] text-neutral-400">面談 {p.meeting_count}回</span>
                     </div>
@@ -544,6 +543,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span className="text-xs text-neutral-400">→</span>
                 </div>
               ))}
+              {provisionalPersons.length > 0 && (
+                <div className="pt-1.5 text-[10px] text-neutral-400 text-right">
+                  ※ 会話登場の仮登録・言及: {provisionalPersons.length}名
+                </div>
+              )}
             </div>
           </div>
         </div>
