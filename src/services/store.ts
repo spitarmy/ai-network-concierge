@@ -649,10 +649,10 @@ const DELETED_IDS_STORAGE_KEY = 'ai_network_concierge_deleted_ids';
 
 const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
   zoom: {
-    account_id: 'gJtFWtr1RD-fI8oxS0n5wA',
-    client_id: '4CnF2ZSRpGgbFFpVO7GzQ',
-    client_secret: '7dHhVPmpcp60ij8nLSUSDH0DMyiOkXJc',
-    webhook_secret_token: '9D2MsR03RK6Srow8lUSAYw',
+    account_id: '',
+    client_id: '',
+    client_secret: '',
+    webhook_secret_token: '',
     is_connected: true,
     last_tested_at: '2026-11-10T02:55:00.000Z',
   },
@@ -746,21 +746,12 @@ class DataStore {
       this.oauthConfig = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG));
     }
 
-    // ユーザー様ご提供のZoom本番認証情報を自動永続化 + 過去OCR誤読(l/I, m/M)の自動修復
-    let oauthHealed = false;
-    if (!this.oauthConfig.zoom.client_id) {
-      this.oauthConfig.zoom = JSON.parse(JSON.stringify(DEFAULT_OAUTH_CONFIG.zoom));
-      oauthHealed = true;
-    }
-    if (this.oauthConfig.zoom.account_id === 'gJtFWtr1RD-fl8oxS0n5wA') {
-      this.oauthConfig.zoom.account_id = 'gJtFWtr1RD-fI8oxS0n5wA';
-      oauthHealed = true;
-    }
-    if (this.oauthConfig.zoom.client_secret === '7dHhVPmpcp60ij8nLSUSDH0DmyiOkXJc') {
-      this.oauthConfig.zoom.client_secret = '7dHhVPmpcp60ij8nLSUSDH0DMyiOkXJc';
-      oauthHealed = true;
-    }
-    if (oauthHealed) {
+    // サーバー側Vercel Secret ManagerでZoom本番認証を管理するため、旧ローカルキャッシュの平文シークレットは安全にクリア
+    if (this.oauthConfig.zoom.client_secret && this.oauthConfig.zoom.client_secret.length > 20) {
+      this.oauthConfig.zoom = {
+        ...DEFAULT_OAUTH_CONFIG.zoom,
+        is_connected: true,
+      };
       setStorageItem(OAUTH_STORAGE_KEY, JSON.stringify(this.oauthConfig));
     }
 

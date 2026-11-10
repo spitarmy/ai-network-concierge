@@ -14,17 +14,11 @@ declare global {
 }
 
 function healZoomCredentials(creds: { accountId?: string; clientId?: string; clientSecret?: string }) {
-  let accountId = (creds.accountId || process.env.ZOOM_ACCOUNT_ID || '').trim();
-  let clientId = (creds.clientId || process.env.ZOOM_CLIENT_ID || '').trim();
-  let clientSecret = (creds.clientSecret || process.env.ZOOM_CLIENT_SECRET || '').trim();
-
-  // 過去OCR誤読（小文字l→大文字I、小文字m→大文字M）の自動修復
-  if (accountId === 'gJtFWtr1RD-fl8oxS0n5wA') {
-    accountId = 'gJtFWtr1RD-fI8oxS0n5wA';
-  }
-  if (clientSecret === '7dHhVPmpcp60ij8nLSUSDH0DmyiOkXJc') {
-    clientSecret = '7dHhVPmpcp60ij8nLSUSDH0DMyiOkXJc';
-  }
+  const clean = (v?: string) => (v && !v.startsWith('***') ? v.trim() : '');
+  // サーバーのSecret Manager環境変数を最優先し、未設定時のみクライアント入力値を使用
+  const accountId = (process.env.ZOOM_ACCOUNT_ID || '').trim() || clean(creds.accountId);
+  const clientId = (process.env.ZOOM_CLIENT_ID || '').trim() || clean(creds.clientId);
+  const clientSecret = (process.env.ZOOM_CLIENT_SECRET || '').trim() || clean(creds.clientSecret);
 
   return { accountId, clientId, clientSecret };
 }

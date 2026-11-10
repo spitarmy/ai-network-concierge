@@ -2,9 +2,8 @@ import type { IncomingMessage } from 'http';
 import crypto from 'crypto';
 import fs from 'fs';
 
-const PRIMARY_SECRET_TOKEN = '9D2MsR03RK6Srow8lUSAYw';
 const ZOOM_WEBHOOK_SECRET_TOKEN =
-  process.env.ZOOM_WEBHOOK_SECRET_TOKEN || PRIMARY_SECRET_TOKEN;
+  process.env.ZOOM_WEBHOOK_SECRET_TOKEN || '';
 
 const TMP_INBOX_PATH = '/tmp/ai_concierge_zoom_inbox.json';
 
