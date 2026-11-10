@@ -201,4 +201,75 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(allTanakaMeetings.length).toBe(1);
     expect(allTanakaMeetings[0].id).toBe('m-tanaka-20261110');
   });
+
+  it('今後の新規Zoom面談が終了した際、事前登録予定と自動統合され、要約・詳細・会社名・強み・ToDoが最上部に自動反映されること', () => {
+    const preMeeting = store.createMeeting({
+      title: '関西エステート開発の佐藤様と1to1',
+      participant_name: '関西エステート開発の佐藤',
+      meeting_type: '1to1',
+      provider: 'zoom',
+      scheduled_start_at: '2026-11-11T14:00:00+09:00',
+    });
+
+    const synced = store.ingestZoomSessions([
+      {
+        uuid: 'future-zoom-uuid-sato-001',
+        meeting_id: '89999999999',
+        topic: 'ZENNOBATE Meeting Room',
+        start_time: '2026-11-11T05:00:00Z',
+        end_time: '2026-11-11T05:45:00Z',
+        duration: 45,
+        attendees: ['4/勝賀野 太郎/残置物撤去', '佐藤健一'],
+        summary_overview: '佐藤健一と4/勝賀野 太郎/残置物撤去は関西エリアの収益物件リノベーションと残置物撤去の一括発注体制について合意した。',
+        summary_details: [
+          {
+            label: '収益物件リノベ連携',
+            summary: '4/勝賀野が解体前の残置物撤去と買取査定（カンテノ）を一括請負するスキームを確認した。',
+          },
+        ],
+        next_steps: [
+          '4/勝賀野: 佐藤健一へ残置物撤去の標準単価表を送付する',
+          '佐藤健一: 来月の堺市マンション案件の見積依頼を送る',
+        ],
+        transcript_text: '佐藤健一: 関西エステート開発の佐藤健一です。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: 株式会社ゼノベイトの勝賀野です。',
+      },
+    ]);
+
+    expect(synced).toBe(true);
+    const sato = store.getPersons().find(p => p.display_name === '佐藤 健一');
+    expect(sato).toBeDefined();
+    expect(sato?.status).toBe('active');
+    expect(sato?.notes).toContain('収益物件リノベーションと残置物撤去');
+    expect(sato?.notes).not.toContain('4/勝賀野');
+
+    const orgs = store.getOrgMembershipsForPerson(sato!.id);
+    expect(orgs.some(o => o.organization_name === '関西エステート開発')).toBe(true);
+
+    const offerings = store.getBusinessOfferingsForPerson(sato!.id);
+    expect(offerings.length).toBeGreaterThan(0);
+
+    const tr = store.getTranscriptForMeeting(preMeeting.id);
+    expect(tr).toBeDefined();
+    expect(tr?.summary).toContain('収益物件リノベ連携');
+    expect(tr?.summary).not.toContain('4/勝賀野');
+
+    const satoFacts = store.getFactsForPerson(sato!.id);
+    expect(satoFacts.some(f => f.fact_category === 'promise' && f.fact_value.includes('標準単価表'))).toBe(true);
+  });
+
+  it('実面談に基づく紹介ハブ提案およびAI人脈秘書の自然言語検索が動作すること', () => {
+    store.seedTanakaMeeting();
+    const referrals = store.getReferrals();
+    expect(referrals.some(r => r.id === 'ref-tanaka-miura')).toBe(true);
+    expect(referrals.some(r => r.id === 'ref-tanaka-kimura')).toBe(true);
+
+    const aiRes1 = store.queryAI('不動産やマンション買取に強い人いる？');
+    expect(aiRes1.hasDefiniteAnswer).toBe(true);
+    expect(aiRes1.relatedPersons.some(p => p.id === 'p-tanaka-yoshihiro')).toBe(true);
+
+    const aiRes2 = store.queryAI('田中さんと前回何を話した？約束はあった？');
+    expect(aiRes2.hasDefiniteAnswer).toBe(true);
+    expect(aiRes2.answer).toContain('夢叶開発');
+    expect(aiRes2.answer).toContain('ランチ');
+  });
 });

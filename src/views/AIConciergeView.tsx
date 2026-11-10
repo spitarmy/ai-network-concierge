@@ -54,7 +54,7 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
     if (!isVoiceActive) {
       setTimeout(() => {
         setIsVoiceActive(false);
-        handleSend('山田さんと前回どんな話題で盛り上がった？');
+        handleSend('田中さんと前回どんな話題で盛り上がった？');
       }, 1500);
     }
   };
@@ -126,16 +126,22 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
       {/* 提案プロンプトチップス */}
       <div className="flex space-x-2 overflow-x-auto pb-1 text-xs">
         <button
-          onClick={() => handleSend('山田さんと前回何を話した？約束はあった？')}
+          onClick={() => handleSend('田中さんと前回何を話した？約束はあった？')}
           className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-300 hover:border-apple-blue/50 whitespace-nowrap shrink-0"
         >
-          💡 山田さんとの前回話題・約束
+          💡 田中さん（夢叶開発）との話題・約束
         </button>
         <button
-          onClick={() => handleSend('店舗の内装やデザインができる人いる？')}
+          onClick={() => handleSend('不動産やマンション買取に強い人いる？')}
           className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-300 hover:border-apple-blue/50 whitespace-nowrap shrink-0"
         >
-          💡 店舗内装・デザインの紹介候補
+          💡 不動産・マンション買取の協業候補
+        </button>
+        <button
+          onClick={() => handleSend('不用品回収や残置物撤去で協業できる人は？')}
+          className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-300 hover:border-apple-blue/50 whitespace-nowrap shrink-0"
+        >
+          💡 不用品回収・残置物撤去の協業先
         </button>
         <button
           onClick={() => handleSend('アメリカの宇宙工学に詳しい人いる？')}

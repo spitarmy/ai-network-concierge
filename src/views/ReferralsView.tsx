@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { Share2, CheckCircle2, ShieldCheck, Copy, Check } from 'lucide-react';
+import { Share2, CheckCircle2, ShieldCheck, Copy, Check, Sparkles, Plus } from 'lucide-react';
 import { store } from '../services/store';
 
 export const ReferralsView: React.FC = () => {
   const [, setRefreshKey] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const persons = store.getPersons();
+  const [referrerId, setReferrerId] = useState<string>(persons[0]?.id || '');
+  const [candidateId, setCandidateId] = useState<string>(persons[1]?.id || '');
+  const [customReason, setCustomReason] = useState('');
   const referrals = store.getReferrals();
 
   const handleCopyDraft = (id: string, text: string) => {
@@ -20,14 +25,109 @@ export const ReferralsView: React.FC = () => {
     setRefreshKey(prev => prev + 1);
   };
 
+  const handleSmartScan = () => {
+    store.generateSmartReferrals();
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleCreateCustom = () => {
+    if (!referrerId || !candidateId || referrerId === candidateId) return;
+    store.createReferralProposal({
+      referrerPersonId: referrerId,
+      candidatePersonId: candidateId,
+      reason: customReason,
+    });
+    setCustomReason('');
+    setIsCreating(false);
+    setRefreshKey(prev => prev + 1);
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 pb-24 animate-fadeIn">
-      <div>
-        <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">紹介ハブ & 成果管理</h1>
-        <p className="text-xs text-neutral-500">
-          多軸の説明可能な根拠、非公開情報の漏洩遮断、双方確認型の下書き作成 (仕様15, 16, INTRO-01〜04)
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">紹介ハブ & 成果管理</h1>
+          <p className="text-xs text-neutral-500">
+            1to1面談の話題・約束・強みからAIが相性の良い紹介ペアとLINE下書きを自動生成 (仕様15, 16, INTRO-01〜04)
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSmartScan}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl bg-apple-indigo/10 text-apple-indigo hover:bg-apple-indigo/20 text-xs font-semibold transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI自動マッチング更新</span>
+          </button>
+          <button
+            onClick={() => setIsCreating(prev => !prev)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl bg-apple-blue text-white hover:opacity-90 text-xs font-semibold transition-opacity"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>紹介文を作成</span>
+          </button>
+        </div>
       </div>
+
+      {isCreating && (
+        <div className="p-5 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-blue/30 space-y-4 shadow-sm">
+          <div className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
+            人物カルテから2名を選んで紹介マッチング＆LINE下書きを生成
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block text-neutral-500 mb-1">紹介先（ご案内を送る相手）</label>
+              <select
+                value={referrerId}
+                onChange={e => setReferrerId(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-apple-border dark:border-apple-darkBorder bg-neutral-50 dark:bg-neutral-800 text-[#1D1D1F] dark:text-[#F5F5F7]"
+              >
+                {persons.map(p => (
+                  <option key={p.id} value={p.id}>{p.display_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-neutral-500 mb-1">推薦する候補者（お繋ぎする相手）</label>
+              <select
+                value={candidateId}
+                onChange={e => setCandidateId(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-apple-border dark:border-apple-darkBorder bg-neutral-50 dark:bg-neutral-800 text-[#1D1D1F] dark:text-[#F5F5F7]"
+              >
+                {persons.map(p => (
+                  <option key={p.id} value={p.id}>{p.display_name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="text-xs">
+            <label className="block text-neutral-500 mb-1">紹介理由・シナジー補足（空欄ならカルテからAI自動生成）</label>
+            <input
+              type="text"
+              value={customReason}
+              onChange={e => setCustomReason(e.target.value)}
+              placeholder="例: 買取再販マンションの残置物撤去・不動産業者3名ランチで連携"
+              className="w-full p-2.5 rounded-xl border border-apple-border dark:border-apple-darkBorder bg-neutral-50 dark:bg-neutral-800 text-[#1D1D1F] dark:text-[#F5F5F7]"
+            />
+          </div>
+          <div className="flex justify-end gap-2 text-xs">
+            <button
+              onClick={() => setIsCreating(false)}
+              className="px-3.5 py-2 rounded-xl border border-apple-border dark:border-apple-darkBorder text-neutral-500"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleCreateCustom}
+              disabled={!referrerId || !candidateId || referrerId === candidateId}
+              className="px-4 py-2 rounded-xl bg-apple-blue text-white font-semibold disabled:opacity-40"
+            >
+              紹介提案を生成する
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-6">
         {referrals.map((r) => {

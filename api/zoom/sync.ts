@@ -243,11 +243,14 @@ export default async function handler(req: any, res: any) {
       const fromDate = new Date(now.getTime() - 30 * 86400 * 1000).toISOString().split('T')[0];
       const toDate = new Date(now.getTime() + 2 * 86400 * 1000).toISOString().split('T')[0];
 
-      const [recRes, schedRes] = await Promise.all([
+      const [recRes, schedRes, sumListRes] = await Promise.all([
         fetch(`https://api.zoom.us/v2/users/me/recordings?from=${fromDate}&to=${toDate}&page_size=30`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }).catch(() => null),
         fetch('https://api.zoom.us/v2/users/me/meetings?type=upcoming&page_size=30', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }).catch(() => null),
+        fetch(`https://api.zoom.us/v2/meetings/meeting_summaries?from=${fromDate}T00:00:00Z&to=${toDate}T23:59:59Z&page_size=30`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }).catch(() => null),
       ]);
@@ -358,6 +361,68 @@ export default async function handler(req: any, res: any) {
         }
 
         if (cacheUpdated) {
+          saveSessionCache(cache);
+        }
+      }
+
+      // 2.5 録画エンコード前（Zoom終了直後約40秒）やAI Companionのみの会議も即座に取得
+      if (sumListRes && sumListRes.ok) {
+        const sumListData: any = await sumListRes.json().catch(() => ({}));
+        let sumCacheUpdated = false;
+        for (const sItem of sumListData.summaries || []) {
+          const uuid: string = sItem.meeting_uuid || sItem.uuid;
+          if (!uuid) continue;
+          const existing = sessionMap.get(uuid);
+          if (existing && existing.summary_overview) continue;
+
+          const cached = cache[uuid];
+          let summaryOverview = cached?.summary_overview || '';
+          let summaryDetails = cached?.summary_details || [];
+          let nextSteps = cached?.next_steps || [];
+          let summaryAttendees: string[] = cached?.attendees || [];
+
+          if (!summaryOverview) {
+            try {
+              const doubleEncodedUuid = encodeURIComponent(encodeURIComponent(uuid));
+              const sumRes = await fetch(
+                `https://api.zoom.us/v2/meetings/${doubleEncodedUuid}/meeting_summary`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+              );
+              if (sumRes.ok) {
+                const sumJson: any = await sumRes.json();
+                summaryOverview = sumJson.summary_overview || '';
+                summaryDetails = sumJson.summary_details || [];
+                nextSteps = sumJson.next_steps || [];
+                summaryAttendees = extractAttendeesFromSummaryContent(sumJson.summary_content);
+                sumCacheUpdated = true;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          if (summaryOverview) {
+            const prev = existing || {};
+            const mergedSession = {
+              uuid,
+              meeting_id: String(sItem.meeting_id || prev.meeting_id || ''),
+              topic: sItem.meeting_topic || prev.topic || 'Zoom面談',
+              start_time: sItem.meeting_start_time || sItem.summary_start_time || prev.start_time || new Date().toISOString(),
+              end_time: sItem.meeting_end_time || sItem.summary_end_time || prev.end_time || '',
+              duration: prev.duration || 30,
+              share_url: prev.share_url || '',
+              summary_overview: summaryOverview,
+              summary_details: summaryDetails.length > 0 ? summaryDetails : (prev.summary_details || []),
+              next_steps: nextSteps.length > 0 ? nextSteps : (prev.next_steps || []),
+              attendees: Array.from(new Set([...(prev.attendees || []), ...summaryAttendees])),
+              transcript_text: prev.transcript_text || '',
+              utterances: prev.utterances || [],
+            };
+            sessionMap.set(uuid, mergedSession);
+            cache[uuid] = mergedSession;
+          }
+        }
+        if (sumCacheUpdated) {
           saveSessionCache(cache);
         }
       }

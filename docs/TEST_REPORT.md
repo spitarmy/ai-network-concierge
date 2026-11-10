@@ -10,11 +10,11 @@
 
 | テストスイート | 実行コマンド | テスト件数 | 合否結果 | 実行日時 |
 |---|---|---|---|---|
-| **TypeScript 型チェック** | `npm run typecheck` (`tsc --noEmit`) | 全モジュール (`src/` + `api/`) | **PASS (0 errors)** | 2026-11-10 20:34 |
-| **受け入れ・結合自動テスト** | `npm test` (`vitest run`) | 57項目 | **PASS (57/57)** | 2026-11-10 20:34 |
-| **Zoom Cloud API 実接続検証** | `/api/zoom/sync` 実OAuth + VTT + AI要約取得 | 実セッション3件取得 (20,921字VTT + 要約) | **PASS (200 OK)** | 2026-11-10 20:34 |
-| **PC⇄スマホ クラウド同期 & 要約・文字起こし解析検証** | `/api/sync/state` 双方向CRDTマージ + `processMeetingRecordingAndAutoRegister` | 田中義博様・辻元気様の面談要約・事実・約束・お礼ドラフト完全反映 & 重複吸収 | **PASS (200 OK)** | 2026-11-10 20:34 |
-| **本番ビルド・Vercel配信** | `npm run build` + Vercel Production Deploy | Production URL | **PASS (200 OK)** | 2026-11-10 20:34 |
+| **TypeScript 型チェック** | `npm run typecheck` (`tsc --noEmit`) | 全モジュール (`src/` + `api/`) | **PASS (0 errors)** | 2026-11-10 21:15 |
+| **受け入れ・結合自動テスト** | `npm test` (`vitest run`) | 59項目 | **PASS (59/59)** | 2026-11-10 21:15 |
+| **Zoom Cloud API 実接続検証** | `/api/zoom/sync` 実OAuth + AI要約先行取得 + VTT取得 | 実セッション3件 + 今後のZoom終了後即時反映検証 | **PASS (200 OK)** | 2026-11-10 21:15 |
+| **PC⇄スマホ同期 & 紹介ハブ・AI秘書検証** | `/api/sync/state` + `ingestZoomSessions` + `queryAI` | 予定・カルテ統合、紹介マッチング3件、自然言語検索検証 | **PASS (200 OK)** | 2026-11-10 21:15 |
+| **本番ビルド・Vercel配信** | `npm run build` + Vercel Production Deploy | Production URL | **PASS (200 OK)** | 2026-11-10 21:15 |
 
 ---
 
