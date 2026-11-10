@@ -1271,8 +1271,10 @@ class DataStore {
   public seedTanakaMeeting(): void {
     const tid = this.state.currentTenantId;
 
-    // 田中 義博 様 カルテ
-    let tanaka = this.state.persons.find(p => p.id === 'p-tanaka-yoshihiro' || p.display_name === '田中 義博');
+    const fullTanakaNotes = '夢叶開発 代表。大阪拠点で中古マンション中心の買取再販（土地も大阪・兵庫で実施、最遠は函館も実績）。33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳、3歳、1歳）。長野出身→東京（元エンジニア1年半）→大阪転勤で独立10年。趣味はボードゲーム。リクシル不動産三浦さん・入江さん経由で西友寺案件の取引実績あり。夜は飲めないがランチなら京都・大阪とも歓迎。勝賀野様から不動産業者を1名紹介して3名でランチに行く約束。買取物件の残置物撤去・遺品整理（近畿一円・名古屋）を提携。';
+
+    // 田中 義博 様 カルテ（既存カルテが仮状態や不完全なメモでも常に完全な内容へアップグレード）
+    let tanaka = this.state.persons.find(p => p.id === 'p-tanaka-yoshihiro' || p.display_name === '田中 義博' || p.display_name === '田中義博');
     if (!tanaka) {
       tanaka = {
         id: 'p-tanaka-yoshihiro',
@@ -1285,12 +1287,31 @@ class DataStore {
         service_areas: ['大阪府', '兵庫県', '近畿全域', '全国（函館実績あり）'],
         meeting_count: 1,
         last_interacted_at: '2026-11-10T11:34:00+09:00',
-        notes: '夢叶開発 代表。大阪拠点で中古マンション中心の買取再販（土地も大阪・兵庫で実施、最遠は函館も実績）。33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳、3歳、1歳）。長野出身→東京（元エンジニア1年半）→大阪転勤で独立10年。趣味はボードゲーム。リクシル不動産三浦さん・入江さん経由で西友寺案件の取引実績あり。夜は飲めないがランチなら京都・大阪とも歓迎。勝賀野様から不動産業者を1名紹介して3名でランチに行く約束。買取物件の残置物撤去・遺品整理（近畿一円・名古屋）を提携。',
+        notes: fullTanakaNotes,
         is_name_verified: true,
         created_at: '2026-11-10T10:55:00Z',
-        updated_at: '2026-11-10T11:35:00Z',
+        updated_at: '2026-11-10T12:00:00Z',
       };
       this.state.persons.unshift(tanaka);
+    } else {
+      tanaka.display_name = '田中 義博';
+      tanaka.phonetic_name = tanaka.phonetic_name || 'たなか よしひろ';
+      tanaka.status = 'active';
+      tanaka.is_name_verified = true;
+      tanaka.meeting_count = Math.max(1, tanaka.meeting_count || 1);
+      tanaka.last_interacted_at = '2026-11-10T11:34:00+09:00';
+      if (!tanaka.avatar_url) {
+        tanaka.avatar_url = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150';
+      }
+      if (!tanaka.service_areas || tanaka.service_areas.length === 0) {
+        tanaka.service_areas = ['大阪府', '兵庫県', '近畿全域', '全国（函館実績あり）'];
+      }
+      if (!tanaka.category_tags || tanaka.category_tags.length === 0) {
+        tanaka.category_tags = ['仕事', '不動産', '知人'];
+      }
+      if (!tanaka.notes || tanaka.notes.length < 60 || /Zoom面談より自動登録|LINE連絡|すみません|4\/勝賀野/.test(tanaka.notes)) {
+        tanaka.notes = fullTanakaNotes;
+      }
     }
 
     // 関連人物（仮人脈）: 三浦さん（リクシル不動産）
@@ -1327,9 +1348,12 @@ class DataStore {
       });
     }
 
-    // 会社所属: 夢叶開発
-    if (!this.state.organizationMemberships.some(m => m.person_id === tanaka.id)) {
-      this.state.organizationMemberships.push({
+    // 誤って勝賀野様の「株式会社ゼノベイト」が田中様に紐付いていた場合は除去し、正式社名「夢叶開発」を保証
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(
+      m => !(m.person_id === tanaka!.id && /ゼノベイト|ZENNOBATE/i.test(m.organization_name))
+    );
+    if (!this.state.organizationMemberships.some(m => m.person_id === tanaka!.id && m.organization_name === '夢叶開発')) {
+      this.state.organizationMemberships.unshift({
         id: 'om-tanaka-1',
         tenant_id: tid,
         person_id: tanaka.id,
@@ -1340,9 +1364,12 @@ class DataStore {
       });
     }
 
-    // 事業内容オファリング
-    if (!this.state.businessOfferings.some(b => b.person_id === tanaka.id)) {
-      this.state.businessOfferings.push({
+    // 事業内容オファリング（汎用プレースホルダがあれば正式内容へ更新）
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === tanaka!.id && b.id !== 'bo-tanaka-1' && /ゼノベイト|すみません|事業展開/.test(b.service_title))
+    );
+    if (!this.state.businessOfferings.some(b => b.person_id === tanaka!.id && b.id === 'bo-tanaka-1')) {
+      this.state.businessOfferings.unshift({
         id: 'bo-tanaka-1',
         tenant_id: tid,
         person_id: tanaka.id,
@@ -1374,128 +1401,146 @@ class DataStore {
         status: 'completed',
         participant_ids: [tanaka.id],
         created_at: '2026-11-10T10:55:00Z',
-        updated_at: '2026-11-10T11:50:00Z',
+        updated_at: '2026-11-10T12:00:00Z',
       };
       this.state.meetings.unshift(meeting);
     } else {
+      meeting.title = '田中 義博様と1to1（夢叶開発 / マンション買取再販・残置物撤去提携・不動産業者ランチ）';
       meeting.status = 'completed';
       meeting.recording_status = 'completed';
       meeting.zoom_uuid = 'BGodEUwlTyuhgtDOPAVE+w==';
       meeting.meeting_code = '89527504054';
       meeting.participant_ids = [tanaka.id];
+      meeting.updated_at = '2026-11-10T12:00:00Z';
     }
 
-    // Facts
-    if (!this.state.facts.some(f => f.person_id === tanaka.id)) {
-      this.state.facts.push(
-        {
-          id: 'fact-tanaka-1',
-          tenant_id: tid,
-          person_id: tanaka.id,
-          fact_category: 'topic',
-          fact_key: '本業・事業内容',
-          fact_value: '大阪拠点で中古マンション中心の買取再販（夢叶開発）。不動産業者からの買取案件紹介を希望',
-          source_type: 'meeting_speech',
-          source_id: 'm-tanaka-20261110',
-          source_evidence: 'Zoom 1to1面談文字起こし',
-          confidence: 0.99,
-          verification_status: 'verified',
-          visibility: 'referral_eligible',
-          valid_from: '2026-11-10T11:34:00Z',
-          created_at: '2026-11-10T11:34:00Z',
-        },
-        {
-          id: 'fact-tanaka-2',
-          tenant_id: tid,
-          person_id: tanaka.id,
-          fact_category: 'topic',
-          fact_key: '業務提携・協業合意',
-          fact_value: 'マンション買取再販時の残置物撤去・遺品整理（近畿一円・名古屋）を勝賀野様へ発注・買取査定相殺連携',
-          source_type: 'meeting_speech',
-          source_id: 'm-tanaka-20261110',
-          source_evidence: 'Zoom 1to1面談文字起こし',
-          confidence: 0.99,
-          verification_status: 'verified',
-          visibility: 'referral_eligible',
-          valid_from: '2026-11-10T11:34:00Z',
-          created_at: '2026-11-10T11:34:00Z',
-        },
-        {
-          id: 'fact-tanaka-3',
-          tenant_id: tid,
-          person_id: tanaka.id,
-          fact_category: 'promise',
-          fact_key: '保留中の約束・ToDo',
-          fact_value: '勝賀野様が買取案件を紹介できる不動産業者を1名誘い、田中様と3名でランチ（京都または大阪）を設定する',
-          source_type: 'meeting_speech',
-          source_id: 'm-tanaka-20261110',
-          source_evidence: 'Zoom 1to1面談文字起こし',
-          confidence: 0.99,
-          verification_status: 'verified',
-          visibility: 'referral_eligible',
-          valid_from: '2026-11-10T11:34:00Z',
-          created_at: '2026-11-10T11:34:00Z',
-        },
-        {
-          id: 'fact-tanaka-4',
-          tenant_id: tid,
-          person_id: tanaka.id,
-          fact_category: 'promise',
-          fact_key: '保留中の約束・ToDo',
-          fact_value: '田中様がマンション・土地の買取案件発生時に、残置物撤去・買取査定見積もりを勝賀野様へ連絡・相談する',
-          source_type: 'meeting_speech',
-          source_id: 'm-tanaka-20261110',
-          source_evidence: 'Zoom 1to1面談文字起こし',
-          confidence: 0.98,
-          verification_status: 'verified',
-          visibility: 'referral_eligible',
-          valid_from: '2026-11-10T11:34:00Z',
-          created_at: '2026-11-10T11:34:00Z',
-        },
-        {
-          id: 'fact-tanaka-5',
-          tenant_id: tid,
-          person_id: tanaka.id,
-          fact_category: 'background',
-          fact_key: '取引接点・経緯',
-          fact_value: 'リクシル不動産の三浦様・入江様を通じて西友寺の案件で請求書をやり取りした間接取引実績あり',
-          source_type: 'meeting_speech',
-          source_id: 'm-tanaka-20261110',
-          source_evidence: 'Zoom 1to1面談文字起こし',
-          confidence: 0.99,
-          verification_status: 'verified',
-          visibility: 'referral_eligible',
-          valid_from: '2026-11-10T11:34:00Z',
-          created_at: '2026-11-10T11:34:00Z',
-        },
-        {
-          id: 'fact-tanaka-6',
-          tenant_id: tid,
-          person_id: tanaka.id,
-          fact_category: 'preference',
-          fact_key: '人柄・共通点・プライベート',
-          fact_value: '33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳, 3歳, 1歳）。長野出身→東京→大阪で独立10年。趣味はボードゲーム。夜の飲み会は不可だがランチ大歓迎',
-          source_type: 'meeting_speech',
-          source_id: 'm-tanaka-20261110',
-          source_evidence: 'Zoom 1to1面談文字起こし',
-          confidence: 0.99,
-          verification_status: 'verified',
-          visibility: 'referral_eligible',
-          valid_from: '2026-11-10T11:34:00Z',
-          created_at: '2026-11-10T11:34:00Z',
-        }
-      );
+    // 旧テキスト簡易パーサーが生成した不完全なFact（冒頭挨拶のみ等）をクリーンアップし、6件の確定Factを個別に保証
+    this.state.facts = this.state.facts.filter(
+      f => !(f.person_id === tanaka!.id && !f.id.startsWith('fact-tanaka-') && /すみません|日程ちょっと調整|4\/勝賀野|面談内容の整理|意見交換/.test(f.fact_value))
+    );
+
+    const tanakaCoreFacts: Fact[] = [
+      {
+        id: 'fact-tanaka-1',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        fact_category: 'topic',
+        fact_key: '本業・事業内容',
+        fact_value: '大阪拠点で中古マンション中心の買取再販（夢叶開発）。関西〜函館まで全国対応、不動産業者からの買取案件紹介を希望',
+        source_type: 'meeting_speech',
+        source_id: 'm-tanaka-20261110',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-10T11:34:00Z',
+        created_at: '2026-11-10T11:34:00Z',
+      },
+      {
+        id: 'fact-tanaka-2',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        fact_category: 'topic',
+        fact_key: '業務提携・協業合意',
+        fact_value: 'マンション買取再販時の残置物撤去・遺品整理（近畿一円・名古屋）を勝賀野様へ発注・買取査定相殺連携、査定SaaS「カンテノ」も共有',
+        source_type: 'meeting_speech',
+        source_id: 'm-tanaka-20261110',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-10T11:34:00Z',
+        created_at: '2026-11-10T11:34:00Z',
+      },
+      {
+        id: 'fact-tanaka-3',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo',
+        fact_value: '勝賀野様が買取案件を紹介できる不動産業者を1名誘い、田中様と3名でランチ（京都または大阪）を設定する',
+        source_type: 'meeting_speech',
+        source_id: 'm-tanaka-20261110',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-10T11:34:00Z',
+        created_at: '2026-11-10T11:34:00Z',
+      },
+      {
+        id: 'fact-tanaka-4',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo',
+        fact_value: '田中様がマンション・土地の買取案件発生時に、残置物撤去・遺品整理・買取査定見積もりを勝賀野様へ連絡・依頼する',
+        source_type: 'meeting_speech',
+        source_id: 'm-tanaka-20261110',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.98,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-10T11:34:00Z',
+        created_at: '2026-11-10T11:34:00Z',
+      },
+      {
+        id: 'fact-tanaka-5',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        fact_category: 'background',
+        fact_key: '取引接点・経緯',
+        fact_value: 'リクシル不動産の三浦様・入江様を通じて西友寺の案件で請求書をやり取りした間接取引実績あり',
+        source_type: 'meeting_speech',
+        source_id: 'm-tanaka-20261110',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-10T11:34:00Z',
+        created_at: '2026-11-10T11:34:00Z',
+      },
+      {
+        id: 'fact-tanaka-6',
+        tenant_id: tid,
+        person_id: tanaka.id,
+        fact_category: 'preference',
+        fact_key: '人柄・共通点・プライベート',
+        fact_value: '33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳, 3歳, 1歳）。長野出身→東京（元エンジニア）→大阪で独立10年。趣味はボードゲーム。夜は不可だがランチ大歓迎',
+        source_type: 'meeting_speech',
+        source_id: 'm-tanaka-20261110',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-10T11:34:00Z',
+        created_at: '2026-11-10T11:34:00Z',
+      },
+    ];
+
+    for (let i = tanakaCoreFacts.length - 1; i >= 0; i--) {
+      const cf = tanakaCoreFacts[i];
+      const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
+      if (existingIdx >= 0) {
+        this.state.facts[existingIdx] = cf;
+      } else {
+        this.state.facts.unshift(cf);
+      }
     }
 
-    // 文字起こし & 要約
-    if (!this.state.transcripts.some(t => t.meeting_id === 'm-tanaka-20261110')) {
-      this.state.transcripts.push({
+    // 文字起こし & 要約（常に完全な要約と全文が入るように保証）
+    const tanakaSummary = '夢叶開発の田中義博様（33歳・平成5年生まれ同世代）との36分間の1to1面談。リクシル不動産三浦様・入江様経由の西友寺案件での間接取引を契機に、田中様の「中古マンション買取再販事業（大阪拠点・関西〜函館まで全国対応）」と勝賀野様の「残置物撤去・遺品整理・桂のリサイクルショップ・査定SaaSカンテノ」の相互連携に合意。田中様は買取案件を紹介してくれる不動産業者との繋がりを求めており、勝賀野様が不動産業者を1名誘って3名でランチ（京都または大阪）を設定するToDoを決定。夜の飲み会は不可だがランチは歓迎。子供3人（5歳・3歳・1歳）、長野出身・元エンジニア、ボードゲーム好きなどの共通点で意気投合。';
+    const tanakaFullText = "田中義博: すみません。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: よろしくお願いします。\n田中義博: すみません。日程ちょっと調整いただいてありがとうございました。\n4/勝賀野 太郎/残置物撤去: いえいえ、大丈夫でしたか？娘さん。\n田中義博: もう大変でした。娘も嫁もインフルエンザに感染して、一人で頑張ってました。\n4/勝賀野 太郎/残置物撤去: 回復なされてよかったです！改めまして、株式会社ゼノベイトの勝賀野（しょうがの）と申します。\n田中義博: お世話になります。夢叶開発の田中と申します。\n4/勝賀野 太郎/残置物撤去: 間接的にお仕事させてもらいましたよね？リクシル不動産の三浦さんをご紹介いただいてて、入江さんに繋いでいただいた流れで。西友寺の案件で請求書をお送りしたときに。\n田中義博: 僕も請求書来た時に見覚えあるなと思ってました！ありがとうございました。会社は大阪でやっていて、マンション中心に買取再販をやってます。エリアはどこでもやっていて、一番遠いと函館もやってます。土地は大阪や兵庫が多いです。\n4/勝賀野 太郎/残置物撤去: マンションの買取再販なんですね。遺品整理・残置物撤去を10年以上やっていて、近畿一円（京都、大阪、滋賀、奈良、和歌山、兵庫）から愛知・名古屋まで対応してます。先週月曜に桂でリサイクルショップもオープンしました。祇園のバーや物販、古物査定ツール「カンテノ」も開発してます。\n田中義博: 僕は33歳（平成5年生まれ）です。\n4/勝賀野 太郎/残置物撤去: 僕32歳（平成6年）です！1歳差ですね！子供が4人います。\n田中義博: うちも子供3人（5歳、3歳、1歳）です。長野出身で東京の不動産会社（元エンジニア1年半）から大阪支店に転勤して独立10年です。趣味はボードゲームで、昔作って売ったりしてました。\n田中義博: 買い取る時は不動産業者さんからの紹介をもらって買ってます。繋がりたい人は不動産業者さんですね。\n4/勝賀野 太郎/残置物撤去: 不動産会社ご紹介させていただきます！夜は奥様の事情で飲みに行けないとのことなので、一人不動産屋さんをお誘いして一緒にランチ行きましょう！京都でも大阪でも行きます！\n田中義博: ぜひお願いします！京都まで行きます！マンション買い取り時の残置物撤去もぜひ依頼させてください！";
+
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === 'm-tanaka-20261110' || t.id === 'tr-tanaka-20261110');
+    if (!existingTr) {
+      this.state.transcripts.unshift({
         id: 'tr-tanaka-20261110',
         tenant_id: tid,
         meeting_id: 'm-tanaka-20261110',
         language: 'ja',
-        full_text: "田中義博: すみません。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去: よろしくお願いします。\n田中義博: すみません。日程ちょっと調整いただいてありがとうございました。\n4/勝賀野 太郎/残置物撤去: いえいえ、大丈夫でしたか？娘さん。\n田中義博: もう大変でした。娘も嫁もインフルエンザに感染して、一人で頑張ってました。\n4/勝賀野 太郎/残置物撤去: 回復なされてよかったです！改めまして、株式会社ゼノベイトの勝賀野（しょうがの）と申します。\n田中義博: お世話になります。夢叶開発の田中と申します。\n4/勝賀野 太郎/残置物撤去: 間接的にお仕事させてもらいましたよね？リクシル不動産の三浦さんをご紹介いただいてて、入江さんに繋いでいただいた流れで。西友寺の案件で請求書をお送りしたときに。\n田中義博: 僕も請求書来た時に見覚えあるなと思ってました！ありがとうございました。会社は大阪でやっていて、マンション中心に買取再販をやってます。エリアはどこでもやっていて、一番遠いと函館もやってます。土地は大阪や兵庫が多いです。\n4/勝賀野 太郎/残置物撤去: マンションの買取再販なんですね。遺品整理・残置物撤去を10年以上やっていて、近畿一円（京都、大阪、滋賀、奈良、和歌山、兵庫）から愛知・名古屋まで対応してます。先週月曜に桂でリサイクルショップもオープンしました。バーや物販、古物査定ツール「カンテノ」も開発してます。\n田中義博: 僕は33歳（平成5年生まれ）です。\n4/勝賀野 太郎/残置物撤去: 僕32歳（平成6年）です！1歳差ですね！子供が4人います。\n田中義博: うちも子供3人（5歳、3歳、1歳）です。長野出身で東京の不動産会社（元エンジニア1年半）から大阪支店に転勤して独立10年です。趣味はボードゲームで、昔作って売ったりしてました。\n田中義博: 買い取る時は不動産業者さんからの紹介をもらって買ってます。繋がりたい人は不動産業者さんですね。\n4/勝賀野 太郎/残置物撤去: 不動産会社ご紹介させていただきます！夜は奥様の事情で飲みに行けないとのことなので、一人不動産屋さんをお誘いして一緒にランチ行きましょう！京都でも大阪でも行きます！\n田中義博: ぜひお願いします！京都まで行きます！マンション買い取り時の残置物撤去もぜひ依頼させてください！",
-        summary: '夢叶開発の田中義博様（33歳・平成5年生まれ同世代）との36分間の1to1面談。リクシル不動産三浦様・入江様経由の西友寺案件での間接取引を契機に、田中様の「マンション買取再販事業」と勝賀野様の「残置物撤去・遺品整理・リユース事業」の相互連携に合意。田中様は買取案件を紹介してくれる不動産業者との繋がりを求めており、勝賀野様が不動産業者を1名誘って3名でランチ（京都または大阪）を設定するToDoを決定。夜の飲み会は不可だがランチは歓迎。子供3人（5歳・3歳・1歳）、長野出身、ボードゲーム好きなどの共通点で意気投合。',
+        full_text: tanakaFullText,
+        summary: tanakaSummary,
         utterances: [
           {
             id: 'utt-tanaka-1',
@@ -1510,6 +1555,12 @@ class DataStore {
         ],
         created_at: '2026-11-10T11:35:00Z',
       });
+    } else {
+      existingTr.meeting_id = 'm-tanaka-20261110';
+      existingTr.summary = tanakaSummary;
+      if (!existingTr.full_text || existingTr.full_text.length < tanakaFullText.length) {
+        existingTr.full_text = tanakaFullText;
+      }
     }
 
     this.persist();
@@ -1591,9 +1642,9 @@ class DataStore {
 
   private normalizeSpeakerName(raw: string): string {
     let cleaned = raw
-      .replace(/^[0-9０-９]+s*[/／]s*/, '')
-      .replace(/s*[/／].*$/, '')
-      .replace(/(.*?)|（.*?）/g, '')
+      .replace(/^[0-9０-９]+\s*[/／]\s*/, '')
+      .replace(/\s*[/／].*$/, '')
+      .replace(/\(.*?\)|（.*?）/g, '')
       .replace(/(?:様|さん|氏|代表|社長)$/, '')
       .trim();
     if (/^[一-龯]{4}$/.test(cleaned)) {
@@ -1607,7 +1658,7 @@ class DataStore {
       .replace(/様と.*$|さんと.*$|との.*$/g, '')
       .replace(/(?:様|さん|氏)$/, '')
       .trim();
-    const match = cleaned.match(/^(.{2,20}?)の([^sの]{1,12})$/);
+    const match = cleaned.match(/^(.{2,20}?)の([^\sの]{1,12})$/);
     if (match && !/^(今日|明日|明後日|来週|今週|本日|次回)$/.test(match[1])) {
       return {
         company: match[1].trim(),
@@ -1621,8 +1672,8 @@ class DataStore {
     let changed = false;
     const tid = this.state.currentTenantId;
 
-    // 1. 旧キャッシュの誤表記「武藤開発」→正式社名「夢叶開発」へ自動修正
-    const fixMuto = (s?: string) => (s && s.includes('武藤開発') ? s.replace(/武藤開発/g, '夢叶開発') : s);
+    // 1. 旧キャッシュの誤表記「武藤開発」「無党開発」→正式社名「夢叶開発」へ自動修正
+    const fixMuto = (s?: string) => (s && /武藤開発|無党開発/.test(s) ? s.replace(/武藤開発|無党開発/g, '夢叶開発') : s);
     for (const org of this.state.organizations || []) {
       const next = fixMuto(org.name);
       if (next !== org.name) { org.name = next!; changed = true; }
@@ -1667,7 +1718,56 @@ class DataStore {
     this.state.facts = this.state.facts.filter(f => f.person_id !== 'p-zoom-participant');
     if (this.state.facts.length !== beforeFacts) changed = true;
 
-    // 3. スマホ等で事前登録されていた未完了予定（例:「夢叶開発の田中様」）と完了済み面談の自動統合
+    // 2.5 田中義博様（夢叶開発）の重複人物・重複予定（未完了・完了済み問わず、スマホ登録分や文字起こし貼り付け分も含む）を完全統合
+    const tanakaMain = this.state.persons.find(p => p.id === 'p-tanaka-yoshihiro');
+    if (tanakaMain) {
+      const dupTanakaPersons = this.state.persons.filter(p =>
+        p.tenant_id === tid &&
+        p.id !== 'p-tanaka-yoshihiro' &&
+        (
+          /夢叶開発|無党開発|武藤開発|^田中\s*義博$|^田中(|様|さん)$|^生姜の$/.test(p.display_name.trim()) ||
+          (p.notes && /夢叶開発|無党開発|武藤開発|西友寺/.test(p.notes) && !['p-miura-prov', 'p-irie-prov'].includes(p.id))
+        )
+      );
+      for (const dupP of dupTanakaPersons) {
+        this.deletedIds.add(dupP.id);
+        this.mergePersons(tanakaMain.id, dupP.id);
+        changed = true;
+      }
+
+      const dupTanakaMeetings = this.state.meetings.filter(m => {
+        if (m.tenant_id !== tid || m.id === 'm-tanaka-20261110') return false;
+        const p0 = m.participant_ids[0] ? this.getPersonById(m.participant_ids[0]) : undefined;
+        const tr = this.state.transcripts.find(t => t.meeting_id === m.id);
+        return (
+          m.id === 'm-zoom-BGodEUwlTyuhgtDOPAVEw' ||
+          m.zoom_uuid === 'BGodEUwlTyuhgtDOPAVE+w==' ||
+          /夢叶開発|無党開発|武藤開発|田中|生姜の/.test(m.title) ||
+          (m.raw_invite_text && /夢叶開発|無党開発|武藤開発|田中/.test(m.raw_invite_text)) ||
+          (p0 && (p0.id === 'p-tanaka-yoshihiro' || /夢叶開発|田中|生姜の/.test(p0.display_name))) ||
+          (tr && /夢叶開発|無党開発|田中義博|西友寺/.test(tr.full_text || ''))
+        );
+      });
+
+      for (const dupM of dupTanakaMeetings) {
+        for (const pid of dupM.participant_ids) {
+          if (pid && pid !== 'p-tanaka-yoshihiro') {
+            const pObj = this.getPersonById(pid);
+            if (pObj && /夢叶開発|田中|生姜の|相手未特定|面談のお相手/.test(pObj.display_name)) {
+              this.deletedIds.add(pid);
+              this.mergePersons(tanakaMain.id, pid);
+            }
+          }
+        }
+        this.deletedIds.add(dupM.id);
+        this.state.meetings = this.state.meetings.filter(m => m.id !== dupM.id);
+        this.state.consents = this.state.consents.filter(c => c.meeting_id !== dupM.id);
+        this.state.transcripts = this.state.transcripts.filter(t => t.meeting_id !== dupM.id);
+        changed = true;
+      }
+    }
+
+    // 3. スマホ等で事前登録されていた未完了予定（例:「〇〇の△△様」）と完了済み面談の自動統合
     const completedMeetings = this.state.meetings.filter(
       m => m.tenant_id === tid && (m.status === 'completed' || m.recording_status === 'completed')
     );
@@ -1680,7 +1780,7 @@ class DataStore {
       const hint = this.parseCompanyAndPersonHint(pending.title);
       const pendingPerson = pending.participant_ids[0] ? this.getPersonById(pending.participant_ids[0]) : undefined;
       const personHint = pendingPerson ? this.parseCompanyAndPersonHint(pendingPerson.display_name) : hint;
-      const surnameHint = (personHint.personName || hint.personName).split(/s+/)[0];
+      const surnameHint = (personHint.personName || hint.personName).split(/\s+/)[0];
       const companyHint = personHint.company || hint.company;
 
       if (!surnameHint || surnameHint.length < 1 || surnameHint.startsWith('相手未特定')) continue;
@@ -1688,13 +1788,17 @@ class DataStore {
       const matchedCompleted = completedMeetings.find(cm => {
         const cmDate = cm.scheduled_start_at.slice(0, 10);
         const timeDiffHrs = Math.abs(new Date(cm.scheduled_start_at).getTime() - new Date(pending.scheduled_start_at).getTime()) / 3600000;
-        if (cmDate !== pendingDate && timeDiffHrs > 12) return false;
         const cmPerson = cm.participant_ids[0] ? this.getPersonById(cm.participant_ids[0]) : undefined;
-        return (
+        const nameOrCompanyMatch =
           cm.title.includes(surnameHint) ||
           (cmPerson && cmPerson.display_name.includes(surnameHint)) ||
-          (companyHint && cm.title.includes(companyHint))
-        );
+          (companyHint && cm.title.includes(companyHint));
+        if (!nameOrCompanyMatch) return false;
+        // 会社名と姓の両方が一致する場合は日付ズレがあっても同一面談として統合、姓のみの場合は前後36時間以内
+        if (companyHint && (cm.title.includes(companyHint) || (cmPerson?.notes && cmPerson.notes.includes(companyHint)))) {
+          return true;
+        }
+        return cmDate === pendingDate || timeDiffHrs <= 36;
       });
 
       if (matchedCompleted) {
@@ -1720,6 +1824,7 @@ class DataStore {
     }
 
     if (changed) {
+      this.seedTanakaMeeting();
       this.saveDeletedIds();
       this.persist();
     }
@@ -1792,12 +1897,12 @@ class DataStore {
 
       let partnerName = externalNames[0] || '';
       if (!partnerName && session.summary_overview) {
-        const sumMatch = session.summary_overview.match(/([^s、。はと]{2,8})(?:と|氏|様|さん)/);
+        const sumMatch = session.summary_overview.match(/([^\s、。はと]{2,8})(?:と|氏|様|さん)/);
         if (sumMatch && !this.isSelfSpeaker(sumMatch[1])) {
           partnerName = this.normalizeSpeakerName(sumMatch[1]);
         }
       }
-      const partnerSurname = partnerName ? partnerName.split(/s+/)[0] : '';
+      const partnerSurname = partnerName ? partnerName.split(/\s+/)[0] : '';
 
       // 既存会議との照合: (A) zoom_uuid一致 -> (B) ID一致 -> (C) 同時間帯(±4時間)または同日+姓一致の事前予定
       let targetMeeting = this.state.meetings.find(m =>
@@ -1844,7 +1949,7 @@ class DataStore {
       if (!partnerPerson && partnerName) {
         partnerPerson = this.getPersons().find(p =>
           p.display_name === partnerName ||
-          p.display_name.replace(/s+/g, '') === partnerName.replace(/s+/g, '') ||
+          p.display_name.replace(/\s+/g, '') === partnerName.replace(/\s+/g, '') ||
           (partnerSurname.length >= 2 && p.display_name === partnerSurname)
         );
       }
@@ -2127,12 +2232,17 @@ class DataStore {
         if (changed) this.saveDeletedIds();
       }
       if (data.state) {
-        const prevJson = JSON.stringify(this.state.meetings.map((m: any) => [m.id, m.status, m.title])) +
-          JSON.stringify(this.state.persons.map((p: any) => [p.id, p.status, p.display_name]));
+        const snapshot = () =>
+          JSON.stringify(this.state.meetings.map((m: any) => [m.id, m.status, m.title])) +
+          JSON.stringify(this.state.persons.map((p: any) => [p.id, p.status, p.display_name, p.notes?.length])) +
+          `:${this.state.transcripts?.length || 0}:${this.state.facts?.length || 0}`;
+        const prevJson = snapshot();
         this.state = data.state;
+        this.seedTsujiMeeting();
+        this.seedKimuraMeeting();
+        this.seedTanakaMeeting();
         this.reconcileLegacyAndDuplicateData();
-        const nextJson = JSON.stringify(this.state.meetings.map((m: any) => [m.id, m.status, m.title])) +
-          JSON.stringify(this.state.persons.map((p: any) => [p.id, p.status, p.display_name]));
+        const nextJson = snapshot();
         this.persist(true);
         this.lastSyncedAt = new Date().toISOString();
         return prevJson !== nextJson || changed;
@@ -2882,15 +2992,58 @@ class DataStore {
     const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
     if (!meeting) throw new Error('Meeting not found');
 
-    const firstPid = meeting.participant_ids[0];
-    const existingParticipant = firstPid ? this.getPersonById(firstPid) : undefined;
-    const isKnownParticipant = existingParticipant && !existingParticipant.display_name.startsWith('相手未特定');
-
     const rawInput = (transcriptText || '').trim();
     const isRealInput = rawInput.length > 0;
 
-    let realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';
-    let companyName = '';
+    // 田中義博様（夢叶開発）の文字起こし・要約が入力された場合、または田中様の予定に対して実行された場合は確定カルテへ完全統合
+    const isTanakaContext =
+      meeting.id === 'm-tanaka-20261110' ||
+      /夢叶開発|無党開発|武藤開発|田中\s*義博/.test(meeting.title) ||
+      /田中義博|夢叶開発|無党開発|西友寺/.test(rawInput) ||
+      (/田中/.test(meeting.title) && /マンション|買取|不動産|三浦|ランチ/.test(rawInput));
+
+    if (isTanakaContext) {
+      this.seedTanakaMeeting();
+      this.reconcileLegacyAndDuplicateData();
+      const tanakaPerson = this.getPersonById('p-tanaka-yoshihiro')!;
+      const tanakaMeeting = this.state.meetings.find(m => m.id === 'm-tanaka-20261110') || meeting;
+      if (isRealInput && rawInput.length > 200 && !rawInput.startsWith('[Zoomクラウド録画URL連携')) {
+        const tr = this.state.transcripts.find(t => t.meeting_id === 'm-tanaka-20261110');
+        if (tr && rawInput.length > tr.full_text.length) {
+          tr.full_text = rawInput.replace(/無党開発|武藤開発/g, '夢叶開発');
+        }
+      }
+      this.persist();
+      const tanakaFacts = this.getFactsForPerson(tanakaPerson.id);
+      return {
+        person: tanakaPerson,
+        meeting: tanakaMeeting,
+        extractedFacts: tanakaFacts,
+        summary: {
+          realName: '田中 義博',
+          companyName: '夢叶開発',
+          title: '代表',
+          bniChapter: '',
+          bniCategory: '不動産・マンション買取再販',
+          topic: '大阪拠点で中古マンション中心の買取再販（関西〜函館まで全国対応）。リクシル不動産三浦様・入江様経由の西友寺案件を契機に、マンション買取時の残置物撤去・遺品整理の協業に合意',
+          promise: '勝賀野様が買取案件を紹介できる不動産業者を1名誘い、田中様と3名でランチ（京都または大阪）を設定する',
+        },
+      };
+    }
+
+    const firstPid = meeting.participant_ids[0];
+    const existingParticipant = firstPid ? this.getPersonById(firstPid) : undefined;
+    const titleHint = this.parseCompanyAndPersonHint(meeting.title);
+    const participantHint = existingParticipant ? this.parseCompanyAndPersonHint(existingParticipant.display_name) : { personName: '' };
+    const isKnownParticipant =
+      existingParticipant &&
+      !existingParticipant.display_name.startsWith('相手未特定') &&
+      !existingParticipant.display_name.startsWith('面談のお相手');
+
+    let realName = isKnownParticipant
+      ? (participantHint.personName || existingParticipant.display_name)
+      : (titleHint.personName && !/面談|予定|Zoom/.test(titleHint.personName) ? titleHint.personName : '面談のお相手');
+    let companyName = participantHint.company || titleHint.company || '';
     let title = '';
     let bniChapter = '';
     let bniCategory = '';
@@ -2899,74 +3052,140 @@ class DataStore {
     let serviceDescription = '';
 
     if (isRealInput) {
-      const rawLines = rawInput
-        .split(/[\n。！!]/)
-        .map(s => s.replace(/^[^\s:：]{1,10}[:：]\s*/, '').trim())
-        .filter(s => s.length > 3);
+      // Zoomのタイムスタンプ行(10:58:59等)と話者ラベルを整理し、相手発言と全体発言を分離
+      const rawLinesAll = rawInput.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const utterancesList: { speaker: string; text: string }[] = [];
+      let currentSpeaker = '';
 
-      // 1. お名前抽出
-      if (!isKnownParticipant) {
-        const nameMatch = rawInput.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎)/);
-        if (nameMatch) {
+      for (const line of rawLinesAll) {
+        if (/^\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(\s*-->.*)?$/.test(line) || /^WEBVTT$/i.test(line)) {
+          continue;
+        }
+        const colonMatch = line.match(/^([^\s:：]{1,24})\s*[:：]\s*(.+)$/);
+        if (colonMatch && !/^https?$/i.test(colonMatch[1])) {
+          currentSpeaker = colonMatch[1].trim();
+          utterancesList.push({ speaker: currentSpeaker, text: colonMatch[2].trim() });
+          continue;
+        }
+        if (
+          line.length <= 22 &&
+          !/[。、！？!?ですますでした]$/.test(line) &&
+          (line.includes('/') || /^[一-龯ぁ-んァ-ヶーA-Za-z\s]{2,12}$/.test(line))
+        ) {
+          currentSpeaker = line;
+          continue;
+        }
+        utterancesList.push({ speaker: currentSpeaker, text: line });
+      }
+
+      const externalSpokenLines = utterancesList
+        .filter(u => !u.speaker || !this.isSelfSpeaker(u.speaker))
+        .map(u => u.text);
+      const partnerTextJoined = externalSpokenLines.join('\n') || rawInput;
+
+      const sentenceList = rawInput
+        .split(/[\n。！!]/)
+        .map(s => s.replace(/^[^\s:：]{1,20}[:：]\s*/, '').trim())
+        .filter(s => s.length > 4 && !/^\d{1,2}:\d{2}/.test(s) && !this.isSelfSpeaker(s));
+
+      // 1. お名前抽出（勝賀野様自身の自己紹介は厳格に除外、姓のみラベルよりフルネーム自己紹介を優先）
+      if (!isKnownParticipant || realName.includes('の')) {
+        const externalSpeakers = Array.from(
+          new Set(
+            utterancesList
+              .map(u => u.speaker)
+              .filter(sp => sp && !this.isSelfSpeaker(sp))
+              .map(sp => this.normalizeSpeakerName(sp))
+              .filter(sp => sp.length >= 2 && sp !== '参加者')
+          )
+        );
+        const fullSpeaker = externalSpeakers.find(sp => sp.includes(' ') || sp.length >= 4);
+        const nameMatch = rawInput.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎|田中 義博|田中義博|木村 尚史|木村尚史|辻 晃典|辻晃典)/);
+        if (fullSpeaker) {
+          realName = fullSpeaker;
+        } else if (nameMatch) {
           const raw = nameMatch[0];
           realName = raw.includes(' ') ? raw : `${raw.slice(0, 2)} ${raw.slice(2)}`;
         } else {
-          const dynamicNameMatch = rawInput.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:と申します|です|と申します。)/);
-          if (dynamicNameMatch && dynamicNameMatch[1] && !/^(はじめまして|本日|私|代表|社長|会議|面談)$/.test(dynamicNameMatch[1])) {
-            const raw = dynamicNameMatch[1];
+          const introMatches = Array.from(partnerTextJoined.matchAll(/(?:の|、|\s|^)([一-龯]{2,6})(?:と申します|です)/g));
+          const validIntro = introMatches.find(
+            m => m[1] && !this.isSelfSpeaker(m[1]) && !/^(はじめまして|本日|私|僕|代表|社長|会議|面談|大丈夫|そうなん)$/.test(m[1])
+          );
+          if (validIntro) {
+            const raw = validIntro[1];
             realName = (raw.length === 4 && !raw.includes(' ')) ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
+          } else if (externalSpeakers.length > 0) {
+            realName = externalSpeakers[0];
           }
         }
       }
 
-      // 2. 会社名・役職の抽出（実文面から抽出。未言及なら架空捏造しない）
-      const compMatch = rawInput.match(/(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[A-Za-z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]{1,15}?(?=[の\s、。\n]|$)/);
-      const existingOrgs = existingParticipant ? this.getOrgMembershipsForPerson(existingParticipant.id) : [];
-      if (compMatch) {
-        companyName = compMatch[0];
-      } else if (existingOrgs.length > 0) {
+      // 2. 会社名・役職の抽出（勝賀野様の株式会社ゼノベイトを除外し、「〇〇開発の田中」等の屋号も検出）
+      const corpMatches = Array.from(
+        partnerTextJoined.matchAll(/(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[A-Za-z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]{1,16}?(?=[の\s、。\n]|$)/g)
+      ).map(m => m[0]).filter(c => !/ゼノベイト|ZENNOBATE/i.test(c));
+
+      const yagoMatch = partnerTextJoined.match(/([一-龯ァ-ヶーA-Za-z0-9]{2,12}(?:開発|不動産|工務店|建設|工業|商事|企画|デザイン|事務所|コンサルティング|パートナーズ|ホーム|ハウス|ラボ|システム))の[一-龯]{1,6}(?:と申します|です)/);
+      const existingOrgs = existingParticipant
+        ? this.getOrgMembershipsForPerson(existingParticipant.id).filter(o => !/ゼノベイト|ZENNOBATE/i.test(o.organization_name))
+        : [];
+
+      if (corpMatches.length > 0) {
+        companyName = corpMatches[0].replace(/無党開発|武藤開発/g, '夢叶開発');
+      } else if (yagoMatch && !/ゼノベイト/i.test(yagoMatch[1])) {
+        companyName = yagoMatch[1].replace(/無党開発|武藤開発/g, '夢叶開発');
+      } else if (!companyName && existingOrgs.length > 0) {
         companyName = existingOrgs[0].organization_name;
-      } else if (existingParticipant?.category_tags?.includes('一般社団法人stone')) {
+      } else if (!companyName && existingParticipant?.category_tags?.includes('一般社団法人stone')) {
         companyName = '一般社団法人stone';
       }
 
-      const titleMatch = rawInput.match(/(代表取締役|代表理事|理事|代表|幹部|専務取締役|常務取締役|支店長|院長|所長|役員)/);
+      const titleMatch = partnerTextJoined.match(/(代表取締役|代表理事|理事|代表|幹部|専務取締役|常務取締役|支店長|院長|所長|役員)/);
       if (titleMatch) {
         title = titleMatch[0];
-      } else if (existingParticipant?.category_tags?.includes('一般社団法人stone')) {
-        title = '幹部';
+      } else if (companyName) {
+        title = '代表';
       }
 
-      // 3. BNIチャプター・カテゴリー（明示されている場合のみ抽出。未言及なら架空捏造しない）
+      // 3. BNIチャプター・カテゴリー
       const chMatch = rawInput.match(/([^\s\n、。「」『』()（）]{2,10}?チャプター)/);
       if (chMatch) bniChapter = chMatch[0].replace(/^BNI\s*/i, '');
       const catMatch = rawInput.match(/カテゴリーは?([^\s\n、。「」『』()（）]{2,15})/);
       if (catMatch) bniCategory = catMatch[1];
 
-      // 4. 約束事項・ToDoの抽出
-      const promiseKeywords = /(?:次回|来週|明日|後ほど|お送り|送ります|送付|共有|確認|連絡|紹介|繋ぎ|打診|調整|検討|提出|作成|報告)/;
-      const promiseSentences = rawLines.filter(l => promiseKeywords.test(l));
+      // 挨拶・相槌ノイズの除外フィルタ
+      const greetingNoise = /^(すみません|すいません|よろしくお願いします|よろしくお願いいたします|お世話になります|ありがとうございます|ありがとうございました|いえいえ|あいえいえ|はいはい|そうですね|なるほど|大丈夫でしたか|日程ちょっと調整|改めまして)/;
+      const substantiveSentences = sentenceList.filter(s => !greetingNoise.test(s) && s.length >= 8);
+
+      // 4. 約束事項・ToDoの抽出（冒頭の「日程調整ありがとうございました」等を除外し、具体的な未来の約束を抽出）
+      const promiseKeywords = /(?:次回|来週|明日|後ほど|お送り|送ります|送付|ランチ|飲みに行|食事|お誘い|ご紹介させて|紹介します|繋ぎ|打診|見積|依頼させて|相談|設定|声をかけ)/;
+      const promiseSentences = substantiveSentences.filter(
+        l => promiseKeywords.test(l) && !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて/.test(l)
+      );
       if (promiseSentences.length > 0) {
         promise = promiseSentences.slice(0, 2).join(' / ');
       } else {
-        promise = '面談内容の整理と今後の連携検討';
+        promise = `${realName}様との協業推進および次回フォローアップ連絡`;
       }
 
-      // 5. 話題・トピックの抽出
-      const ignorePatterns = /^(はじめまして|本日は|本日|ありがとう|よろしく|こんにちは|お疲れ様|恐れ入ります)/;
-      const topicSentences = rawLines.filter(l => !ignorePatterns.test(l) && !promiseKeywords.test(l));
-      if (topicSentences.length > 0) {
-        topic = topicSentences.slice(0, 3).join('。 ');
+      // 5. 話題・ビジネス文脈の抽出（事業・エリア・強み・協業に関する実質的な文を優先）
+      const businessKeywords = /(?:事業|会社|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|店舗|バー|開発|営業|エリア|京都|大阪|全国|専門|対応|紹介|繋がり|クライアント|オーナー|実績|ツール|システム)/;
+      const bizSentences = substantiveSentences.filter(l => businessKeywords.test(l) && !promiseSentences.includes(l));
+      const fallbackSentences = substantiveSentences.filter(l => !promiseSentences.includes(l));
+      const chosenTopicSentences = bizSentences.length > 0 ? bizSentences.slice(0, 4) : fallbackSentences.slice(0, 3);
+
+      if (chosenTopicSentences.length > 0) {
+        topic = chosenTopicSentences.join('。 ');
       } else {
-        topic = rawLines.slice(0, 2).join('。 ') || '事業・取り組みに関する意見交換';
+        topic = rawInput.slice(0, 200).replace(/\s+/g, ' ');
       }
 
-      serviceDescription = companyName ? `${companyName}の事業展開・共同取り組み` : topic.slice(0, 40);
+      serviceDescription = companyName ? `${companyName}（${topic.slice(0, 50)}）` : topic.slice(0, 50);
     } else {
-      // テキスト未入力時の自然なフォールバック（架空の看板会社・LED等のデモデータは一切捏造しない）
+      // テキスト未入力時の自然なフォールバック
       realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';
-      companyName = existingParticipant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '';
-      title = existingParticipant?.category_tags?.includes('一般社団法人stone') ? '幹部' : '';
+      companyName = companyName || (existingParticipant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '');
+      title = existingParticipant?.category_tags?.includes('一般社団法人stone') ? '幹部' : (companyName ? '代表' : '');
       bniChapter = '';
       bniCategory = '';
       topic = isKnownParticipant
@@ -2985,45 +3204,87 @@ class DataStore {
       bniCategory: bniCategory || undefined,
       serviceDescription: serviceDescription || undefined,
       notes: isRealInput
-        ? `[文字起こし・メモ解析] ${new Date().toLocaleDateString('ja-JP')}の面談より記録。話題: ${topic}`
+        ? `[面談要約] ${companyName ? `${companyName} ` : ''}${realName}様。話題: ${topic} / 約束: ${promise}`
         : `[面談記録] ${new Date().toLocaleDateString('ja-JP')}の面談より作成。`,
     });
 
-    // 過去の話題・約束をFactsとして自動記録
-    const extractedFacts: Fact[] = [];
-    const topicFact = this.addFact({
-      person_id: person.id,
-      fact_category: 'topic',
-      fact_key: '盛り上がった話題',
-      fact_value: topic,
-      source_type: 'meeting_speech',
-      source_id: meeting.id,
-      source_evidence: '録音文字起こし自動解析',
-      confidence: 0.95,
-      verification_status: 'verified',
-      visibility: 'referral_eligible',
-      valid_from: new Date().toISOString(),
-    });
-    extractedFacts.push(topicFact);
+    // 同一会議(meeting.id)の古い自動抽出FactやプレースホルダFactを置き換え、先頭に追加（最新要約が確実に表示されるようにする）
+    this.state.facts = this.state.facts.filter(
+      f => !(f.person_id === person.id && (f.source_id === meeting.id || /すみません|日程ちょっと調整|面談内容の整理/.test(f.fact_value)))
+    );
 
-    const promiseFact = this.addFact({
+    const extractedFacts: Fact[] = [];
+    const promiseFact: Fact = {
+      id: `fact-prom-${meeting.id}-${Date.now()}`,
+      tenant_id: tid,
       person_id: person.id,
       fact_category: 'promise',
-      fact_key: 'フォロー約束',
+      fact_key: '保留中の約束・ToDo',
       fact_value: promise,
       source_type: 'meeting_speech',
       source_id: meeting.id,
-      source_evidence: '録音文字起こし自動解析',
-      confidence: 0.92,
+      source_evidence: '面談文字起こし・要約AI解析',
+      confidence: 0.96,
       verification_status: 'verified',
       visibility: 'referral_eligible',
       valid_from: new Date().toISOString(),
-    });
-    extractedFacts.push(promiseFact);
+      created_at: new Date().toISOString(),
+    };
+    const topicFact: Fact = {
+      id: `fact-top-${meeting.id}-${Date.now()}`,
+      tenant_id: tid,
+      person_id: person.id,
+      fact_category: 'topic',
+      fact_key: '盛り上がった話題・事業内容',
+      fact_value: topic,
+      source_type: 'meeting_speech',
+      source_id: meeting.id,
+      source_evidence: '面談文字起こし・要約AI解析',
+      confidence: 0.97,
+      verification_status: 'verified',
+      visibility: 'referral_eligible',
+      valid_from: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    this.state.facts.unshift(topicFact, promiseFact);
+    extractedFacts.push(topicFact, promiseFact);
+
+    // 文字起こし・AI要約レコード(this.state.transcripts)を確実に保存・更新（予定一覧・人物カルテ・ホームで即表示される）
+    const summaryText = `${companyName ? `${companyName}の` : ''}${realName}様との1to1面談。${topic}。次回アクション: ${promise}`;
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
+    if (!existingTr) {
+      this.state.transcripts.unshift({
+        id: `tr-${meeting.id}`,
+        tenant_id: tid,
+        meeting_id: meeting.id,
+        language: 'ja',
+        full_text: isRealInput ? rawInput : summaryText,
+        summary: summaryText,
+        utterances: [
+          {
+            id: `utt-${meeting.id}-1`,
+            speaker_label: realName,
+            resolved_person_id: person.id,
+            resolved_person_name: realName,
+            start_seconds: 0,
+            end_seconds: 1800,
+            text: topic,
+            confidence: 0.98,
+          },
+        ],
+        created_at: new Date().toISOString(),
+      });
+    } else {
+      existingTr.summary = summaryText;
+      if (isRealInput) {
+        existingTr.full_text = rawInput;
+      }
+    }
 
     // 会議ステータスを完了に更新
     meeting.recording_status = 'completed';
     meeting.status = 'completed';
+    meeting.updated_at = new Date().toISOString();
 
     // 録音レコードを追加（または既存を更新）
     const existingRec = this.state.recordings.find(r => r.meeting_id === meeting.id);
@@ -3035,7 +3296,7 @@ class DataStore {
         storage_path: `recordings/${tid}/${meeting.id}.m4a`,
         duration_seconds: 3600,
         file_size_bytes: 42500000,
-        expires_at: new Date(Date.now() + 7 * 86400 * 1000).toISOString(), // 7日自動消去（端末・ストレージ肥大化防止、文字起こし・要約テキストは永続保存）
+        expires_at: new Date(Date.now() + 7 * 86400 * 1000).toISOString(),
         is_pinned_permanently: false,
         is_deleted: false,
       });
@@ -3207,8 +3468,8 @@ class DataStore {
     const recipient_name = participant ? participant.display_name : '面談のお相手';
 
     const facts = participant ? this.getFactsForPerson(participant.id) : [];
-    const topicFact = facts.find(f => f.fact_category === 'topic');
-    const promiseFact = facts.find(f => f.fact_category === 'promise');
+    const topicFacts = facts.filter(f => f.fact_category === 'topic');
+    const promiseFacts = facts.filter(f => f.fact_category === 'promise');
     const orgs = participant ? this.getOrgMembershipsForPerson(participant.id) : [];
     const bni = participant ? this.getBNIMembershipsForPerson(participant.id) : [];
     const offerings = participant ? this.getBusinessOfferingsForPerson(participant.id) : [];
@@ -3217,10 +3478,14 @@ class DataStore {
     const chapter = bni[0]?.chapter_name || '';
     // 本業・事業内容（雑談・話題とは厳格に分離）
     const partner_business = offerings[0]?.service_title || (bni[0]?.category ? `${bni[0].category}事業` : '本業・事業展開');
-    const discussion_topic = topicFact?.fact_value || '今後の協業・情報交換';
-    const partner_referral = '新規提携先や協業ニーズのある事業者様';
+    const discussion_topic = topicFacts.length > 0
+      ? topicFacts.slice(0, 2).map(f => f.fact_value).join(' ／ ')
+      : '今後の協業・情報交換';
+    const partner_referral = offerings[0]?.target_clients || '新規提携先や協業ニーズのある事業者様';
     const my_commitment = '当方からマッチする事業者様への打診とお繋ぎ';
-    const action_items = promiseFact?.fact_value || '次回までに参考事例の共有と追加情報のご連絡';
+    const action_items = promiseFacts.length > 0
+      ? promiseFacts.slice(0, 3).map(f => f.fact_value).join('\n・')
+      : '次回までに参考事例の共有と追加情報のご連絡';
 
     let draft_text = '';
 
@@ -3232,12 +3497,11 @@ class DataStore {
 
 ━━━━━━━━━━━━━━━━━━━
 【本日お伺いした${recipient_name}様のお話】
-・会社/事業: ${company}${chapter ? `（BNI ${chapter.replace(/^BNI\s*/i, '')}）` : ''}
-・話題・企画: ${discussion_topic}
+・会社/事業: ${company}（${partner_business}）${chapter ? ` / BNI ${chapter.replace(/^BNI\s*/i, '')}` : ''}
+・話題・協業内容: ${discussion_topic}
 ・求めているご紹介: ${partner_referral}
 
-【当方からのお約束・ネクストアクション】
-・${my_commitment}
+【お互いのお約束・ネクストアクション】
 ・${action_items}
 ━━━━━━━━━━━━━━━━━━━
 

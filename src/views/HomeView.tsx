@@ -58,6 +58,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const upcomingOrg = upcomingParticipant ? store.getOrgMembershipsForPerson(upcomingParticipant.id)[0] : undefined;
 
   // 参加者の前回話題・未完了約束を取得
+  const upcomingTranscript = upcomingMeeting ? store.getTranscriptForMeeting(upcomingMeeting.id) : undefined;
   const participantFacts = upcomingParticipant ? store.getFactsForPerson(upcomingParticipant.id) : [];
   const pastTopic = participantFacts.find(f => f.fact_category === 'topic');
   const pendingPromise = participantFacts.find(f => f.fact_category === 'promise');
@@ -295,19 +296,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           )}
 
-          {/* 前回の文脈・約束（U03要件） */}
-          <div className="mt-5 pt-4 border-t border-apple-border dark:border-apple-darkBorder grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder">
-              <span className="text-neutral-400 font-medium block mb-1">前回盛り上がった話題</span>
-              <p className="text-neutral-700 dark:text-neutral-200 line-clamp-2">
-                {pastTopic?.fact_value || (upcomingParticipant ? '前回の記録はありません' : '会議終了後にAI文字起こしから話題が自動抽出されます')}
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
-              <span className="text-amber-800 dark:text-amber-400 font-medium block mb-1">保留中の約束・フォロー</span>
-              <p className="text-amber-900 dark:text-amber-200 font-medium line-clamp-2">
-                {pendingPromise?.fact_value || (upcomingParticipant ? '保留中の約束はありません' : '「〜を紹介する」等の約束事が自動追跡されます')}
-              </p>
+          {/* AI面談要約（全文）および話題・約束（U03要件） */}
+          <div className="mt-5 pt-4 border-t border-apple-border dark:border-apple-darkBorder space-y-3 text-xs">
+            {upcomingTranscript?.summary && (
+              <div className="p-3.5 rounded-2xl bg-blue-50/60 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-800/50 space-y-1">
+                <span className="text-apple-blue dark:text-apple-darkBlue font-bold flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>AI面談要約（{upcomingParticipant?.display_name || '面談相手'}様）</span>
+                </span>
+                <p className="text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-line">
+                  {upcomingTranscript.summary}
+                </p>
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder">
+                <span className="text-neutral-400 font-medium block mb-1">盛り上がった話題・本業</span>
+                <p className="text-neutral-700 dark:text-neutral-200">
+                  {pastTopic?.fact_value || (upcomingParticipant ? '前回の記録はありません' : '会議終了後にAI文字起こしから話題が自動抽出されます')}
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+                <span className="text-amber-800 dark:text-amber-400 font-medium block mb-1">保留中の約束・フォロー</span>
+                <p className="text-amber-900 dark:text-amber-200 font-medium">
+                  {pendingPromise?.fact_value || (upcomingParticipant ? '保留中の約束はありません' : '「〜を紹介する」等の約束事が自動追跡されます')}
+                </p>
+              </div>
             </div>
           </div>
         </section>

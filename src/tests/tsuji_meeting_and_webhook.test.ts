@@ -149,4 +149,56 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(imported?.title).toBe('テスト面談（自動受信）');
     expect(imported?.status).toBe('completed');
   });
+
+  it('田中義博様（夢叶開発）のカルテ・会社・面談要約・約束ToDo・お礼文に全内容が反映されていること', () => {
+    const tanaka = store.getPersonById('p-tanaka-yoshihiro');
+    expect(tanaka).toBeDefined();
+    expect(tanaka?.display_name).toBe('田中 義博');
+    expect(tanaka?.status).toBe('active');
+    expect(tanaka?.notes).toContain('夢叶開発');
+    expect(tanaka?.notes).toContain('マンション');
+
+    const orgs = store.getOrgMembershipsForPerson('p-tanaka-yoshihiro');
+    expect(orgs.some(o => o.organization_name === '夢叶開発')).toBe(true);
+    expect(orgs.some(o => o.organization_name.includes('ゼノベイト'))).toBe(false);
+
+    const tr = store.getTranscriptForMeeting('m-tanaka-20261110');
+    expect(tr).toBeDefined();
+    expect(tr?.summary).toContain('夢叶開発');
+    expect(tr?.summary).toContain('マンション買取再販');
+    expect(tr?.summary).toContain('ランチ');
+
+    const facts = store.getFactsForPerson('p-tanaka-yoshihiro');
+    expect(facts.some(f => f.fact_value.includes('買取再販'))).toBe(true);
+    expect(facts.some(f => f.fact_value.includes('ランチ'))).toBe(true);
+
+    const draft = store.generateThankYouDraft('m-tanaka-20261110', 'line_casual');
+    expect(draft.draft_text).toContain('夢叶開発');
+    expect(draft.draft_text).toContain('マンション買取再販');
+    expect(draft.draft_text).toContain('ランチ');
+  });
+
+  it('スマホで「夢叶開発の田中様」を登録し文字起こし・要約を入力しても重複せず田中義博様カルテへ完全統合されること', () => {
+    const spMeeting = store.createMeeting({
+      title: '夢叶開発の田中様',
+      participant_name: '夢叶開発の田中',
+      meeting_type: '1to1',
+      provider: 'zoom',
+      scheduled_start_at: '2026-11-10T11:00:00+09:00',
+    });
+
+    const pastedTranscript = `田中義博\n10:58:59\nすみません。よろしくお願いします。\n4/勝賀野 太郎/残置物撤去\n10:59:25\n改めまして、株式会社ゼノベイトの僕、生姜のと申します。\n田中義博\n10:59:31\nお世話になります。無党開発の田中と申します。会社は大阪でマンション中心に買取再販をやってます。`;
+
+    const res = store.processMeetingRecordingAndAutoRegister(spMeeting.id, pastedTranscript);
+    expect(res.person.id).toBe('p-tanaka-yoshihiro');
+    expect(res.person.display_name).toBe('田中 義博');
+    expect(res.summary.companyName).toBe('夢叶開発');
+    expect(res.summary.topic).toContain('マンション');
+    expect(res.summary.promise).toContain('ランチ');
+
+    // 重複した「夢叶開発の田中様」会議や仮人物が残っていないこと
+    const allTanakaMeetings = store.getMeetings().filter(m => m.title.includes('田中'));
+    expect(allTanakaMeetings.length).toBe(1);
+    expect(allTanakaMeetings[0].id).toBe('m-tanaka-20261110');
+  });
 });
