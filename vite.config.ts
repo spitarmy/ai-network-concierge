@@ -1,15 +1,16 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import fs from 'fs';
-import path from 'path';
+
+const BUILD_VERSION = Date.now().toString();
+const BUILT_AT = new Date().toISOString();
 
 function versionPlugin(): Plugin {
   return {
     name: 'version-plugin',
     generateBundle() {
       const buildInfo = {
-        version: Date.now().toString(),
-        builtAt: new Date().toISOString(),
+        version: BUILD_VERSION,
+        builtAt: BUILT_AT,
       };
       this.emitFile({
         type: 'asset',
@@ -23,7 +24,7 @@ function versionPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), versionPlugin()],
   define: {
-    __BUILD_TIMESTAMP__: JSON.stringify(Date.now().toString()),
+    __BUILD_TIMESTAMP__: JSON.stringify(BUILD_VERSION),
   },
   server: {
     port: 5173,

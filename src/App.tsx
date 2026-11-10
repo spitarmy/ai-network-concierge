@@ -198,7 +198,7 @@ export const App: React.FC = () => {
       />
 
       {/* メインコンテンツエリア */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 min-w-0 w-full flex flex-col h-full overflow-hidden">
         {/* グローバルヘッダー */}
         <Header
           currentTenant={currentTenant}
@@ -233,7 +233,7 @@ export const App: React.FC = () => {
         )}
 
         {/* 画面ビュー切り替え */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {currentView === 'home' && (
             <HomeView
               isSimpleMode={isSimpleMode}
