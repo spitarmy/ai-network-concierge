@@ -31,10 +31,17 @@ export const setStoredGeminiApiKey = (key: string): void => {
  * 音声ファイル（.m4a, .mp3, .wav, .aac, .ogg等）をGemini Flashに送信し、
  * 完全な文字起こしと構造化データ（氏名・会社・話題・約束・お礼文）を一括生成
  */
+import { store } from './store';
+
 export async function transcribeAudioWithGemini(
   audioFile: File,
   apiKeyOverride?: string
 ): Promise<GeminiAudioAnalysisResult> {
+  const currentTenant = store.getCurrentTenant();
+  if (currentTenant && (currentTenant.is_budget_throttled || currentTenant.current_spend_jpy >= currentTenant.monthly_budget_jpy)) {
+    throw new Error(`当月のAI原価上限（¥${currentTenant.monthly_budget_jpy.toLocaleString()}）に到達したため節約モードが発動中です。Zoom自動要約連携（0円）または文字起こしテキスト貼り付け解析（0円）をご利用ください。`);
+  }
+
   const apiKey = (apiKeyOverride || getStoredGeminiApiKey()).trim();
   if (!apiKey) {
     throw new Error('Gemini APIキーが設定されていません。APIキーを入力してください。');

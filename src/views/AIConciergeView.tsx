@@ -58,8 +58,11 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
     setInputQuery('');
     setMessages(prev => [...prev, userMsg]);
 
-    // Gemini APIが有効な場合はサーバーRAG推論 (/api/ai/chat) を優先実行
-    if (isGeminiActive) {
+    const currentTenant = store.getCurrentTenant();
+    const isThrottled = currentTenant.is_budget_throttled || currentTenant.current_spend_jpy >= currentTenant.monthly_budget_jpy;
+
+    // Gemini APIが有効かつ月間原価上限(¥1,000)未満の場合はサーバーRAG推論 (/api/ai/chat) を優先実行
+    if (isGeminiActive && !isThrottled) {
       setIsLoading(true);
       try {
         const persons = store.getPersons();

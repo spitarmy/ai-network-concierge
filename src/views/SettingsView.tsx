@@ -349,14 +349,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
         <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
           <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
             <DollarSign className="w-4 h-4 text-apple-green" />
-            <span>月間AI運用原価 & 予算ガードレール（目安: ¥4,980/月）</span>
+            <span>月間AI原価ストッパー & 収益ガードレール（1ユーザー原価上限: ¥1,000/月 ・ 販売価格: ¥4,980〜¥5,980/月）</span>
           </div>
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
             currentTenant.is_budget_throttled
               ? 'bg-amber-100 text-apple-amber'
               : 'bg-apple-green/10 text-apple-green'
           }`}>
-            {currentTenant.is_budget_throttled ? '節約モード発動中 (低優先AI停止)' : '通常稼働中'}
+            {currentTenant.is_budget_throttled ? '節約モード発動中 (¥1,000上限到達・0円エンジン稼働)' : '通常稼働中 (粗利保護OK)'}
           </span>
         </div>
 
@@ -377,10 +377,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
           </div>
 
           <div className="text-[11px] text-neutral-400 flex items-center justify-between pt-1">
-            <span>80%到達で静かな警告、100%到達で高コストAI処理を自動遮断</span>
+            <span>¥800到達で警告、¥1,000到達で自動的に0円ローカル検索・Zoom標準要約へ切替（赤字リスク0%）</span>
             <button
               onClick={() => {
-                store.recordAICost('bot_minutes', 'External-Bot', 120, 2800, '外部有償ボット稼働テスト (予算超過シミュレーション)');
+                store.recordAICost('bot_minutes', 'External-Bot', 120, 1000, '原価上限(¥1,000)到達ストッパー検証テスト');
                 onRefresh();
               }}
               className="text-apple-blue hover:underline text-[11px]"

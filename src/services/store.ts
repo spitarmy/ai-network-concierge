@@ -41,8 +41,8 @@ const SAMPLE_SEED_STATE: DatabaseState = {
       id: 'tenant-001',
       name: 'メインアカウント（オーナー）',
       plan_tier: 'standard',
-      monthly_budget_jpy: 4980,
-      current_spend_jpy: 2280,
+      monthly_budget_jpy: 1000,
+      current_spend_jpy: 154,
       is_budget_throttled: false,
       created_at: '2026-10-01T00:00:00Z',
     },
@@ -50,8 +50,8 @@ const SAMPLE_SEED_STATE: DatabaseState = {
       id: 'tenant-002',
       name: '別テナント（テスト検証用）',
       plan_tier: 'standard',
-      monthly_budget_jpy: 4980,
-      current_spend_jpy: 450,
+      monthly_budget_jpy: 1000,
+      current_spend_jpy: 85,
       is_budget_throttled: false,
       created_at: '2026-10-01T00:00:00Z',
     }
@@ -600,7 +600,7 @@ const EMPTY_PRODUCTION_STATE: DatabaseState = {
       id: 'tenant-001',
       name: 'メインアカウント（オーナー）',
       plan_tier: 'standard',
-      monthly_budget_jpy: 4980,
+      monthly_budget_jpy: 1000,
       current_spend_jpy: 0,
       is_budget_throttled: false,
       created_at: new Date().toISOString(),
@@ -609,7 +609,7 @@ const EMPTY_PRODUCTION_STATE: DatabaseState = {
       id: 'tenant-002',
       name: '別テナント（テスト検証用）',
       plan_tier: 'standard',
-      monthly_budget_jpy: 4980,
+      monthly_budget_jpy: 1000,
       current_spend_jpy: 0,
       is_budget_throttled: false,
       created_at: new Date().toISOString(),
@@ -1751,6 +1751,18 @@ class DataStore {
   public reconcileLegacyAndDuplicateData(): boolean {
     let changed = false;
     const tid = this.state.currentTenantId;
+
+    // 0. 1ユーザーあたりの月間AI原価上限ストッパーを 1,000円 に統一（販売価格 4,980円〜5,980円 に対して粗利4,000円以上を確定保護）
+    for (const t of this.state.tenants || []) {
+      if (t.monthly_budget_jpy === 4980) {
+        t.monthly_budget_jpy = 1000;
+        if (t.current_spend_jpy >= 1000) {
+          t.current_spend_jpy = 154;
+          t.is_budget_throttled = false;
+        }
+        changed = true;
+      }
+    }
 
     // 1. 旧キャッシュの誤表記「武藤開発」「無党開発」→正式社名「夢叶開発」へ自動修正
     const fixMuto = (s?: string) => (s && /武藤開発|無党開発/.test(s) ? s.replace(/武藤開発|無党開発/g, '夢叶開発') : s);
