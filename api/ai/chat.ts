@@ -80,7 +80,7 @@ export default async function handler(req: any, res: any) {
   "personalNotes": "年齢・出身・居住地・家族構成・趣味・共通の知人など、次回1to1で役立つパーソナル情報"
 }`;
 
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-2.5-flash'];
       let lastError = '';
       for (const modelName of modelsToTry) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -128,6 +128,57 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    if (mode === 'transcribe_audio') {
+      const mimeType: string = parsed.mimeType || 'audio/mp4';
+      const base64Data: string = parsed.base64Data || '';
+      const promptText: string = parsed.promptText || '';
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+      let lastError = '';
+      for (const modelName of modelsToTry) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const geminiRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { inline_data: { mime_type: mimeType, data: base64Data } },
+                  { text: promptText },
+                ],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.2,
+            },
+          }),
+        });
+        if (geminiRes.ok) {
+          const data: any = await geminiRes.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            const resultJson = JSON.parse(text.trim());
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              ok: true,
+              gemini_configured: true,
+              model: modelName,
+              result: resultJson,
+            }));
+            return;
+          }
+        } else {
+          lastError = await geminiRes.text().catch(() => `HTTP ${geminiRes.status}`);
+        }
+      }
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ ok: false, gemini_configured: true, error: lastError }));
+      return;
+    }
+
     const question: string = (parsed.question || '').trim();
     const contextData = parsed.context || {};
 
@@ -150,7 +201,7 @@ export default async function handler(req: any, res: any) {
 【登録済み人脈カルテ・面談要約・確定Factsデータ】
 ${JSON.stringify(contextData)}`;
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-2.5-flash'];
     let lastError = '';
 
     for (const modelName of modelsToTry) {

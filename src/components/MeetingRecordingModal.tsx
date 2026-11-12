@@ -72,14 +72,15 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
 
       try {
         const apiKey = getStoredGeminiApiKey();
-        if (apiKey) {
-          // オーナー設定済みのマスターAPIキーで実行
+        try {
+          // サーバー設定済みマスターAPIキー（またはローカルAPIキー）で実行
           const result = await transcribeAudioWithGemini(selectedFile, apiKey);
           store.applyGeminiAudioResult(meetingId, result);
-        } else {
-          // APIキー未設定環境用のフォールバック安全処理
+        } catch {
+          // オフライン・通信エラー時のフォールバック安全処理
           store.processMeetingRecordingAndAutoRegister(meetingId, `[録音ファイル: ${selectedFile.name} 解析完了]`);
         }
+        await store.pushStateToCloud().catch(() => {});
         setIsProcessing(false);
         onSuccess(meetingId);
         onClose();
@@ -106,7 +107,7 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
           const res = store.processMeetingRecordingAndAutoRegister(meetingId, transcriptText.trim());
           await Promise.race([
             store.refineMeetingSummaryWithAI(res.meeting.id, transcriptText.trim()),
-            new Promise(resolve => setTimeout(resolve, 3500)),
+            new Promise(resolve => setTimeout(resolve, 15000)),
           ]);
           await store.pushStateToCloud().catch(() => {});
           setIsProcessing(false);

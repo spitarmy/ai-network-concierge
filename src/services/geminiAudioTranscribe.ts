@@ -43,9 +43,6 @@ export async function transcribeAudioWithGemini(
   }
 
   const apiKey = (apiKeyOverride || getStoredGeminiApiKey()).trim();
-  if (!apiKey) {
-    throw new Error('Gemini APIキーが設定されていません。APIキーを入力してください。');
-  }
 
   // 音声ファイルをBase64エンコード
   const base64Data = await new Promise<string>((resolve, reject) => {
@@ -75,7 +72,7 @@ export async function transcribeAudioWithGemini(
    - 会話中に盛り上がったポーカーやフットサル、昔話、単発の企画などは「discussion_topics」に記載。
 2. 相手が求めている「紹介ターゲット（どんな見込み客や協業先を求めているか）」を具体的に言語化してください。
 3. 次回までの「約束・宿題（ToDo）」は、「誰が」「何を」「いつまでに」行うかを明確に抽出してください。
-4. 会話に登場した第三者（幼馴染、仲間、紹介元など）を特定してください。
+4. 会話に登場した第三者（幼馴染、仲間、紹介元など）を特定してください（所属チャプター等が明言されていない場合は推測で断定しないこと）。
 
 必ず以下のキーを持つJSONオブジェクトのみを出力してください（Markdownコードブロックは不要）:
 {
@@ -93,8 +90,45 @@ export async function transcribeAudioWithGemini(
 }
 `;
 
-  // Gemini 1.5 Flash（または2.5 Flash）エンドポイント
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // まずサーバーエンドポイント (/api/ai/chat) のマスターAPIキーで実行
+  try {
+    const serverRes = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'transcribe_audio',
+        apiKey: apiKey || undefined,
+        mimeType,
+        base64Data,
+        promptText,
+      }),
+    });
+    if (serverRes.ok) {
+      const serverJson = await serverRes.json();
+      if (serverJson.ok && serverJson.result) {
+        const parsed = serverJson.result;
+        return {
+          full_transcript: parsed.full_transcript || '',
+          partner_name: parsed.partner_name || '面談相手',
+          partner_company: parsed.partner_company || '',
+          partner_title: parsed.partner_title || '',
+          bni_chapter: parsed.bni_chapter || '',
+          bni_category: parsed.bni_category || '',
+          topic: parsed.discussion_topics ? `${parsed.core_business ? `【本業】${parsed.core_business} / ` : ''}【話題】${parsed.discussion_topics}` : (parsed.topic || '事業・取り組みに関する意見交換'),
+          promise: parsed.promise || '面談内容の整理と次回アクションの確認',
+          thank_you_draft: parsed.thank_you_draft || '',
+        };
+      }
+    }
+  } catch {
+    // サーバー経由失敗時はローカル直接通信へフォールバック
+  }
+
+  if (!apiKey) {
+    throw new Error('Gemini API通信エラーが発生しました。');
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const requestBody = {
     contents: [
