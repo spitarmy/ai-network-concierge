@@ -1989,6 +1989,12 @@ class DataStore {
     }
 
     // 8. 紹介元の三島様（だんじりチャプター・勝賀野様と同チャプター）および土林様（だんじりチャプター）の相関図エッジと紹介ハブ提案
+    this.deletedIds.add('p-mishima-prov');
+    this.deletedIds.add('rel-mishima-iwane');
+    this.deletedIds.delete('p-mishima-danjiri');
+    this.deletedIds.delete('p-tsuchibayashi-danjiri');
+    this.deletedIds.delete('rel-mishima-danjiri-iwane');
+    this.deletedIds.delete('rel-tsuchibayashi-iwane');
     this.state.persons = this.state.persons.filter(p => p.id !== 'p-mishima-prov');
     this.state.relationships = this.state.relationships.filter(r => r.id !== 'rel-mishima-iwane');
 
@@ -2026,8 +2032,8 @@ class DataStore {
       });
     }
 
-    if (!this.state.relationships.some(r => r.id === 'rel-mishima-danjiri-iwane')) {
-      this.state.relationships.push({
+    const coreRelationships: PersonRelationship[] = [
+      {
         id: 'rel-mishima-danjiri-iwane',
         tenant_id: tid,
         from_person_id: 'p-mishima-danjiri',
@@ -2037,11 +2043,8 @@ class DataStore {
         confidence: 1.0,
         evidence_text: '11/12 岩根義行様1to1面談にて「だんじりチャプターの三島様（北新地スナック経営）からご紹介」と双方確認',
         source_meeting_id: 'm-iwane-20261112',
-      });
-    }
-
-    if (!this.state.relationships.some(r => r.id === 'rel-tsuchibayashi-iwane')) {
-      this.state.relationships.push({
+      },
+      {
         id: 'rel-tsuchibayashi-iwane',
         tenant_id: tid,
         from_person_id: 'p-tsuchibayashi-danjiri',
@@ -2051,7 +2054,83 @@ class DataStore {
         confidence: 1.0,
         evidence_text: '11/12 岩根義行様1to1面談にて「だんじりチャプターの土林様がディスカイステージのインストラクター登録メンバーとして深く協業」と確認',
         source_meeting_id: 'm-iwane-20261112',
-      });
+      },
+      {
+        id: 'rel-miura-tanaka',
+        tenant_id: tid,
+        from_person_id: 'p-miura-prov',
+        to_person_id: 'p-tanaka-yoshihiro',
+        relationship_type: '西友寺案件・間接取引およびマンション買取実績',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/10 田中義博様1to1面談にて「リクシル不動産の三浦様・入江様を通じて西友寺案件で請求書やり取り・買取取引実績あり」と双方確認',
+        source_meeting_id: 'm-tanaka-20261110',
+      },
+      {
+        id: 'rel-ito-kimura',
+        tenant_id: tid,
+        from_person_id: 'p-ito-prov',
+        to_person_id: 'p-kimura-naofumi',
+        relationship_type: '紹介元（東山高校同窓・幼馴染のご縁）',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/09 木村尚史様1to1面談にて「幼馴染の奥様である伊藤さんからの紹介で東山高校同窓と判明」と確認',
+        source_meeting_id: 'm-kimura-20261109',
+      },
+      {
+        id: 'rel-endo-tsuji',
+        tenant_id: tid,
+        from_person_id: 'p-endo-prov',
+        to_person_id: 'p-tsuji-akinori',
+        relationship_type: '紹介制アミューズメントポーカー企画・ディーラー協業',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/09 辻晃典様1to1面談にて「ディーラー担当は遠藤さん一択で営業許可・開催運営を連携」と確認',
+        source_meeting_id: 'm-tsuji-20261109',
+      },
+      {
+        id: 'rel-ai-iwane-tanaka',
+        tenant_id: tid,
+        from_person_id: iwaneId,
+        to_person_id: 'p-tanaka-yoshihiro',
+        relationship_type: 'AI紹介推薦（ドローン外壁赤外線・漏水調査 × 中古マンション買取再販）',
+        is_ai_inferred: true,
+        confidence: 0.98,
+        evidence_text: '岩根様のドローン外壁赤外線・雨漏り診断（全国500棟超）と田中様（夢叶開発）の中古マンション買取再販・建築ネットワークが高シナジー',
+        source_meeting_id: 'm-iwane-20261112',
+      },
+      {
+        id: 'rel-ai-iwane-kimura',
+        tenant_id: tid,
+        from_person_id: iwaneId,
+        to_person_id: 'p-kimura-naofumi',
+        relationship_type: 'AI紹介推薦（八尾工場機械・残置物撤去 × 古物査定カンテノ・リユース連携）',
+        is_ai_inferred: true,
+        confidence: 0.96,
+        evidence_text: '岩根様から紹介予定の八尾工場機械・残置物撤去ニーズおよびカンテノ導入検討と、勝賀野様・木村様のリユース回収体制が合致',
+        source_meeting_id: 'm-iwane-20261112',
+      },
+      {
+        id: 'rel-ai-tanaka-kimura',
+        tenant_id: tid,
+        from_person_id: 'p-tanaka-yoshihiro',
+        to_person_id: 'p-kimura-naofumi',
+        relationship_type: 'AI紹介推薦（買取再販マンション残置物撤去 × 不用品回収・リユース循環）',
+        is_ai_inferred: true,
+        confidence: 0.95,
+        evidence_text: '田中様の買取再販マンション残置物撤去ニーズと、勝賀野様（桂リサイクルショップRoute Z）・木村様の不用品回収体制が合致',
+        source_meeting_id: 'm-tanaka-20261110',
+      },
+    ];
+
+    for (const rel of coreRelationships) {
+      if (this.deletedIds.has(rel.id)) continue;
+      const existingIdx = this.state.relationships.findIndex(r => r.id === rel.id);
+      if (existingIdx >= 0) {
+        this.state.relationships[existingIdx] = rel;
+      } else {
+        this.state.relationships.push(rel);
+      }
     }
 
     if (!this.deletedIds.has('ref-iwane-tanaka') && !this.state.referrals.some(r => r.id === 'ref-iwane-tanaka')) {
@@ -2334,10 +2413,11 @@ class DataStore {
     if (iwaneMain) {
       const dupIwanePersons = this.state.persons.filter(p =>
         p.tenant_id === tid &&
-        p.id !== 'p-iwane-yoshiyuki' &&
+        !['p-iwane-yoshiyuki', 'p-mishima-danjiri', 'p-tsuchibayashi-danjiri', 'p-mishima-prov'].includes(p.id) &&
+        !/三島|土林/.test(p.display_name) &&
         (
           /岩根|岩根工業|ディスカイステージ|シャングリア|シャングリラ/.test(p.display_name.trim()) ||
-          (p.notes && /岩根工業|ディスカイステージ|シャングリラチャプター/.test(p.notes) && p.id !== 'p-mishima-prov')
+          (p.notes && /岩根工業|シャングリラチャプター/.test(p.notes))
         )
       );
       for (const dupP of dupIwanePersons) {
@@ -2481,6 +2561,20 @@ class DataStore {
           }
         }
       }
+    }
+
+    // 5. 相関図の孤児エッジ（片方の人物が削除・統合されて存在しない関係エッジ）を自動クリーンアップ
+    if (Array.isArray(this.state.relationships)) {
+      const validPersonIds = new Set((this.state.persons || []).map(p => p.id));
+      for (const rel of this.state.relationships) {
+        if (!validPersonIds.has(rel.from_person_id) || !validPersonIds.has(rel.to_person_id) || rel.id === 'rel-mishima-iwane') {
+          this.deletedIds.add(rel.id);
+          changed = true;
+        }
+      }
+      this.state.relationships = this.state.relationships.filter(
+        rel => validPersonIds.has(rel.from_person_id) && validPersonIds.has(rel.to_person_id) && rel.id !== 'rel-mishima-iwane'
+      );
     }
 
     if (changed) {
@@ -4793,9 +4887,13 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
   // --- 相関図 (Graph) ---
   public getRelationships(mode: 'actual' | 'ai_suggested'): PersonRelationship[] {
     const tid = this.state.currentTenantId;
-    return this.state.relationships.filter(
-      r => r.tenant_id === tid && (mode === 'actual' ? !r.is_ai_inferred : r.is_ai_inferred)
-    );
+    return this.state.relationships.filter(r => {
+      if (r.tenant_id !== tid) return false;
+      if (mode === 'actual' ? r.is_ai_inferred : !r.is_ai_inferred) return false;
+      const fromP = this.getPersonById(r.from_person_id);
+      const toP = this.getPersonById(r.to_person_id);
+      return Boolean(fromP && toP);
+    });
   }
 
   public createRelationship(data: {

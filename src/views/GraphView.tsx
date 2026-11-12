@@ -26,11 +26,27 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
 
   const rawRelationships = store.getRelationships(mode);
   const relationships = rawRelationships.filter(rel => {
-    if (showProvisional) return true;
     const fromP = store.getPersonById(rel.from_person_id);
     const toP = store.getPersonById(rel.to_person_id);
-    return fromP?.status !== 'provisional' && toP?.status !== 'provisional';
+    if (!fromP || !toP) return false;
+    if (showProvisional) return true;
+    // 確認済み実関係（紹介元・同チャプター協業など）で少なくとも一方が本登録(active)の人脈である場合は描画する
+    if (!rel.is_ai_inferred && (fromP.status !== 'provisional' || toP.status !== 'provisional')) {
+      return true;
+    }
+    return fromP.status !== 'provisional' && toP.status !== 'provisional';
   });
+
+  const connectedPersonIds = new Set<string>();
+  for (const rel of relationships) {
+    const fromP = store.getPersonById(rel.from_person_id);
+    const toP = store.getPersonById(rel.to_person_id);
+    if (fromP && toP) {
+      connectedPersonIds.add(fromP.id);
+      connectedPersonIds.add(toP.id);
+    }
+  }
+  const independentPersons = persons.filter(p => !connectedPersonIds.has(p.id));
 
   const handleCreateRelationship = (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,14 +232,64 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
               </div>
             </div>
           ) : (
-            /* 関係性が存在する場合: 実際の結線エッジを描画 */
+            /* 関係性が存在する場合: 本登録ノード一覧 + 実際の結線エッジを描画 */
             <div className="w-full max-w-3xl space-y-6">
+              {/* 本登録人脈ノード（1to1面談済みメンバー）一覧 */}
+              <div className="p-3.5 rounded-2xl bg-neutral-800/40 border border-neutral-700/60 space-y-2.5">
+                <div className="text-[11px] font-semibold text-neutral-300 flex items-center justify-between px-1">
+                  <span className="flex items-center space-x-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-apple-green" />
+                    <span>本登録カルテ（1to1面談済みメンバー: {realPersons.length}名）</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-400">タップで人物カルテを開く</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {realPersons.map((p) => {
+                    const bni = store.getBNIMembershipsForPerson(p.id)[0];
+                    const org = store.getOrgMembershipsForPerson(p.id)[0];
+                    const subtitle = bni?.chapter_name
+                      ? `${bni.chapter_name}${org?.organization_name ? ` / ${org.organization_name}` : ''}`
+                      : (org?.organization_name || p.category_tags[0] || '人脈メンバー');
+                    const relCount = relationships.filter(r => r.from_person_id === p.id || r.to_person_id === p.id).length;
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => onSelectPerson(p.id)}
+                        className="cursor-pointer group flex items-center space-x-2.5 p-2.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700/80 hover:border-apple-blue/60 transition-all"
+                      >
+                        <UserAvatar name={p.display_name} avatarUrl={p.avatar_url} size="md" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-white group-hover:text-apple-blue truncate">
+                            {p.display_name}
+                          </div>
+                          <div className="text-[10px] text-neutral-400 truncate">
+                            {subtitle}
+                          </div>
+                          <div className="text-[9px] text-emerald-400 font-medium mt-0.5">
+                            結線エッジ: {relCount}件
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* 関係性リスト・結線表示 */}
               <div className="space-y-4">
                 {relationships.map((rel) => {
                   const fromP = store.getPersonById(rel.from_person_id);
                   const toP = store.getPersonById(rel.to_person_id);
                   if (!fromP || !toP) return null;
+
+                  const fromBni = store.getBNIMembershipsForPerson(fromP.id)[0];
+                  const fromOrg = store.getOrgMembershipsForPerson(fromP.id)[0];
+                  const fromSub = fromBni?.chapter_name || fromOrg?.organization_name || fromP.category_tags[0] || '人脈メンバー';
+
+                  const toBni = store.getBNIMembershipsForPerson(toP.id)[0];
+                  const toOrg = store.getOrgMembershipsForPerson(toP.id)[0];
+                  const toSub = toBni?.chapter_name || toOrg?.organization_name || toP.category_tags[0] || '人脈メンバー';
 
                   return (
                     <div
@@ -240,11 +306,11 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                           <div className="text-xs font-bold text-white group-hover:text-apple-blue flex items-center space-x-1">
                             <span>{fromP.display_name}</span>
                             {fromP.status === 'provisional' && (
-                              <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
+                              <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">紹介・言及</span>
                             )}
                           </div>
-                          <div className="text-[10px] text-neutral-400">
-                            {fromP.category_tags[0] || '人脈メンバー'}
+                          <div className="text-[10px] text-neutral-400 max-w-[160px] truncate">
+                            {fromSub}
                           </div>
                         </div>
                       </div>
@@ -253,7 +319,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                       <div className="flex-1 flex flex-col items-center space-y-1 w-full sm:w-auto">
                         <div className="w-full flex items-center space-x-2">
                           <div className="h-[2px] flex-1 bg-gradient-to-r from-emerald-500 to-apple-blue"></div>
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs ${
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs text-center ${
                             mode === 'actual'
                               ? 'bg-emerald-950/70 border-emerald-700 text-emerald-300'
                               : 'bg-indigo-950/70 border-indigo-700 text-indigo-300'
@@ -262,7 +328,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                           </span>
                           <div className="h-[2px] flex-1 bg-gradient-to-r from-apple-blue to-emerald-500"></div>
                         </div>
-                        <div className="text-[10px] text-neutral-400 text-center max-w-xs truncate">
+                        <div className="text-[10px] text-neutral-400 text-center max-w-sm">
                           根拠: {rel.evidence_text}
                         </div>
                       </div>
@@ -276,11 +342,11 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                           <div className="text-xs font-bold text-white group-hover:text-apple-blue text-right flex items-center justify-end space-x-1">
                             <span>{toP.display_name}</span>
                             {toP.status === 'provisional' && (
-                              <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
+                              <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">紹介・言及</span>
                             )}
                           </div>
-                          <div className="text-[10px] text-neutral-400 text-right">
-                            {toP.category_tags[0] || '人脈メンバー'}
+                          <div className="text-[10px] text-neutral-400 text-right max-w-[160px] truncate">
+                            {toSub}
                           </div>
                         </div>
                         <UserAvatar name={toP.display_name} avatarUrl={toP.avatar_url} size="lg" />
@@ -300,25 +366,23 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
               </div>
 
               {/* 関係性に含まれていない他の独立人脈ノード */}
-              {persons.some(p => !relationships.some(r => r.from_person_id === p.id || r.to_person_id === p.id)) && (
+              {independentPersons.length > 0 && (
                 <div className="pt-4 border-t border-neutral-800">
-                  <div className="text-[11px] text-neutral-400 mb-3 text-center">その他の独立実人脈（接点未確認）:</div>
+                  <div className="text-[11px] text-neutral-400 mb-3 text-center">その他の独立人脈（このモードでの結線なし）:</div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
-                    {persons
-                      .filter(p => !relationships.some(r => r.from_person_id === p.id || r.to_person_id === p.id))
-                      .map(p => (
-                        <div
-                          key={p.id}
-                          onClick={() => onSelectPerson(p.id)}
-                          className="cursor-pointer group flex items-center space-x-2 p-2 rounded-xl bg-neutral-800/40 hover:bg-neutral-800 border border-neutral-700/50"
-                        >
-                          <UserAvatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
-                          <span className="text-xs text-white group-hover:text-apple-blue">{p.display_name}</span>
-                          {p.status === 'provisional' && (
-                            <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
-                          )}
-                        </div>
-                      ))}
+                    {independentPersons.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => onSelectPerson(p.id)}
+                        className="cursor-pointer group flex items-center space-x-2 p-2 rounded-xl bg-neutral-800/40 hover:bg-neutral-800 border border-neutral-700/50"
+                      >
+                        <UserAvatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
+                        <span className="text-xs text-white group-hover:text-apple-blue">{p.display_name}</span>
+                        {p.status === 'provisional' && (
+                          <span className="px-1 py-0.2 rounded text-[8px] bg-amber-500 text-black">仮</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

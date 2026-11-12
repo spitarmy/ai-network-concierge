@@ -368,10 +368,20 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
   it('岩根義行様の相関図（だんじりチャプターの三島様・土林様）と紹介ハブ提案、およびSaaS月額会員テナント完全分離が動作すること', () => {
     store.setTenantId('tenant-001');
     store.seedIwaneMeeting();
+    store.reconcileLegacyAndDuplicateData();
 
     const rels = store.getRelationships('actual');
     expect(rels.some(r => r.id === 'rel-mishima-danjiri-iwane')).toBe(true);
     expect(rels.some(r => r.id === 'rel-tsuchibayashi-iwane')).toBe(true);
+    // すべての関係エッジの両端の人物が存在し、岩根様が孤児エッジで消えないこと
+    for (const rel of rels) {
+      expect(store.getPersonById(rel.from_person_id)).toBeDefined();
+      expect(store.getPersonById(rel.to_person_id)).toBeDefined();
+    }
+
+    const aiRels = store.getRelationships('ai_suggested');
+    expect(aiRels.some(r => r.id === 'rel-ai-iwane-tanaka')).toBe(true);
+    expect(aiRels.some(r => r.id === 'rel-ai-iwane-kimura')).toBe(true);
 
     const refs = store.getReferrals();
     expect(refs.some(r => r.id === 'ref-iwane-tanaka')).toBe(true);
