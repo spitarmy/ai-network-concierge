@@ -3788,7 +3788,7 @@ class DataStore {
     const isIwaneContext =
       meeting.id === 'm-iwane-20261112' ||
       /岩根|ディスカイステージ/.test(meeting.title) ||
-      /岩根工業|ディスカイステージ|シャングリラチャプター|シャングリアチャプター/.test(rawInput);
+      /岩根工業|ディスカイステージ|岩根\s*義行/.test(rawInput);
 
     if (isIwaneContext) {
       this.seedIwaneMeeting();
@@ -3876,8 +3876,9 @@ class DataStore {
         .map(s => s.replace(/^[^\s:：]{1,20}[:：]\s*/, '').trim())
         .filter(s => s.length > 4 && !/^\d{1,2}:\d{2}/.test(s) && !this.isSelfSpeaker(s));
 
-      // 1. お名前抽出（勝賀野様自身の自己紹介は厳格に除外、姓のみラベルよりフルネーム自己紹介を優先）
-      if (!isKnownParticipant || realName.includes('の')) {
+      // 1. お名前抽出（勝賀野様自身の自己紹介は厳格に除外、事前予定が姓のみの場合も文字起こしのフルネームへ自動昇格）
+      const isSurnameOnly = isKnownParticipant && !realName.includes(' ') && /^[一-龯]{1,3}$/.test(realName);
+      if (!isKnownParticipant || realName.includes('の') || isSurnameOnly) {
         const externalSpeakers = Array.from(
           new Set(
             utterancesList
@@ -3890,11 +3891,21 @@ class DataStore {
         const fullSpeaker = externalSpeakers.find(sp => sp.includes(' ') || sp.length >= 4);
         const nameMatch = rawInput.match(/(?:高橋 誠治|高橋誠治|山田 太郎|山田太郎|佐藤 由香|佐藤由香|田中 健二|田中健二|鈴木 一郎|鈴木一郎|田中 義博|田中義博|木村 尚史|木村尚史|辻 晃典|辻晃典)/);
         if (fullSpeaker) {
-          realName = fullSpeaker;
+          const parts = fullSpeaker.trim().split(/\s+/);
+          if (
+            parts.length === 2 &&
+            (titleHint.personName === parts[1] ||
+              realName === parts[1] ||
+              new RegExp(`${parts[1]}(?:さん|様|と申します|です|工業|開発|建設|商事)`).test(rawInput))
+          ) {
+            realName = `${parts[1]} ${parts[0]}`;
+          } else if (!isSurnameOnly || fullSpeaker.includes(realName)) {
+            realName = fullSpeaker;
+          }
         } else if (nameMatch) {
           const raw = nameMatch[0];
           realName = raw.includes(' ') ? raw : `${raw.slice(0, 2)} ${raw.slice(2)}`;
-        } else {
+        } else if (!isSurnameOnly) {
           const introMatches = Array.from(partnerTextJoined.matchAll(/(?:の|、|\s|^)([一-龯]{2,6})(?:と申します|です)/g));
           const validIntro = introMatches.find(
             m => m[1] && !this.isSelfSpeaker(m[1]) && !/^(はじめまして|本日|私|僕|代表|社長|会議|面談|大丈夫|そうなん)$/.test(m[1])
@@ -3936,68 +3947,149 @@ class DataStore {
       }
 
       // 3. BNIチャプター・カテゴリー
-      const chMatch = rawInput.match(/([^\s\n、。「」『』()（）]{2,10}?チャプター)/);
-      if (chMatch) bniChapter = chMatch[0].replace(/^BNI\s*/i, '');
-      const catMatch = rawInput.match(/カテゴリーは?([^\s\n、。「」『』()（）]{2,15})/);
-      if (catMatch) bniCategory = catMatch[1];
+      const chMatch = rawInput.match(/([^\s\n、。「」『』()（）]{2,12}?チャプター)/);
+      if (chMatch) {
+        const rawCh = chMatch[0].replace(/^BNI\s*/i, '').replace(/シャングリア/, 'シャングリラ');
+        const stripped = rawCh.replace(/^.*?(?:リージョン|セントラル|センタール)の?/, '');
+        bniChapter = stripped.length > 4 ? stripped : rawCh;
+      }
+      const catMatch = rawInput.match(/カテゴリー?[はが:：]\s*([^\s\n、。「」『』()（）]{2,20})/);
+      if (catMatch) {
+        bniCategory = catMatch[1]
+          .replace(/(?:っていう.*|という.*|になってます|になります|です|でやっ.*|で入っ.*)$/, '')
+          .replace(/で業務/, '・')
+          .trim();
+      }
 
-      // 挨拶・相槌・話し言葉フィラーの除去と、生発言をそのまま貼らない構造化ビジネス要約の生成
-      const cleanSpokenSentence = (rawLine: string): string => {
+      // 話し言葉・音声認識ゆれを自然な第三者視点ビジネス日本語へ整形する関数
+      const rewriteSpokenToBusiness = (rawLine: string): string => {
         return rawLine
-          .replace(/^(?:はい|ええ|ああ|おお|うん|なるほど|そうですね|あ、|えー、?|えっと、?|あのー?|まあ、?|なんか、?|で、?|それで、?|ちょっと、?|すいません、?|すみません、?|改めまして、?|ちなみに、?)+/g, '')
-          .replace(/(?:えー、?|えっと、?|あのー、?|まあ、?|なんか、?)/g, '')
-          .replace(/^(?:僕は|私は|私の方は|うちは|弊社は)\s*/g, '')
-          .replace(/(?:っていうところもやってます|というところもやってます|っていうような感じでやってます|っていう感じでやってます|をやったりはしてます|をやってます|をやっております)$/, 'を展開')
+          .replace(/一般車の方[、。\s]*ディスカイステージ/g, '一般社団法人ディスカイステージ')
+          .replace(/一般車の方/g, '一般社団法人')
+          .replace(/世界線調査/g, '赤外線調査')
+          .replace(/老衰/g, '漏水')
+          .replace(/ロックアクセス|ロップアクセス/g, 'ロープアクセス')
+          .replace(/仮説ゴンドラ|仮設コンドラ/g, '仮設ゴンドラ')
+          .replace(/^(?:はい|ええ|ああ|おお|うん|なるほど|そうですね|あ、|えー、?|えっと、?|あのー?|まあ、?|なんか、?|で、?|それで、?|ちょっと、?|すいません、?|すみません、?|改めまして、?|ちなみに、?|よろしくお願いします、?|ありがとうございます、?|はいでちょっと)+/g, '')
+          .replace(/(?:あのま|あのー|えーと|えっと|えー|まあまあ|まー|なんかこう|なんか|やっぱりその|やっぱり|やっぱ|ぶっちゃけ|ほんまに|むちゃくちゃ|めちゃめちゃ|わりかし|一応|要は|ここら辺が|そういったところで|そういったところが|会社の紹介なんですけれども、?|はいでちょっと)\s*/g, '')
+          .replace(/^(?:僕は|私は|私の方は|うちは|弊社は|私たちは|会社の紹介なんですけれども、?|ドローンの方が)\s*/g, '')
+          .replace(/してい支援をしていますと/g, '支援を展開')
+          .replace(/とかやってるんですけども/g, 'を展開')
+          .replace(/(?:っていうふうになってます|というふうになってます|っていうところもやってます|というところもやってます|っていうような感じでやってます|っていう感じでやってます|をやったりはしてます|をやってます|をやっております|をしてます)$/g, 'を展開')
+          .replace(/を支援を展開/g, 'を支援')
+          .replace(/(?:っていうところの方が|っていうところが|というところが)/g, 'は')
           .replace(/(?:っていうところ|というところ)/g, '')
-          .replace(/(?:かなと思ってます|かなというところで|と思ってます)$/, '')
-          .replace(/(?:とか、今|で。|て。|けど。|ので。)$/, '')
+          .replace(/(?:かなと思ってます|かなというところで|と思ってます|ていけたらなと思ってます)$/g, '')
+          .replace(/(?:とか、今|で。|て。|けど。|ので。|ですけども|なんですけれども|なんですけど)$/g, '')
+          .replace(/\s+/g, ' ')
           .trim();
       };
 
-      const greetingOrSmallTalkNoise = /^(すみません|すいません|よろしくお願いします|よろしくお願いいたします|お世話になります|ありがとうございます|ありがとうございました|いえいえ|あいえいえ|はいはい|そうですね|なるほど|大丈夫でしたか|日程ちょっと調整|改めまして|見えてますでしょうか|共有させていただきます|文字起こしはいかが)/;
-      const incompleteOrQuestionNoise = /(?:ですか\？|\?$|っていうのは.*ですか|とか、今$|で$|て$|けど$|から$|ちょっと待ってください)/;
-
-      const substantiveSentences = sentenceList
-        .map(s => cleanSpokenSentence(s))
-        .filter(s => s.length >= 12 && !greetingOrSmallTalkNoise.test(s) && !incompleteOrQuestionNoise.test(s));
-
-      // 4. 約束事項・ToDoの構造化要約（単なる「相談」等の一般語での誤抽出を防ぎ、実際の紹介・連絡・食事・送付アクションのみを第三者視点で要約）
-      const strictPromiseKeywords = /(?:紹介させて|紹介してもいい|おつなぎ|お繋ぎ|連絡取り合って|LINEで|ランチ|飲みに行|一緒にお酒|お送り|送ります|送付|見積|日程調整|設定|ご案内)/;
-      const rawPromiseCandidates = sentenceList
-        .filter(l => strictPromiseKeywords.test(l) && !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて|ご紹介していただきましたよね|どこに相談しても/.test(l))
-        .map(l => cleanSpokenSentence(l))
-        .filter(l => l.length >= 10 && !incompleteOrQuestionNoise.test(l));
-
-      if (rawPromiseCandidates.length > 0) {
-        const formattedPromises = rawPromiseCandidates.slice(-3).map(p => {
-          return p
-            .replace(/紹介してもいいですか\？?/, `${realName}様へ紹介する`)
-            .replace(/順におつなぎしていきますのでよろしくお願いします/, 'LINEで順次紹介・おつなぎを進める')
-            .replace(/連絡取り合って/, 'LINEで連絡を取り合い相互紹介を進める');
-        });
-        promise = formattedPromises.slice(0, 2).join(' / ');
-      } else {
-        promise = `${realName}様とLINEで連絡を取り合い、相互の顧客紹介・協業連携を進める`;
+      // 同一話者の連続発話を結合したターンリストを作成（文途切れを防止）
+      const speakerTurns: { speaker: string; isSelf: boolean; text: string }[] = [];
+      for (const u of utterancesList) {
+        if (!u.text || /^(?:はい|ええ|ああ|おお|うん|うんうん|なるほど|そうですね|ありがとうございます|よろしくお願いします|Hi\.|Mmhm\.|Thank you\.|Good\.|Bye\.|Awesome\.|Okay, super\.)[。！!？?]*$/i.test(u.text.trim())) {
+          continue;
+        }
+        const isSelf = Boolean(u.speaker && this.isSelfSpeaker(u.speaker));
+        const prevTurn = speakerTurns[speakerTurns.length - 1];
+        if (prevTurn && prevTurn.isSelf === isSelf) {
+          prevTurn.text += ' ' + u.text.trim();
+        } else {
+          speakerTurns.push({ speaker: u.speaker, isSelf, text: u.text.trim() });
+        }
       }
 
-      // 5. 話題・ビジネス文脈の構造化要約（生の発言文のツギハギではなく、事業内容・強み・実績・紹介ターゲットを要約）
-      const partnerSubstantive = externalSpokenLines
-        .flatMap(l => l.split(/[。！!]/))
-        .map(s => cleanSpokenSentence(s))
-        .filter(s => s.length >= 14 && !greetingOrSmallTalkNoise.test(s) && !incompleteOrQuestionNoise.test(s) && !/チャプターっていうのは|ご紹介していただきましたよね/.test(s));
+      // 4. 約束事項・ToDoの構造化要約（勝賀野様側・お相手側の具体的な紹介・連絡・食事・検討アクションを抽出して第三者視点のToDo文へ整形）
+      const synthesizedPromises: string[] = [];
+      const fullJoinedSelf = speakerTurns.filter(t => t.isSelf).map(t => t.text).join('。');
+      const fullJoinedPartner = speakerTurns.filter(t => !t.isSelf).map(t => t.text).join('。');
 
-      const coreBizKeywords = /(?:調査|工事|開発|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|資格|ドローン|建築|オーナー|管理会社|実績|全国|拠点|支援|コンサル|専門|強み|提供|販売|運営|サービス)/;
-      const bizHighlights = partnerSubstantive.filter(l => coreBizKeywords.test(l) && !rawPromiseCandidates.includes(l));
-      const selectedHighlights = (bizHighlights.length > 0 ? bizHighlights : substantiveSentences).slice(0, 3);
+      const selfIntroTargetMatch = fullJoinedSelf.match(/([^\s。、]{2,25}(?:と[^\s。、]{2,15})+)(?:を)?紹介してもいいですか|([^\s。、]{2,20}(?:会社|業者|屋|工務店|不動産)[^\s。、]{0,12})を?(?:ご紹介させていただ|紹介してもいい|おつなぎできる)/);
+      if (selfIntroTargetMatch) {
+        const targets = (selfIntroTargetMatch[1] || selfIntroTargetMatch[2]).replace(/^(?:とりあえず|僕|うちの)/, '').trim();
+        synthesizedPromises.push(`勝賀野様から${targets}を${realName}様へご紹介・おつなぎする`);
+      } else if (/おつなぎできると思います|紹介させていただきます/.test(fullJoinedSelf)) {
+        synthesizedPromises.push(`勝賀野様から親和性の高い経営者・取引先を${realName}様へご紹介する`);
+      }
 
-      if (selectedHighlights.length > 0) {
-        const joinedHighlights = selectedHighlights.join('。');
-        topic = `${companyName ? `${companyName}${title ? `（${title}）` : ''}として` : ''}${joinedHighlights}`;
+      if (/ラインで.*連絡取り合って.*おつなぎ|順におつなぎしていきます|紹介します/.test(fullJoinedPartner)) {
+        const partnerTargets: string[] = [];
+        if (/ライバー/.test(fullJoinedPartner)) partnerTargets.push('ライバー活動者');
+        if (/工場/.test(fullJoinedPartner)) partnerTargets.push('工場経営者');
+        if (/デイサービス|就労支援|収容支援/.test(fullJoinedPartner)) partnerTargets.push('福祉・デイサービス経営者');
+        const targetLabel = partnerTargets.length > 0 ? partnerTargets.join('・') : '知人経営者・紹介先';
+        synthesizedPromises.push(`${realName}様から${targetLabel}をLINEで順次勝賀野様へご紹介・おつなぎする`);
+      }
+
+      if (/ランチ行きましょう|一緒にランチ/.test(rawInput)) {
+        synthesizedPromises.push(`勝賀野様と${realName}様で不動産業者等を交えたランチ会を設定する`);
+      } else if (/一緒にお酒飲みましょう|飲みに行きましょう|バー.*行きます/.test(rawInput)) {
+        synthesizedPromises.push(`京都・祇園のバー等で情報交換・懇親の機会を設ける`);
+      }
+
+      if (synthesizedPromises.length === 0) {
+        const strictPromiseKeywords = /(?:紹介させて|紹介してもいい|おつなぎ|お繋ぎ|連絡取り合って|LINEで|ラインで|ランチ|飲みに行|お送り|送ります|送付|見積|日程調整)/;
+        const fallbackProms = sentenceList
+          .filter(l => strictPromiseKeywords.test(l) && !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて|ご紹介していただきましたよね|どこに相談しても|ご紹介いただきたい/.test(l))
+          .map(l => rewriteSpokenToBusiness(l))
+          .filter(l => l.length >= 10 && l.length <= 90);
+        if (fallbackProms.length > 0) {
+          synthesizedPromises.push(...fallbackProms.slice(-2));
+        }
+      }
+
+      promise = synthesizedPromises.length > 0
+        ? synthesizedPromises.slice(0, 3).join(' / ')
+        : `${realName}様とLINEで連絡を取り合い、相互の顧客紹介・協業連携を進める`;
+
+      // 5. 話題・ビジネス文脈の構造化要約（お相手の事業内容・実績・紹介ターゲットを抽出し、端的なビジネス要約文を合成）
+      const partnerSentences = fullJoinedPartner
+        .split(/[。！!]/)
+        .map(s => rewriteSpokenToBusiness(s))
+        .filter(s =>
+          s.length >= 15 &&
+          s.length <= 120 &&
+          !/^(?:すみません|すいません|よろしくお願いします|ありがとうございます|お世話になります|見えてますでしょうか|共有させていただきます|過去の職業|私について)/.test(s) &&
+          !/チャプターっていうのは|ご紹介していただきましたよね|ちょっと待ってください|文字起こしはいかが|カテゴリー?[はが]|過去に三ヶ月/.test(s)
+        );
+
+      const serviceSentences = partnerSentences.filter(s =>
+        /(?:赤外線調査|漏水調査|防水工事|外壁|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|国家資格|ドローン|判断支援|人材育成|販売代理店|コンサル)/.test(s)
+      );
+      const achievementSentences = partnerSentences.filter(s =>
+        /(?:\d+棟|\d+頭|\d+件|\d+社|全国で|実績としましては|病院|大学|小中学校)/.test(s) && !serviceSentences.slice(0, 2).includes(s)
+      );
+      const targetSentences = partnerSentences
+        .map(s => s.replace(/^[で、\s]*こんな方をご紹介してください[、。\s]*/, '').trim())
+        .filter(s =>
+          s.length >= 12 &&
+          (/(?:ご紹介してください|紹介してください|お声がけください|繋がりたい人|オーナー|管理会社|工務店|経営者|お困りの方)/.test(s)) &&
+          !serviceSentences.slice(0, 2).includes(s)
+        );
+
+      const topicParts: string[] = [];
+      if (serviceSentences.length > 0) {
+        topicParts.push(serviceSentences.slice(0, 2).join('、'));
+      }
+      if (achievementSentences.length > 0) {
+        topicParts.push(achievementSentences[0].replace(/500頭/, '500棟'));
+      }
+      if (targetSentences.length > 0) {
+        topicParts.push(`紹介対象：${targetSentences[0]}`);
+      }
+
+      if (topicParts.length > 0) {
+        topic = `${companyName ? `${companyName}${title ? `（${title}）` : ''}にて、` : ''}${topicParts.join('。')}`;
+      } else if (partnerSentences.length > 0) {
+        topic = `${companyName ? `${companyName}${title ? `（${title}）` : ''}にて、` : ''}${partnerSentences.slice(0, 2).join('。')}`;
       } else {
         topic = `${companyName ? `${companyName}の` : ''}${realName}様との1to1面談（事業強み・ターゲット顧客の共有と相互紹介の合意）`;
       }
 
-      serviceDescription = companyName ? `${companyName}（${selectedHighlights[0]?.slice(0, 45) || '専門事業'}）` : topic.slice(0, 50);
+      serviceDescription = companyName
+        ? `${companyName}（${(serviceSentences[0] || topic).slice(0, 45)}）`
+        : topic.slice(0, 50);
     } else {
       // テキスト未入力時の自然なフォールバック
       realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';

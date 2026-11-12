@@ -323,4 +323,45 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(draft.draft_text).toContain('株式会社岩根工業');
     expect(draft.draft_text).toContain('シャングリラチャプター');
   });
+
+  it('未知の新規相手の生文字起こしでも、挨拶や相槌・生の発話断片ではなく第三者視点の構造化ビジネス要約と双方のToDoに変換されること', () => {
+    const newMeeting = store.createMeeting({
+      title: '山本さんとの1to1',
+      participant_name: '山本',
+      meeting_type: '1to1',
+      scheduled_start_at: '2026-11-15T14:00:00+09:00',
+    });
+
+    const rawFutureTranscript = `
+4/勝賀野 太郎/残置物撤去
+14:00:10
+三島さんからご紹介していただきましたよね。日程ちょっと調整いただいてありがとうございます。
+義行 山本
+14:01:00
+はいおお。大阪セントラルリージョンのシャングリラチャプターでカテゴリーがドローンで業務国家資格っていうふうになってます。
+株式会社山本工業の代表取締役をやってます。
+はいでちょっと会社の紹介なんですけれども、ドローンによる外壁赤外線調査、打診調査、漏水調査で、修繕時期や修繕計画の判断支援というところもやってます。
+実績としましては、全国で500棟以上の調査の実績があります。
+どこに相談しても、やっぱり今修繕した方がいいとか、そういった話になりやすいです。
+4/勝賀野 太郎/残置物撤去
+14:30:00
+工務店と防水屋と塗装屋と不動産屋紹介してもいいですか。
+義行 山本
+14:31:00
+ありがとうございます。ラインで連絡取り合って順におつなぎしていきます。ライバーの方と八尾の工場経営者もご紹介します。
+    `.trim();
+
+    const res = store.processMeetingRecordingAndAutoRegister(newMeeting.id, rawFutureTranscript);
+    expect(res.summary.realName).toBe('山本 義行');
+    expect(res.summary.companyName).toBe('株式会社山本工業');
+    expect(res.summary.bniChapter).toBe('シャングリラチャプター');
+    expect(res.summary.bniCategory).toContain('ドローン');
+    expect(res.summary.topic).toContain('株式会社山本工業');
+    expect(res.summary.topic).toContain('外壁赤外線調査');
+    expect(res.summary.topic).not.toContain('三島さんからご紹介していただきましたよね');
+    expect(res.summary.topic).not.toContain('はいでちょっと会社の紹介なんですけれども');
+    expect(res.summary.promise).toContain('勝賀野様から工務店と防水屋と塗装屋と不動産屋を山本 義行様へご紹介・おつなぎする');
+    expect(res.summary.promise).toContain('山本 義行様からライバー活動者・工場経営者をLINEで順次勝賀野様へご紹介・おつなぎする');
+    expect(res.summary.promise).not.toContain('どこに相談しても');
+  });
 });
