@@ -99,20 +99,25 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
       }
 
       setIsProcessing(true);
-      setStatusMessage('AIがビジネス文脈と相関図・お礼状を解析中...');
+      setStatusMessage('AIがビジネス文脈と相関図・お礼状を構造化要約中...');
 
-      setTimeout(() => {
+      setTimeout(async () => {
         try {
-          store.processMeetingRecordingAndAutoRegister(meetingId, transcriptText.trim());
+          const res = store.processMeetingRecordingAndAutoRegister(meetingId, transcriptText.trim());
+          await Promise.race([
+            store.refineMeetingSummaryWithAI(res.meeting.id, transcriptText.trim()),
+            new Promise(resolve => setTimeout(resolve, 3500)),
+          ]);
+          await store.pushStateToCloud().catch(() => {});
           setIsProcessing(false);
-          onSuccess(meetingId);
+          onSuccess(res.meeting.id);
           onClose();
         } catch (e: any) {
           setIsProcessing(false);
           setStatusMessage('');
           alert(e.message || '解析中にエラーが発生しました');
         }
-      }, 600);
+      }, 300);
     }
   };
 

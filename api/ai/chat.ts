@@ -48,6 +48,86 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    const mode: string = (parsed.mode || 'chat').trim();
+
+    if (mode === 'summarize_meeting') {
+      const transcriptText: string = (parsed.transcriptText || '').trim().slice(0, 28000);
+      const hintName: string = (parsed.participantHint || '').trim();
+      const summarizePrompt = `あなたは株式会社ZENNOBATE（代表：勝賀野 太郎様 / 事業：残置物撤去・遺品整理、桂の総合リサイクルショップRoute Z、祇園のバーRoute Z、AI古物査定ツール「カンテノ」、ラファエル提携ライバー事務所、オーダーメイド腕時計アステラ、若手経営者交流会）専属のAI議事録・人脈カルテ要約エンジンです。
+以下の1to1面談の文字起こし全文を読み、口語や相槌（「えー」「あ、」「はい」等の話し言葉の断片）を一切そのまま抜き出すのではなく、第三者視点でプロフェッショナルに構造化・要約したJSONのみを出力してください。
+
+【絶対厳守ルール】
+1. 議事録の生の発言文（「〜ですね」「えー」「僕はえっと」等）をそのままコピーして貼り付けることは厳禁です。必ず簡潔・明瞭なビジネス日本語で要約してください。
+2. 勝賀野 太郎様（4/勝賀野 太郎/残置物撤去・株式会社ゼノベイト）自身のプロフィールとお相手のプロフィールを絶対に混同しないでください。主役はお相手（${hintName || '面談相手'}）です。
+3. 文字起こしにない事実を創作しないでください。
+4. 出力は以下のJSON形式のみとしてください:
+{
+  "realName": "お相手の氏名（姓 名の間に半角スペース）",
+  "phoneticName": "フリガナ（分かる場合のみ、不明なら空文字）",
+  "companyName": "お相手の会社名・屋号・法人名（複数あれば併記）",
+  "title": "役職（代表取締役、代表理事、代表など）",
+  "bniRegion": "BNIリージョン名（例：大阪セントラルリージョン）",
+  "bniChapter": "BNIチャプター名（例：シャングリラチャプター）",
+  "bniCategory": "BNIカテゴリー・専門分野",
+  "overview": "面談全体の3〜4文のプロフェッショナルな要約（誰と、どのような事業強み・実績を共有し、どんな協業・紹介に合意したか）",
+  "topic": "盛り上がった話題・お相手の本業と強み・実績・紹介してほしいターゲット（箇条書き風または端的な要約文）",
+  "promises": [
+    "具体的な次回ToDo・約束事項1（誰が誰に何を紹介・連絡・検討するか）",
+    "具体的な次回ToDo・約束事項2"
+  ],
+  "serviceTitle": "お相手の主力サービス名（30文字以内）",
+  "targetClients": "お相手が紹介してほしいターゲット層",
+  "personalNotes": "年齢・出身・居住地・家族構成・趣味・共通の知人など、次回1to1で役立つパーソナル情報"
+}`;
+
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      let lastError = '';
+      for (const modelName of modelsToTry) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const geminiRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: summarizePrompt },
+                  { text: `【面談文字起こし】\n${transcriptText}` },
+                ],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.1,
+            },
+          }),
+        });
+        if (geminiRes.ok) {
+          const data: any = await geminiRes.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            const resultJson = JSON.parse(text.trim());
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              ok: true,
+              gemini_configured: true,
+              model: modelName,
+              summary: resultJson,
+            }));
+            return;
+          }
+        } else {
+          lastError = await geminiRes.text().catch(() => `HTTP ${geminiRes.status}`);
+        }
+      }
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ ok: false, gemini_configured: true, error: lastError }));
+      return;
+    }
+
     const question: string = (parsed.question || '').trim();
     const contextData = parsed.context || {};
 

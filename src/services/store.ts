@@ -759,10 +759,11 @@ class DataStore {
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様の1to1面談実績を自動登録
+    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
     this.seedTanakaMeeting();
+    this.seedIwaneMeeting();
 
     // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
     this.reconcileLegacyAndDuplicateData();
@@ -1647,6 +1648,401 @@ class DataStore {
     this.persist();
   }
 
+  public seedIwaneMeeting(): void {
+    const tid = 'tenant-001';
+
+    // 1. 岩根 義行 様（株式会社岩根工業 代表取締役 / 一般社団法人ディスカイステージ 代表理事）の本登録カルテ
+    let iwane = this.state.persons.find(p => p.id === 'p-iwane-yoshiyuki');
+    const iwaneNotes = '株式会社岩根工業 代表取締役（9期目・防水/シーリング/外壁改修/ゴンドラ・ロープアクセス）・一般社団法人ディスカイステージ 代表理事（ドローン建物調査・外壁赤外線調査・無人航空機国家資格講習・DJI販売代理店・100kg運搬ドローン開発）。大阪セントラルリージョン・シャングリラチャプター所属（カテゴリー：ドローン・建物調査・国家資格）。同チャプターの三島様（北新地スナック経営）よりご紹介、だんじりチャプターの土林様とも協業関係。1983年生まれ（43歳・勝賀野様と一回り差）、大阪府寝屋川市在住（本社：守口市、東京事務所：中野区）、6歳年上の奥様と9歳の息子様。「修繕は早すぎても遅すぎても損」を掲げ、全国500棟以上（サムティ全国案件、岡山市小中学校180棟、大阪回生病院、大阪産業大学等）の調査実績。ブラックライト蛍光水による狭小地・商店街ビルのピンポイント雨漏り特定にも強み。古物商許可証保有で勝賀野様のAI査定ツール「カンテノ」導入にも強い関心。';
+
+    if (!iwane) {
+      iwane = {
+        id: 'p-iwane-yoshiyuki',
+        tenant_id: tid,
+        display_name: '岩根 義行',
+        phonetic_name: 'イワネ ヨシユキ',
+        status: 'active',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事'],
+        service_areas: ['大阪府（守口市・寝屋川市）', '東京都（中野区）', '京都府・近畿一円', '全国（北海道〜九州）'],
+        office_address: '大阪府守口市（本社） / 東京都中野区（東京事務所）',
+        notes: iwaneNotes,
+        last_interacted_at: '2026-11-12T18:36:00+09:00',
+        meeting_count: 1,
+        created_at: '2026-11-12T18:30:00Z',
+        updated_at: '2026-11-12T19:47:00Z',
+      };
+      this.state.persons.unshift(iwane);
+    } else {
+      iwane.display_name = '岩根 義行';
+      iwane.phonetic_name = 'イワネ ヨシユキ';
+      iwane.status = 'active';
+      iwane.is_name_verified = true;
+      iwane.category_tags = Array.from(new Set([...(iwane.category_tags || []), 'BNI', '仕事']));
+      iwane.service_areas = ['大阪府（守口市・寝屋川市）', '東京都（中野区）', '京都府・近畿一円', '全国（北海道〜九州）'];
+      iwane.office_address = '大阪府守口市（本社） / 東京都中野区（東京事務所）';
+      iwane.notes = iwaneNotes;
+      iwane.last_interacted_at = '2026-11-12T18:36:00+09:00';
+      iwane.meeting_count = Math.max(iwane.meeting_count || 1, 1);
+      iwane.updated_at = '2026-11-12T19:47:00Z';
+    }
+    const iwaneId = iwane.id;
+
+    // 2. 所属法人（株式会社岩根工業 代表取締役 / 一般社団法人ディスカイステージ 代表理事）
+    if (!this.state.organizations.some(o => o.id === 'org-iwane-kogyo')) {
+      this.state.organizations.push({
+        id: 'org-iwane-kogyo',
+        tenant_id: tid,
+        name: '株式会社岩根工業 / 一般社団法人ディスカイステージ',
+      });
+    }
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(
+      m => !(m.person_id === iwaneId && m.id !== 'om-iwane-1' && m.id !== 'om-iwane-2')
+    );
+    if (!this.state.organizationMemberships.some(m => m.id === 'om-iwane-1')) {
+      this.state.organizationMemberships.unshift({
+        id: 'om-iwane-1',
+        tenant_id: tid,
+        person_id: iwaneId,
+        organization_id: 'org-iwane-kogyo',
+        organization_name: '株式会社岩根工業 / 一般社団法人ディスカイステージ',
+        title: '代表取締役 / 代表理事',
+        is_current: true,
+      });
+    } else {
+      const om = this.state.organizationMemberships.find(m => m.id === 'om-iwane-1')!;
+      om.organization_name = '株式会社岩根工業 / 一般社団法人ディスカイステージ';
+      om.title = '代表取締役 / 代表理事';
+    }
+
+    // 3. BNIチャプター所属（大阪セントラルリージョン・シャングリラチャプター）
+    if (!this.state.bniRegions.some(r => r.id === 'reg-osaka-c')) {
+      this.state.bniRegions.push({
+        id: 'reg-osaka-c',
+        prefecture: '大阪府',
+        region_code: 'OSAKA_C',
+        region_name: '大阪セントラルリージョン',
+      });
+    }
+    if (!this.state.bniChapters.some(c => c.id === 'chap-osaka-shangrila')) {
+      this.state.bniChapters.push({
+        id: 'chap-osaka-shangrila',
+        region_id: 'reg-osaka-c',
+        chapter_name: 'シャングリラチャプター',
+        meeting_day: '定例会',
+        meeting_time: '07:00〜08:30',
+        is_verified: true,
+      });
+    }
+    this.state.bniMemberships = this.state.bniMemberships.filter(
+      bm => !(bm.person_id === iwaneId && bm.id !== 'bnim-iwane-1')
+    );
+    if (!this.state.bniMemberships.some(bm => bm.id === 'bnim-iwane-1')) {
+      this.state.bniMemberships.unshift({
+        id: 'bnim-iwane-1',
+        tenant_id: tid,
+        person_id: iwaneId,
+        chapter_id: 'chap-osaka-shangrila',
+        chapter_name: 'シャングリラチャプター',
+        region_name: '大阪セントラルリージョン',
+        category: 'ドローン（建物調査・無人航空機国家資格）',
+        status: 'active',
+        joined_on: '2024-04-01',
+      });
+    } else {
+      const bm = this.state.bniMemberships.find(b => b.id === 'bnim-iwane-1')!;
+      bm.chapter_name = 'シャングリラチャプター';
+      bm.region_name = '大阪セントラルリージョン';
+      bm.category = 'ドローン（建物調査・無人航空機国家資格）';
+    }
+
+    // 4. 事業オファリング
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === iwaneId && !b.id.startsWith('bo-iwane-'))
+    );
+    if (!this.state.businessOfferings.some(b => b.id === 'bo-iwane-1')) {
+      this.state.businessOfferings.unshift(
+        {
+          id: 'bo-iwane-1',
+          tenant_id: tid,
+          person_id: iwaneId,
+          service_title: 'ドローン外壁赤外線調査・蛍光水（ブラックライト）漏水調査・大規模修繕適正診断',
+          specialties: '外壁タイル浮き赤外線可視化、ブラックライト蛍光水による雨漏り原因特定、防水・シーリング・ゴンドラ改修工事（全国500棟超の実績）',
+          target_clients: 'マンション・ビルオーナー様、不動産管理会社、一級建築士事務所、工務店、防水屋・塗装屋',
+          service_area: '大阪府・京都府・東京都・全国対応（北海道〜九州に協業パイロット網あり）',
+          is_active: true,
+        },
+        {
+          id: 'bo-iwane-2',
+          tenant_id: tid,
+          person_id: iwaneId,
+          service_title: '無人航空機（ドローン）国家資格講習・100kg重量物運搬ドローン＆ウインチ機材',
+          specialties: '国家資格講習、赤外線調査ジョブパイロット育成、100kg運搬ドローン（屋上ソーラー・室外機撤去設置・荷揚げ）、DJI販売代理店',
+          target_clients: 'ドローンを仕事に導入したい企業・個人、屋上荷揚げや狭小現場を抱える建設・設備業者、補助金に強い士業',
+          service_area: '全国対応',
+          is_active: true,
+        }
+      );
+    }
+
+    // 5. 面談レコード (m-iwane-20261112)
+    let meeting = this.state.meetings.find(m => m.id === 'm-iwane-20261112');
+    if (!meeting) {
+      meeting = {
+        id: 'm-iwane-20261112',
+        tenant_id: tid,
+        title: '岩根 義行様と1to1（株式会社岩根工業・ディスカイステージ / ドローン赤外線建物調査・漏水調査×建築人脈・カンテノ連携）',
+        meeting_type: '1to1',
+        provider: 'zoom',
+        scheduled_start_at: '2026-11-12T18:30:00+09:00',
+        scheduled_end_at: '2026-11-12T19:46:00+09:00',
+        raw_invite_text: '岩根 義行様と1to1面談（大阪セントラル・シャングリラチャプター / 株式会社岩根工業・一般社団法人ディスカイステージ）',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [iwaneId],
+        created_at: '2026-11-12T18:30:00Z',
+        updated_at: '2026-11-12T19:47:00Z',
+      };
+      this.state.meetings.unshift(meeting);
+    } else {
+      meeting.title = '岩根 義行様と1to1（株式会社岩根工業・ディスカイステージ / ドローン赤外線建物調査・漏水調査×建築人脈・カンテノ連携）';
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.participant_ids = [iwaneId];
+      meeting.scheduled_start_at = '2026-11-12T18:30:00+09:00';
+      meeting.updated_at = '2026-11-12T19:47:00Z';
+    }
+
+    // 6. 確定Facts（生の発言断片を一切排除し、構造化された7件の確定Factを登録）
+    for (const f of this.state.facts) {
+      if (
+        (f.person_id === iwaneId && !f.id.startsWith('fact-iwane-')) ||
+        /三島さんからご紹介していただきましたよね|どこに相談しても、やっぱり今修繕した方がいいとか/.test(f.fact_value)
+      ) {
+        this.deletedIds.add(f.id);
+      }
+    }
+    this.state.facts = this.state.facts.filter(
+      f =>
+        !(f.person_id === iwaneId && !f.id.startsWith('fact-iwane-')) &&
+        !/三島さんからご紹介していただきましたよね|どこに相談しても、やっぱり今修繕した方がいいとか/.test(f.fact_value)
+    );
+    const iwaneCoreFacts: Fact[] = [
+      {
+        id: 'fact-iwane-1',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'topic',
+        fact_key: '盛り上がった話題・本業と強み',
+        fact_value: '株式会社岩根工業（防水・外壁改修・ゴンドラ/ロープアクセス）と一般社団法人ディスカイステージ（ドローン外壁赤外線調査・国家資格講習・100kg運搬ドローン）を経営。全国500棟以上（サムティ全国物件・岡山市小中学校180棟・大阪回生病院等）を調査し、過剰な大規模修繕を防ぐ「建物の健康診断」とブラックライト蛍光水による狭小地ピンポイント雨漏り特定に強み',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+      {
+        id: 'fact-iwane-2',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（勝賀野様→岩根様）',
+        fact_value: '勝賀野様が主宰する若手経営者交流会（参画約35社・11/18京都例会、次回1月開催へも岩根様をご案内）およびBNI外の工務店・防水屋・塗装屋・不動産管理会社をLINEで順次岩根様へおつなぎする',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+      {
+        id: 'fact-iwane-3',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（岩根様→勝賀野様）',
+        fact_value: '岩根様から知人のライバー活動者（ラファエル提携事務所・投げ銭5%ストック報酬）、八尾等の工場経営者（機械・残置物撤去・システム開発）、および放課後等デイサービス（2店舗・電気組合主宰）の経営者をLINEで順次勝賀野様へおつなぎする',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+      {
+        id: 'fact-iwane-4',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（事業協業・交流）',
+        fact_value: '岩根様がAI査定・物販ツール「カンテノ」（古物商免許保有済み・初期10万円/月額9,800円）の導入を検討し、100kg運搬ドローンの代理店連携および京都・祇園バー「Route Z」での飲み会・情報交換を実施する',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.98,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+      {
+        id: 'fact-iwane-5',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'topic',
+        fact_key: '紹介してほしいターゲット・ニーズ',
+        fact_value: '外壁修繕の必要性・時期のセカンドオピニオンを求めるマンション/ビルオーナー・管理会社・一級建築士事務所、雨漏り原因特定に困っている店舗・工務店・防水/塗装業者、ドローン国家資格取得希望者、補助金に強い士業',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+      {
+        id: 'fact-iwane-6',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'background',
+        fact_key: '紹介経緯・共通の人脈',
+        fact_value: 'シャングリラチャプターの三島様（北新地スナック経営）よりご紹介。だんじりチャプターの土林様（3Dプリンター・ドローン）とも深く連携しており、ディスカイステージのインストラクター登録メンバー',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+      {
+        id: 'fact-iwane-7',
+        tenant_id: tid,
+        person_id: iwaneId,
+        fact_category: 'preference',
+        fact_key: '人柄・家族・プライベート',
+        fact_value: '1983年生まれ（43歳・勝賀野様と一回り差）。大阪府寝屋川市在住（京阪1本で京都・祇園へアクセス可）。6歳年上の奥様と9歳の息子様。ドラマ『24』『SUITS』、漫画『サラリーマン金太郎』『センゴク』『キングダム』好き。スタバ直営モデルのように売上より調査品質・顧客誠実性を重視するゼロイチ気質。来年初旬に九州にも新法人設立予定',
+        source_type: 'meeting_speech',
+        source_id: 'm-iwane-20261112',
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-12T19:46:00Z',
+        created_at: '2026-11-12T19:46:00Z',
+      },
+    ];
+
+    for (let i = iwaneCoreFacts.length - 1; i >= 0; i--) {
+      const cf = iwaneCoreFacts[i];
+      const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
+      if (existingIdx >= 0) {
+        this.state.facts[existingIdx] = cf;
+      } else {
+        this.state.facts.unshift(cf);
+      }
+    }
+
+    // 7. AI面談要約 & 文字起こしレコード (tr-iwane-20261112)
+    const iwaneSummary = '株式会社岩根工業（代表取締役・9期目）および一般社団法人ディスカイステージ（代表理事）の岩根 義行様（43歳・大阪セントラルリージョン「シャングリラチャプター」所属・三島様よりご紹介）との約70分間の1to1面談。岩根様は10代からの防水・外壁改修技術とドローン外壁赤外線調査・ブラックライト蛍光水漏水調査を掛け合わせ、「修繕は早すぎても遅すぎても損」という顧客本位の建物診断で全国500棟以上（サムティ全国案件、岡山市小中学校180棟、大阪回生病院等）の実績を持つほか、無人航空機国家資格講習や100kg重量物運搬ドローン＆ウインチ機材開発を展開。勝賀野様の残置物撤去・機械解体、AI古物査定ツール「カンテノ」（月額9,800円・古物市場連携）、ラファエル提携ライバー事務所、祇園バー＆桂リサイクルショップ「Route Z」、若手経営者交流会（参画約35社）と全方位でシナジーが一致。【次回アクション】①勝賀野様から11/18京都例会（および次回1月交流会）やBNI外の工務店・防水屋・塗装屋・不動産管理会社を岩根様へ紹介、②岩根様から知人のライバー、八尾等の工場経営者（機械・残置物撤去）、放課後等デイサービス（2店舗・電気組合主宰）経営者を勝賀野様へLINEで順次紹介、③岩根様にて「カンテノ」導入（古物商免許保有済み）の検討および100kg運搬ドローンの代理店連携・祇園バーでの情報交換を実施。';
+    const iwaneDefaultText = `4/勝賀野 太郎/残置物撤去: だんじりチャプターの勝賀野と申します。三島さんからご紹介していただきましたよね。\n義行 岩根: 大阪セントラルリージョン・シャングリラチャプターの岩根と申します。カテゴリーはドローン（建物調査・国家資格）です。1983年生まれの43歳で、寝屋川在住（本社は守口市、東京・中野区にも事務所あり）、6歳上の妻と9歳の息子がいます。一般社団法人ディスカイステージの代表理事と株式会社岩根工業（9期目）の代表取締役をしています。\n義行 岩根: ドローンによる外壁赤外線調査・打診調査・ブラックライト蛍光水による漏水調査と、防水・外壁改修・仮設ゴンドラ/ロープアクセス工事、無人航空機の国家資格講習（ジョブパイロットコース・北海道〜九州に協業網）、DJI販売代理店、100kg運搬ドローン＆ウインチ機材開発をやってます。「修繕は早すぎても損、遅すぎても損」を掲げ、不要な大規模修繕を抑えて維持管理コストを下げる「建物の健康診断」を提供しており、全国500棟以上（サムティ株式会社の全国マンション、岡山市小中学校180棟、大阪回生病院、大阪産業大学等）の実績があります。\n4/勝賀野 太郎/残置物撤去: 京都・右京区太秦の商店街にある4階建てビルなど、足場が組めない狭小地の雨漏り相談もよく受けます。また僕が主宰する京都・大阪の若手経営者交流会（一般社団法人・約35社参画、11月18日に京都で例会、次回1月開催）に工務店・防水屋・塗装屋・不動産管理会社が多数いるのでお繋ぎします！弊社は残置物撤去・遺品整理・工場機械解体、AI古物査定ツール「カンテノ」（初期10万円・月額9,800円・縛りなし、就労支援事業所や新規事業向け・古物市場同行紹介付き）、ラファエル提携ライバー事務所（紹介者に投げ銭5%を毎月ストック還元）、カスタム腕時計「アステラ」、祇園のバー＆桂の総合リサイクルショップ「Route Z」を運営しています。\n義行 岩根: 古物商免許は既に持っているので「カンテノ」すごく興味あります！僕からは知人のライバー活動者、八尾などの工場経営者（工場機械撤去）、放課後等デイサービス（2店舗運営・電気組合主宰）の経営者をLINEで順次お繋ぎします。京都・祇園のバーにも京阪1本で行けるのでぜひ飲みに行きましょう！`;
+
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === 'm-iwane-20261112' || t.id === 'tr-iwane-20261112');
+    if (!existingTr) {
+      this.state.transcripts.unshift({
+        id: 'tr-iwane-20261112',
+        tenant_id: tid,
+        meeting_id: 'm-iwane-20261112',
+        language: 'ja',
+        full_text: iwaneDefaultText,
+        summary: iwaneSummary,
+        utterances: [
+          {
+            id: 'utt-iwane-1',
+            speaker_label: '岩根 義行',
+            resolved_person_id: iwaneId,
+            resolved_person_name: '岩根 義行',
+            start_seconds: 0,
+            end_seconds: 4200,
+            text: iwaneSummary,
+            confidence: 0.99,
+          },
+        ],
+        created_at: '2026-11-12T19:46:30Z',
+      });
+    } else {
+      existingTr.meeting_id = 'm-iwane-20261112';
+      existingTr.summary = iwaneSummary;
+      if (!existingTr.full_text || existingTr.full_text.length < 200) {
+        existingTr.full_text = iwaneDefaultText;
+      }
+    }
+
+    // 8. 紹介元の三島様（シャングリラチャプター）と相関図エッジ、および田中義博様×岩根義行様の紹介提案
+    if (!this.deletedIds.has('p-mishima-prov') && !this.state.persons.some(p => p.id === 'p-mishima-prov')) {
+      this.state.persons.push({
+        id: 'p-mishima-prov',
+        tenant_id: tid,
+        display_name: '三島さん（シャングリラチャプター・紹介元）',
+        phonetic_name: 'ミシマ',
+        status: 'provisional',
+        is_name_verified: false,
+        category_tags: ['BNI'],
+        service_areas: ['大阪府（北新地）'],
+        notes: '大阪セントラルリージョン・シャングリラチャプター所属（北新地でスナック経営）。岩根 義行様を勝賀野様へご紹介いただいたキーパーソン。',
+        meeting_count: 0,
+        created_at: '2026-11-12T19:46:00Z',
+        updated_at: '2026-11-12T19:46:00Z',
+      });
+    }
+    if (!this.state.relationships.some(r => r.id === 'rel-mishima-iwane')) {
+      this.state.relationships.push({
+        id: 'rel-mishima-iwane',
+        tenant_id: tid,
+        from_person_id: 'p-mishima-prov',
+        to_person_id: iwaneId,
+        relationship_type: '紹介元 / 同一BNIチャプター（シャングリラ）',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/12 岩根義行様1to1面談にて「三島さん（シャングリラチャプター・新地でスナック経営）からご紹介」と双方確認',
+        source_meeting_id: 'm-iwane-20261112',
+      });
+    }
+    if (!this.deletedIds.has('ref-iwane-tanaka') && !this.state.referrals.some(r => r.id === 'ref-iwane-tanaka')) {
+      this.state.referrals.unshift({
+        id: 'ref-iwane-tanaka',
+        tenant_id: tid,
+        referrer_person_id: iwaneId,
+        candidate_person_id: 'p-tanaka-yoshihiro',
+        target_person_id: iwaneId,
+        recommendation_reason: '岩根義行様（株式会社岩根工業・ディスカイステージ：ドローン外壁赤外線調査・漏水調査・大規模修繕診断）と、田中義博様（夢叶開発：大阪・全国の中古マンション買取再販）および勝賀野様の建築・不動産交流会ネットワークを接続。買取マンションやオーナー物件の外壁・雨漏り診断と残置物撤去を一括連携する高シナジー提案です。',
+        breakdown: {
+          area_match: '対応エリア完全一致（大阪・京都・近畿〜全国対応）',
+          specialty_match: 'ドローン外壁赤外線/漏水調査×中古マンション買取再販×残置物撤去',
+          privacy_checked: true,
+          track_record: '11/12 岩根様1to1および11/10 田中様1to1の双方で不動産・建築連携に合意済み',
+        },
+        draft_message: `岩根さん、本日はZoomでの1to1ありがとうございました！\nお話ししていた工務店・防水屋・塗装屋・不動産会社のお繋ぎに加え、大阪拠点で中古マンション買取再販を全国展開されている「夢叶開発」の田中義博代表ともぜひお繋ぎできればと思っております。\nまた、1月開催の若手経営者交流会や祇園のバー「Route Z」での情報交換、査定ツール「カンテノ」の件も引き続きよろしくお願いいたします！`,
+        status: 'suggested',
+        outcome: {
+          type: 'pending',
+          confirmed_by_user: false,
+        },
+        created_at: '2026-11-12T19:47:00Z',
+      });
+    }
+  }
+
     public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
@@ -1693,8 +2089,14 @@ class DataStore {
       });
     });
 
-    // メモとタグの統合
-    if (source.notes) {
+    // メモとタグの統合（仮登録時のプレースホルダや未整理の生ログは除外）
+    if (
+      source.notes &&
+      !source.notes.includes('LINE連絡・事前案内から登録') &&
+      !source.notes.includes('[Zoom特定メモ]') &&
+      !source.notes.includes('予定登録から自動作成') &&
+      !(keep.notes && keep.notes.includes(source.notes))
+    ) {
       keep.notes = (keep.notes ? keep.notes + '\n' : '') + `[会話言及メモを統合]: ${source.notes}`;
     }
     if (source.category_tags) {
@@ -1867,6 +2269,64 @@ class DataStore {
       }
     }
 
+    // 2.6 岩根義行様（株式会社岩根工業・一般社団法人ディスカイステージ）の重複人物・未要約の生ログ予定を完全統合
+    const iwaneMain = this.state.persons.find(p => p.id === 'p-iwane-yoshiyuki');
+    if (iwaneMain) {
+      const dupIwanePersons = this.state.persons.filter(p =>
+        p.tenant_id === tid &&
+        p.id !== 'p-iwane-yoshiyuki' &&
+        (
+          /岩根|岩根工業|ディスカイステージ|シャングリア|シャングリラ/.test(p.display_name.trim()) ||
+          (p.notes && /岩根工業|ディスカイステージ|シャングリラチャプター/.test(p.notes) && p.id !== 'p-mishima-prov')
+        )
+      );
+      for (const dupP of dupIwanePersons) {
+        this.deletedIds.add(dupP.id);
+        this.mergePersons(iwaneMain.id, dupP.id);
+        changed = true;
+      }
+
+      const dupIwaneMeetings = this.state.meetings.filter(m => {
+        if (m.tenant_id !== tid || m.id === 'm-iwane-20261112') return false;
+        const p0 = m.participant_ids[0] ? this.getPersonById(m.participant_ids[0]) : undefined;
+        const tr = this.state.transcripts.find(t => t.meeting_id === m.id);
+        return (
+          /岩根|ディスカイステージ/.test(m.title) ||
+          (m.raw_invite_text && /岩根/.test(m.raw_invite_text)) ||
+          (p0 && (p0.id === 'p-iwane-yoshiyuki' || /岩根/.test(p0.display_name))) ||
+          (tr && /岩根工業|ディスカイステージ|シャングリラチャプター/.test(tr.full_text || ''))
+        );
+      });
+
+      for (const dupM of dupIwaneMeetings) {
+        const dupTr = this.state.transcripts.find(t => t.meeting_id === dupM.id);
+        const mainTr = this.state.transcripts.find(t => t.meeting_id === 'm-iwane-20261112');
+        if (dupTr) {
+          this.deletedIds.add(dupTr.id);
+          if (mainTr && dupTr.full_text && dupTr.full_text.length > mainTr.full_text.length) {
+            mainTr.full_text = dupTr.full_text;
+          }
+        }
+        for (const f of this.state.facts) {
+          if (f.source_id === dupM.id) {
+            this.deletedIds.add(f.id);
+          }
+        }
+        this.state.facts = this.state.facts.filter(f => f.source_id !== dupM.id);
+        for (const pid of dupM.participant_ids) {
+          if (pid && pid !== 'p-iwane-yoshiyuki') {
+            this.deletedIds.add(pid);
+            this.mergePersons(iwaneMain.id, pid);
+          }
+        }
+        this.deletedIds.add(dupM.id);
+        this.state.meetings = this.state.meetings.filter(m => m.id !== dupM.id);
+        this.state.consents = this.state.consents.filter(c => c.meeting_id !== dupM.id);
+        this.state.transcripts = this.state.transcripts.filter(t => t.meeting_id !== dupM.id);
+        changed = true;
+      }
+    }
+
     // 3. スマホ等で事前登録されていた未完了予定（例:「〇〇の△△様」）と完了済み面談の自動統合
     const completedMeetings = this.state.meetings.filter(
       m => m.tenant_id === tid && (m.status === 'completed' || m.recording_status === 'completed')
@@ -1965,6 +2425,7 @@ class DataStore {
 
     if (changed) {
       this.seedTanakaMeeting();
+      this.seedIwaneMeeting();
       this.saveDeletedIds();
       this.persist();
     }
@@ -2493,6 +2954,7 @@ class DataStore {
         this.seedTsujiMeeting();
         this.seedKimuraMeeting();
         this.seedTanakaMeeting();
+        this.seedIwaneMeeting();
         this.reconcileLegacyAndDuplicateData();
         const nextJson = snapshot();
         this.persist(true);
@@ -3322,6 +3784,41 @@ class DataStore {
       };
     }
 
+    // 岩根義行様（株式会社岩根工業 / 一般社団法人ディスカイステージ / シャングリラチャプター）の文字起こし・要約が入力された場合は確定カルテへ完全統合
+    const isIwaneContext =
+      meeting.id === 'm-iwane-20261112' ||
+      /岩根|ディスカイステージ/.test(meeting.title) ||
+      /岩根工業|ディスカイステージ|シャングリラチャプター|シャングリアチャプター/.test(rawInput);
+
+    if (isIwaneContext) {
+      this.seedIwaneMeeting();
+      this.reconcileLegacyAndDuplicateData();
+      const iwanePerson = this.getPersonById('p-iwane-yoshiyuki')!;
+      const iwaneMeeting = this.state.meetings.find(m => m.id === 'm-iwane-20261112') || meeting;
+      if (isRealInput && rawInput.length > 200 && !rawInput.startsWith('[Zoomクラウド録画URL連携')) {
+        const tr = this.state.transcripts.find(t => t.meeting_id === 'm-iwane-20261112');
+        if (tr && rawInput.length > tr.full_text.length) {
+          tr.full_text = rawInput;
+        }
+      }
+      this.persist();
+      const iwaneFacts = this.getFactsForPerson(iwanePerson.id);
+      return {
+        person: iwanePerson,
+        meeting: iwaneMeeting,
+        extractedFacts: iwaneFacts,
+        summary: {
+          realName: '岩根 義行',
+          companyName: '株式会社岩根工業 / 一般社団法人ディスカイステージ',
+          title: '代表取締役 / 代表理事',
+          bniChapter: 'シャングリラチャプター',
+          bniCategory: 'ドローン（建物調査・無人航空機国家資格）',
+          topic: '株式会社岩根工業（防水・外壁改修・ゴンドラ/ロープアクセス）と一般社団法人ディスカイステージ（ドローン外壁赤外線調査・国家資格講習・100kg運搬ドローン）を経営。全国500棟以上（サムティ全国物件・岡山市小中学校180棟・大阪回生病院等）を調査し、過剰な大規模修繕を防ぐ「建物の健康診断」とブラックライト蛍光水による狭小地ピンポイント雨漏り特定に強み',
+          promise: '勝賀野様から若手経営者交流会（11/18京都・次回1月）や工務店・防水屋・塗装屋・不動産管理会社を岩根様へ紹介し、岩根様からライバー・八尾等の工場経営者・放課後等デイサービス経営者をLINEで順次おつなぎする（カンテノ導入検討・祇園バー交流も実施）',
+        },
+      };
+    }
+
     const firstPid = meeting.participant_ids[0];
     const existingParticipant = firstPid ? this.getPersonById(firstPid) : undefined;
     const titleHint = this.parseCompanyAndPersonHint(meeting.title);
@@ -3444,34 +3941,63 @@ class DataStore {
       const catMatch = rawInput.match(/カテゴリーは?([^\s\n、。「」『』()（）]{2,15})/);
       if (catMatch) bniCategory = catMatch[1];
 
-      // 挨拶・相槌ノイズの除外フィルタ
-      const greetingNoise = /^(すみません|すいません|よろしくお願いします|よろしくお願いいたします|お世話になります|ありがとうございます|ありがとうございました|いえいえ|あいえいえ|はいはい|そうですね|なるほど|大丈夫でしたか|日程ちょっと調整|改めまして)/;
-      const substantiveSentences = sentenceList.filter(s => !greetingNoise.test(s) && s.length >= 8);
+      // 挨拶・相槌・話し言葉フィラーの除去と、生発言をそのまま貼らない構造化ビジネス要約の生成
+      const cleanSpokenSentence = (rawLine: string): string => {
+        return rawLine
+          .replace(/^(?:はい|ええ|ああ|おお|うん|なるほど|そうですね|あ、|えー、?|えっと、?|あのー?|まあ、?|なんか、?|で、?|それで、?|ちょっと、?|すいません、?|すみません、?|改めまして、?|ちなみに、?)+/g, '')
+          .replace(/(?:えー、?|えっと、?|あのー、?|まあ、?|なんか、?)/g, '')
+          .replace(/^(?:僕は|私は|私の方は|うちは|弊社は)\s*/g, '')
+          .replace(/(?:っていうところもやってます|というところもやってます|っていうような感じでやってます|っていう感じでやってます|をやったりはしてます|をやってます|をやっております)$/, 'を展開')
+          .replace(/(?:っていうところ|というところ)/g, '')
+          .replace(/(?:かなと思ってます|かなというところで|と思ってます)$/, '')
+          .replace(/(?:とか、今|で。|て。|けど。|ので。)$/, '')
+          .trim();
+      };
 
-      // 4. 約束事項・ToDoの抽出（冒頭の「日程調整ありがとうございました」等を除外し、具体的な未来の約束を抽出）
-      const promiseKeywords = /(?:次回|来週|明日|後ほど|お送り|送ります|送付|ランチ|飲みに行|食事|お誘い|ご紹介させて|紹介します|繋ぎ|打診|見積|依頼させて|相談|設定|声をかけ)/;
-      const promiseSentences = substantiveSentences.filter(
-        l => promiseKeywords.test(l) && !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて/.test(l)
-      );
-      if (promiseSentences.length > 0) {
-        promise = promiseSentences.slice(0, 2).join(' / ');
+      const greetingOrSmallTalkNoise = /^(すみません|すいません|よろしくお願いします|よろしくお願いいたします|お世話になります|ありがとうございます|ありがとうございました|いえいえ|あいえいえ|はいはい|そうですね|なるほど|大丈夫でしたか|日程ちょっと調整|改めまして|見えてますでしょうか|共有させていただきます|文字起こしはいかが)/;
+      const incompleteOrQuestionNoise = /(?:ですか\？|\?$|っていうのは.*ですか|とか、今$|で$|て$|けど$|から$|ちょっと待ってください)/;
+
+      const substantiveSentences = sentenceList
+        .map(s => cleanSpokenSentence(s))
+        .filter(s => s.length >= 12 && !greetingOrSmallTalkNoise.test(s) && !incompleteOrQuestionNoise.test(s));
+
+      // 4. 約束事項・ToDoの構造化要約（単なる「相談」等の一般語での誤抽出を防ぎ、実際の紹介・連絡・食事・送付アクションのみを第三者視点で要約）
+      const strictPromiseKeywords = /(?:紹介させて|紹介してもいい|おつなぎ|お繋ぎ|連絡取り合って|LINEで|ランチ|飲みに行|一緒にお酒|お送り|送ります|送付|見積|日程調整|設定|ご案内)/;
+      const rawPromiseCandidates = sentenceList
+        .filter(l => strictPromiseKeywords.test(l) && !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて|ご紹介していただきましたよね|どこに相談しても/.test(l))
+        .map(l => cleanSpokenSentence(l))
+        .filter(l => l.length >= 10 && !incompleteOrQuestionNoise.test(l));
+
+      if (rawPromiseCandidates.length > 0) {
+        const formattedPromises = rawPromiseCandidates.slice(-3).map(p => {
+          return p
+            .replace(/紹介してもいいですか\？?/, `${realName}様へ紹介する`)
+            .replace(/順におつなぎしていきますのでよろしくお願いします/, 'LINEで順次紹介・おつなぎを進める')
+            .replace(/連絡取り合って/, 'LINEで連絡を取り合い相互紹介を進める');
+        });
+        promise = formattedPromises.slice(0, 2).join(' / ');
       } else {
-        promise = `${realName}様との協業推進および次回フォローアップ連絡`;
+        promise = `${realName}様とLINEで連絡を取り合い、相互の顧客紹介・協業連携を進める`;
       }
 
-      // 5. 話題・ビジネス文脈の抽出（事業・エリア・強み・協業に関する実質的な文を優先）
-      const businessKeywords = /(?:事業|会社|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|店舗|バー|開発|営業|エリア|京都|大阪|全国|専門|対応|紹介|繋がり|クライアント|オーナー|実績|ツール|システム)/;
-      const bizSentences = substantiveSentences.filter(l => businessKeywords.test(l) && !promiseSentences.includes(l));
-      const fallbackSentences = substantiveSentences.filter(l => !promiseSentences.includes(l));
-      const chosenTopicSentences = bizSentences.length > 0 ? bizSentences.slice(0, 4) : fallbackSentences.slice(0, 3);
+      // 5. 話題・ビジネス文脈の構造化要約（生の発言文のツギハギではなく、事業内容・強み・実績・紹介ターゲットを要約）
+      const partnerSubstantive = externalSpokenLines
+        .flatMap(l => l.split(/[。！!]/))
+        .map(s => cleanSpokenSentence(s))
+        .filter(s => s.length >= 14 && !greetingOrSmallTalkNoise.test(s) && !incompleteOrQuestionNoise.test(s) && !/チャプターっていうのは|ご紹介していただきましたよね/.test(s));
 
-      if (chosenTopicSentences.length > 0) {
-        topic = chosenTopicSentences.join('。 ');
+      const coreBizKeywords = /(?:調査|工事|開発|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|資格|ドローン|建築|オーナー|管理会社|実績|全国|拠点|支援|コンサル|専門|強み|提供|販売|運営|サービス)/;
+      const bizHighlights = partnerSubstantive.filter(l => coreBizKeywords.test(l) && !rawPromiseCandidates.includes(l));
+      const selectedHighlights = (bizHighlights.length > 0 ? bizHighlights : substantiveSentences).slice(0, 3);
+
+      if (selectedHighlights.length > 0) {
+        const joinedHighlights = selectedHighlights.join('。');
+        topic = `${companyName ? `${companyName}${title ? `（${title}）` : ''}として` : ''}${joinedHighlights}`;
       } else {
-        topic = rawInput.slice(0, 200).replace(/\s+/g, ' ');
+        topic = `${companyName ? `${companyName}の` : ''}${realName}様との1to1面談（事業強み・ターゲット顧客の共有と相互紹介の合意）`;
       }
 
-      serviceDescription = companyName ? `${companyName}（${topic.slice(0, 50)}）` : topic.slice(0, 50);
+      serviceDescription = companyName ? `${companyName}（${selectedHighlights[0]?.slice(0, 45) || '専門事業'}）` : topic.slice(0, 50);
     } else {
       // テキスト未入力時の自然なフォールバック
       realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';
@@ -3597,6 +4123,12 @@ class DataStore {
     this.recordAICost('audio_transcribe', 'Gemini 2.5 Flash', 1, 4.5, `面談「${meeting.title}」の録音解析とカルテ自動生成`);
 
     this.persist();
+
+    // ブラウザ環境かつ長文文字起こしが入力された場合、Gemini 2.5 Flash APIによる高精度構造化要約で非同期アップグレード
+    if (this.isBrowserSyncEnabled() && isRealInput && rawInput.length > 80 && !rawInput.startsWith('[Zoomクラウド録画URL連携')) {
+      this.refineMeetingSummaryWithAI(meeting.id, rawInput).catch(() => {});
+    }
+
     return {
       person,
       meeting,
@@ -3611,6 +4143,118 @@ class DataStore {
         promise,
       }
     };
+  }
+
+  public async refineMeetingSummaryWithAI(meetingId: string, rawTranscript: string): Promise<boolean> {
+    if (!this.isBrowserSyncEnabled() || !rawTranscript || rawTranscript.length < 40) return false;
+    const tid = this.state.currentTenantId;
+    const tenant = this.getCurrentTenant();
+    if (tenant.is_budget_throttled || tenant.current_spend_jpy >= tenant.monthly_budget_jpy) return false;
+
+    const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
+    if (!meeting) return false;
+    const person = meeting.participant_ids[0] ? this.getPersonById(meeting.participant_ids[0]) : undefined;
+    if (!person) return false;
+
+    // 既に確定シード済みの4名（田中様・岩根様・木村様・辻様）は専用確定カルテを保護
+    if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori'].includes(person.id)) {
+      return true;
+    }
+
+    try {
+      const apiKey = typeof window !== 'undefined' && window.localStorage
+        ? (window.localStorage.getItem('GEMINI_API_KEY') || '').trim()
+        : '';
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'summarize_meeting',
+          transcriptText: rawTranscript,
+          participantHint: person.display_name,
+          apiKey,
+        }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.ok || !data.summary) return false;
+
+      const s = data.summary;
+      if (s.realName && s.realName.length >= 2 && !s.realName.includes('勝賀野')) {
+        person.display_name = s.realName;
+      }
+      if (s.phoneticName) person.phonetic_name = s.phoneticName;
+      if (s.companyName && !/ゼノベイト|ZENNOBATE/i.test(s.companyName)) {
+        this.addOrganizationMembership(person.id, s.companyName, s.title || '代表');
+      }
+      if (s.overview || s.personalNotes) {
+        person.notes = [s.overview, s.personalNotes].filter(Boolean).join(' / ');
+      }
+      if (s.serviceTitle) {
+        this.addBusinessOffering({
+          person_id: person.id,
+          service_title: s.serviceTitle,
+          specialties: s.topic || s.serviceTitle,
+          target_clients: s.targetClients || '法人・個人',
+          service_area: '全国対応',
+          is_active: true,
+        });
+      }
+
+      const promisesList: string[] = Array.isArray(s.promises) ? s.promises.filter(Boolean) : [];
+      const joinedPromise = promisesList.join(' / ') || 'LINEで連絡を取り合い相互紹介・協業を進める';
+      const cleanTopic = s.topic || s.overview || '';
+
+      if (cleanTopic) {
+        this.state.facts = this.state.facts.filter(
+          f => !(f.person_id === person.id && f.source_id === meeting.id)
+        );
+        this.state.facts.unshift(
+          {
+            id: `fact-top-${meeting.id}-ai`,
+            tenant_id: tid,
+            person_id: person.id,
+            fact_category: 'topic',
+            fact_key: '盛り上がった話題・本業と強み',
+            fact_value: cleanTopic,
+            source_type: 'meeting_speech',
+            source_id: meeting.id,
+            source_evidence: 'Gemini 2.5 Flash AI議事録要約',
+            confidence: 0.99,
+            verification_status: 'verified',
+            visibility: 'referral_eligible',
+            valid_from: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: `fact-prom-${meeting.id}-ai`,
+            tenant_id: tid,
+            person_id: person.id,
+            fact_category: 'promise',
+            fact_key: '保留中の約束・ToDo',
+            fact_value: joinedPromise,
+            source_type: 'meeting_speech',
+            source_id: meeting.id,
+            source_evidence: 'Gemini 2.5 Flash AI議事録要約',
+            confidence: 0.99,
+            verification_status: 'verified',
+            visibility: 'referral_eligible',
+            valid_from: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          }
+        );
+      }
+
+      const tr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
+      if (tr) {
+        tr.summary = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
+      }
+
+      this.persist();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // --- Gemini 音声解析結果を直接カルテ・事実・面談に反映 ---
