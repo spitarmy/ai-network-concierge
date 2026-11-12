@@ -47,8 +47,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     setTimeout(() => setAnalyzeSuccess(null), 3500);
   };
 
-  // 直近の予定（未完了の面談を最優先、なければ最新の面談）
-  const upcomingMeeting = meetings.find(m => m.status !== 'completed' && new Date(m.scheduled_start_at).getTime() >= Date.now() - 3600 * 1000) || meetings[0];
+  // 直近の予定（未完了の面談を日時に関わらず最優先で先頭に表示、なければ最新の面談）
+  const scheduledMeetings = meetings.filter(m => m.status !== 'completed' && m.recording_status !== 'completed');
+  const upcomingMeeting = scheduledMeetings[0] || meetings[0];
   const latestCompletedMeeting = meetings
     .filter(m => m.status === 'completed' || m.recording_status === 'completed')
     .sort((a, b) => new Date(b.scheduled_start_at).getTime() - new Date(a.scheduled_start_at).getTime())[0];

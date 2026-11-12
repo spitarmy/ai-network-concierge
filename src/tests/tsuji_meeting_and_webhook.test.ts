@@ -272,4 +272,26 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(aiRes2.answer).toContain('夢叶開発');
     expect(aiRes2.answer).toContain('ランチ');
   });
+
+  it('「岩根さんとの１To1」など全角・大文字混じりの予定入力から相手名が確実に抽出され、未完了予定として最上部に反映されること', () => {
+    const parsed = store.parseMeetingIntent('岩根さんとの１To1');
+    expect(parsed.extracted.candidate_participants.length).toBeGreaterThan(0);
+    expect(parsed.extracted.candidate_participants[0].name).toBe('岩根');
+
+    // 案内文貼り付け欄のみに入力して予定登録した場合でも自動で「岩根」が抽出されること
+    const m = store.createMeeting({
+      title: '面談予定',
+      raw_invite_text: '岩根さんとの１To1',
+      meeting_type: '1to1',
+      scheduled_start_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), // 当日2時間前の時刻でも未完了なら最優先
+    });
+
+    expect(m.title).toBe('岩根様と1to1面談');
+    const p = store.getPersonById(m.participant_ids[0]);
+    expect(p?.display_name).toBe('岩根');
+
+    // 未完了予定として getMeetings() の先頭に来ること
+    const topMeeting = store.getMeetings()[0];
+    expect(topMeeting.id).toBe(m.id);
+  });
 });

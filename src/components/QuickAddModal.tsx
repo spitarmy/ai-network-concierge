@@ -54,7 +54,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
   const handleParse = (text: string) => {
     setPasteText(text);
-    if (text.trim().length > 3) {
+    if (text.trim().length >= 2) {
       const res = store.parseMeetingIntent(text);
       setParsedResult(res);
       if (res?.extracted) {
@@ -82,8 +82,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   };
 
   const handleCreateMeeting = () => {
-    const finalParticipant = participantName.trim();
-    const finalTitle = meetingTitle.trim() || (finalParticipant ? `${finalParticipant}様と${meetingType === '1to1' ? '1to1' : '打合せ'}` : '面談予定');
+    const finalParticipant =
+      participantName.trim() ||
+      (pasteText.trim() ? store.parseMeetingIntent(pasteText.trim()).extracted.candidate_participants[0]?.name || '' : '');
+    const finalTitle = meetingTitle.trim() || (finalParticipant ? `${finalParticipant}様と${meetingType === '1to1' ? '1to1面談' : '打合せ'}` : '面談予定');
     const finalDate = scheduledTime ? new Date(scheduledTime).toISOString() : new Date().toISOString();
 
     store.createMeeting({
@@ -97,6 +99,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       host_type: 'self',
     });
 
+    onRefresh();
+    store.pushStateToCloud().then((updated) => {
+      if (updated) onRefresh();
+    }).catch(() => {});
+
     setIsSuccess(true);
     setTimeout(() => {
       setIsSuccess(false);
@@ -107,7 +114,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       setParsedResult(null);
       onRefresh();
       onClose();
-    }, 800);
+    }, 600);
   };
 
   const handleCreatePerson = (e: React.FormEvent) => {
@@ -124,6 +131,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       store.addOrganizationMembership(newP.id, company, '代表');
     }
 
+    onRefresh();
+    store.pushStateToCloud().then((updated) => {
+      if (updated) onRefresh();
+    }).catch(() => {});
+
     setIsSuccess(true);
     setTimeout(() => {
       setIsSuccess(false);
@@ -133,7 +145,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       setSelectedTags(['BNI']);
       onRefresh();
       onClose();
-    }, 1000);
+    }, 600);
   };
 
   return (

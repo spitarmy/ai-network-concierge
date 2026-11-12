@@ -706,6 +706,7 @@ class DataStore {
   private deletedIds: Set<string>;
   private syncTimer: any = null;
   private isSyncingCloud = false;
+  private hasPendingCloudPush = false;
   public lastSyncedAt: string | null = null;
   public zoomApiConnected = false;
 
@@ -1734,9 +1735,16 @@ class DataStore {
   }
 
   private parseCompanyAndPersonHint(rawText: string): { company?: string; personName: string } {
-    const cleaned = rawText
+    const normalized = rawText
+      .replace(/[０-９Ａ-Ｚａ-ｚ]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/https?:\/\/[^\s]+/gi, '')
+      .replace(/^(?:次回|明日|明後日|今日|本日)?\s*(?:\d{4}[年\/-])?(?:\d{1,2}[\/月]\d{1,2}日?)?\s*(?:\([月火水木金土日]\))?\s*(?:\d{1,2}(?::|時)(?:\d{0,2}|半)?(?:分)?)?\s*(?:〜|~|-|から)?\s*/i, '')
+      .trim();
+    const cleaned = normalized
+      .replace(/(?:様|さん|氏|社長|代表|先生)?(?:と|との|の)?\s*(?:次回)?(?:1to1|1on1|面談|打合せ|打ち合わせ|会議|商談|予定|ミーティング).*$/gi, '')
+      .replace(/^(?:次回)?(?:1to1|1on1|面談|打合せ|打ち合わせ|会議|商談|予定|ミーティング)\s*(?:相手|先)?[:：]?\s*/gi, '')
       .replace(/様と.*$|さんと.*$|との.*$/g, '')
-      .replace(/(?:様|さん|氏)$/, '')
+      .replace(/(?:様|さん|氏|社長|代表|先生)$/, '')
       .trim();
     const match = cleaned.match(/^(.{2,20}?)の([^\sの]{1,12})$/);
     if (match && !/^(今日|明日|明後日|来週|今週|本日|次回)$/.test(match[1])) {
@@ -1912,6 +1920,46 @@ class DataStore {
         this.state.meetings = this.state.meetings.filter(m => m.id !== pending.id);
         this.state.consents = this.state.consents.filter(c => c.meeting_id !== pending.id);
         changed = true;
+      }
+    }
+
+    // 4. 予定登録で「面談予定」「相手未特定 (LINE連絡)」になってしまった未完了予定から、案内文・タイトル内の相手名（例:「岩根さんとの１To1」）を自動復元
+    for (const m of this.state.meetings || []) {
+      if (m.tenant_id !== tid) continue;
+      const p0 = m.participant_ids[0] ? this.getPersonById(m.participant_ids[0]) : undefined;
+      const isGenericPerson = !p0 || p0.display_name.includes('相手未特定') || p0.display_name === '面談予定';
+      const isGenericTitle = !m.title || m.title === '面談予定' || m.title.includes('相手未特定');
+      if (isGenericPerson || isGenericTitle) {
+        const sourceText = [m.raw_invite_text, m.title !== '面談予定' ? m.title : ''].filter(Boolean).join(' ');
+        if (sourceText.trim()) {
+          const parsed = this.parseMeetingIntent(sourceText);
+          const candidate = parsed.extracted.candidate_participants[0]?.name;
+          if (candidate && !['面談予定', '相手未特定', 'オンライン面談', '面談', 'Zoom予定'].includes(candidate)) {
+            const hint = this.parseCompanyAndPersonHint(candidate);
+            const resolvedName = hint.personName || candidate;
+            if (resolvedName && resolvedName.length >= 1) {
+              if (p0 && p0.display_name.includes('相手未特定')) {
+                p0.display_name = resolvedName;
+                if (hint.company) {
+                  this.addOrganizationMembership(p0.id, hint.company, '代表');
+                }
+                changed = true;
+              } else if (!p0) {
+                const newP = this.createPerson({
+                  display_name: resolvedName,
+                  status: 'provisional',
+                  category_tags: [m.meeting_type === '1to1' ? 'BNI' : '仕事'],
+                });
+                m.participant_ids = [newP.id];
+                changed = true;
+              }
+              if (isGenericTitle) {
+                m.title = `${resolvedName}様と${m.meeting_type === '1to1' ? '1to1面談' : '面談'}`;
+                changed = true;
+              }
+            }
+          }
+        }
       }
     }
 
@@ -2355,18 +2403,50 @@ class DataStore {
     );
   }
 
+  private mergeCollectionById<T extends { id: string; updated_at?: string; created_at?: string }>(
+    serverItems: T[] = [],
+    localItems: T[] = []
+  ): T[] {
+    const map = new Map<string, T>();
+    for (const item of serverItems || []) {
+      if (item && item.id && !this.deletedIds.has(item.id)) {
+        map.set(item.id, item);
+      }
+    }
+    for (const item of localItems || []) {
+      if (!item || !item.id || this.deletedIds.has(item.id)) continue;
+      const existing = map.get(item.id);
+      if (!existing) {
+        map.set(item.id, item);
+      } else {
+        const tServer = new Date((existing as any).updated_at || (existing as any).created_at || 0).getTime() || 0;
+        const tLocal = new Date((item as any).updated_at || (item as any).created_at || 0).getTime() || 0;
+        const scoreServer = JSON.stringify(existing).length;
+        const scoreLocal = JSON.stringify(item).length;
+        if (tLocal > tServer || (tLocal === tServer && scoreLocal >= scoreServer)) {
+          map.set(item.id, { ...existing, ...item });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }
+
   private persist(skipCloudPush = false) {
     setStorageItem(STORAGE_KEY, JSON.stringify(this.state));
     if (!skipCloudPush && this.isBrowserSyncEnabled()) {
       if (this.syncTimer) clearTimeout(this.syncTimer);
       this.syncTimer = setTimeout(() => {
         this.pushStateToCloud().catch(() => {});
-      }, 350);
+      }, 200);
     }
   }
 
   public async pushStateToCloud(): Promise<boolean> {
-    if (!this.isBrowserSyncEnabled() || this.isSyncingCloud) return false;
+    if (!this.isBrowserSyncEnabled()) return false;
+    if (this.isSyncingCloud) {
+      this.hasPendingCloudPush = true;
+      return false;
+    }
     this.isSyncingCloud = true;
     try {
       const res = await fetch('/api/sync/state', {
@@ -2395,7 +2475,21 @@ class DataStore {
           JSON.stringify(this.state.persons.map((p: any) => [p.id, p.status, p.display_name, p.notes?.length])) +
           `:${this.state.transcripts?.length || 0}:${this.state.facts?.length || 0}`;
         const prevJson = snapshot();
-        this.state = data.state;
+        const localBackup = this.state;
+        this.state = {
+          ...data.state,
+          persons: this.mergeCollectionById(data.state.persons, localBackup.persons),
+          meetings: this.mergeCollectionById(data.state.meetings, localBackup.meetings),
+          facts: this.mergeCollectionById(data.state.facts, localBackup.facts),
+          transcripts: this.mergeCollectionById(data.state.transcripts, localBackup.transcripts),
+          consents: this.mergeCollectionById(data.state.consents, localBackup.consents),
+          organizations: this.mergeCollectionById(data.state.organizations, localBackup.organizations),
+          organizationMemberships: this.mergeCollectionById(data.state.organizationMemberships, localBackup.organizationMemberships),
+          businessOfferings: this.mergeCollectionById(data.state.businessOfferings, localBackup.businessOfferings),
+          bniMemberships: this.mergeCollectionById(data.state.bniMemberships, localBackup.bniMemberships),
+          referrals: this.mergeCollectionById(data.state.referrals, localBackup.referrals),
+          relationships: this.mergeCollectionById(data.state.relationships, localBackup.relationships),
+        };
         this.seedTsujiMeeting();
         this.seedKimuraMeeting();
         this.seedTanakaMeeting();
@@ -2410,6 +2504,10 @@ class DataStore {
       return false;
     } finally {
       this.isSyncingCloud = false;
+      if (this.hasPendingCloudPush) {
+        this.hasPendingCloudPush = false;
+        this.pushStateToCloud().catch(() => {});
+      }
     }
   }
 
@@ -2775,9 +2873,9 @@ class DataStore {
   } {
     const tid = this.state.currentTenantId;
 
-    // 全角英数・記号の正規化（スマホの全角入力やLINEのコピペに対応）
+    // 全角英数・記号の正規化（スマホの全角入力やLINEのコピペ、「１To1」などの表記ゆれに対応）
     const normalizedText = rawText
-      .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/[０-９Ａ-Ｚａ-ｚ]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
       .replace(/：/g, ':')
       .replace(/／/g, '/')
       .replace(/（/g, '(')
@@ -2896,11 +2994,30 @@ class DataStore {
       }
     }
 
-    // 既存人脈にない場合、日本語の招待文から相手氏名を自動抽出（U01要件）
+    // 既存人脈にない場合、日本語の招待文・メモから相手氏名を自動抽出（U01要件・「岩根さんとの１To1」等の表記ゆれ完全対応）
     if (candidates.length === 0) {
-      const nameMatch = normalizedText.match(/([^\s\n、。「」『』()（）]{2,8}?)(?:さん|様|氏|社長|先生|代表)?(?:と|との)?(?:次回)?(?:1to1|面談|打合せ|打ち合わせ|会議|商談)/);
-      if (nameMatch && nameMatch[1] && !/^(明日|明後日|本日|日時|次回|時間|月曜|火曜|水曜|木曜|金曜|土曜|日曜)$/.test(nameMatch[1])) {
-        candidates.push({ name: nameMatch[1], confidence: 0.85 });
+      const stopWords = /^(明日|明後日|本日|今日|日時|次回|時間|月曜|火曜|水曜|木曜|金曜|土曜|日曜|面談|打合せ|打ち合わせ|会議|商談|予定|オンライン|Zoom)$/i;
+      const textWithoutUrls = normalizedText.replace(/https?:\/\/[^\s]+/gi, ' ').trim();
+      const nameMatch =
+        textWithoutUrls.match(/([^\s\n、。「」『』()（）]{1,18}?)(?:さん|様|氏|社長|先生|代表)?(?:と|との|の)?\s*(?:次回)?(?:1to1|1on1|面談|打合せ|打ち合わせ|会議|商談|予定|ミーティング)/i) ||
+        textWithoutUrls.match(/([^\s\n、。「」『』()（）]{1,14}?)(?:さん|様|氏|社長|先生|代表)(?:と|との|\s|$|[、。])/i);
+      if (nameMatch && nameMatch[1]) {
+        const hint = this.parseCompanyAndPersonHint(nameMatch[1]);
+        const cleanCandidate = hint.personName || nameMatch[1].trim();
+        if (cleanCandidate && !stopWords.test(cleanCandidate) && !/^\d+$/.test(cleanCandidate)) {
+          candidates.push({
+            name: hint.company ? `${hint.company}の${cleanCandidate}` : cleanCandidate,
+            confidence: 0.88,
+          });
+        }
+      } else if (textWithoutUrls.length >= 2 && textWithoutUrls.length <= 24 && !/\d{1,2}[:時\/月]/.test(textWithoutUrls)) {
+        const hint = this.parseCompanyAndPersonHint(textWithoutUrls);
+        if (hint.personName && !stopWords.test(hint.personName) && !/^\d+$/.test(hint.personName)) {
+          candidates.push({
+            name: hint.company ? `${hint.company}の${hint.personName}` : hint.personName,
+            confidence: 0.8,
+          });
+        }
       }
     }
 
@@ -2936,14 +3053,26 @@ class DataStore {
   public createMeeting(data: Partial<Meeting> & { participant_name?: string }): Meeting {
     const tid = this.state.currentTenantId;
 
-    // 参加者IDの自動補完・名寄せ・仮人物作成（「夢叶開発の田中」のような社名＋氏名も自動分解）
+    // 参加者IDの自動補完・名寄せ・仮人物作成（「夢叶開発の田中」「岩根さんとの１To1」のような入力もどの欄からでも自動分解）
     const participantIds: string[] = [...(data.participant_ids || [])];
-    const rawCandidate = data.participant_name?.trim() || (data.title ? data.title.split('様')[0].trim() : '');
+    const placeholderTitles = ['面談予定', '録音から自動解析された面談', 'オンライン面談', '面談', 'Zoom予定', 'Zoom 1to1面談 (相手未特定)'];
+
+    let rawCandidate = data.participant_name?.trim() || '';
+    if (!rawCandidate && data.raw_invite_text?.trim()) {
+      const parsedFromInvite = this.parseMeetingIntent(data.raw_invite_text);
+      if (parsedFromInvite.extracted.candidate_participants[0]?.name) {
+        rawCandidate = parsedFromInvite.extracted.candidate_participants[0].name;
+      }
+    }
+    if (!rawCandidate && data.title && !placeholderTitles.includes(data.title.trim())) {
+      const parsedFromTitle = this.parseMeetingIntent(data.title);
+      rawCandidate = parsedFromTitle.extracted.candidate_participants[0]?.name || data.title.split('様')[0].trim();
+    }
+
     const parsedHint = rawCandidate ? this.parseCompanyAndPersonHint(rawCandidate) : { personName: '' };
     const candidateName = parsedHint.personName;
     const candidateCompany = parsedHint.company;
 
-    const placeholderTitles = ['面談予定', '録音から自動解析された面談', 'オンライン面談', '面談', 'Zoom予定'];
     if (candidateName && !placeholderTitles.includes(candidateName)) {
       // 既存の登録人物から検索
       const existing = this.getPersons().find(
@@ -2984,13 +3113,17 @@ class DataStore {
 
     const firstPerson = participantIds[0] ? this.getPersonById(participantIds[0]) : undefined;
     const defaultTitle = firstPerson && firstPerson.display_name !== '相手未特定 (LINE連絡)'
-      ? `${firstPerson.display_name}様と${data.meeting_type === '1to1' ? '1to1面談' : '面談'}`
-      : (data.meeting_type === '1to1' ? 'Zoom 1to1面談 (相手未特定)' : 'オンライン面談');
+      ? `${firstPerson.display_name}様と${(data.meeting_type || '1to1') === '1to1' ? '1to1面談' : '面談'}`
+      : ((data.meeting_type || '1to1') === '1to1' ? 'Zoom 1to1面談 (相手未特定)' : 'オンライン面談');
+    const resolvedTitle =
+      data.title && data.title.trim() && !(data.title.trim() === '面談予定' && firstPerson && firstPerson.display_name !== '相手未特定 (LINE連絡)')
+        ? data.title.trim()
+        : defaultTitle;
 
     const newMeeting: Meeting = {
       id: data.id || `m-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       tenant_id: tid,
-      title: data.title || defaultTitle,
+      title: resolvedTitle,
       meeting_type: data.meeting_type || '1to1',
       provider: data.provider || 'zoom',
       meeting_url: data.meeting_url,
@@ -3002,7 +3135,7 @@ class DataStore {
       participant_ids: participantIds,
       created_at: new Date().toISOString(),
     };
-    this.state.meetings.push(newMeeting);
+    this.state.meetings.unshift(newMeeting);
 
     // 参加者ごとの同意レコードを作成
     for (const pid of newMeeting.participant_ids) {
@@ -3722,28 +3855,27 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
 
   public getMeetings(): Meeting[] {
     const tid = this.state.currentTenantId;
-    const now = Date.now();
     return this.state.meetings
       .filter(m => m.tenant_id === tid)
       .sort((a, b) => {
         const timeA = new Date(a.scheduled_start_at).getTime();
         const timeB = new Date(b.scheduled_start_at).getTime();
-        // 未完了かつ将来の予定のみ「今後の予定」として先頭優先（完了済みは新しい順で並べる）
+        // 未完了の予定（status !== 'completed' && recording_status !== 'completed'）はすべて「今後の予定」として必ず先頭優先！
         const isDoneA = a.status === 'completed' || a.recording_status === 'completed';
         const isDoneB = b.status === 'completed' || b.recording_status === 'completed';
-        const isUpcomingA = !isDoneA && timeA >= now - 45 * 60 * 1000;
-        const isUpcomingB = !isDoneB && timeB >= now - 45 * 60 * 1000;
+        const isUpcomingA = !isDoneA;
+        const isUpcomingB = !isDoneB;
 
         if (isUpcomingA && isUpcomingB) {
           return timeA - timeB; // 直近（近い順）が最上位！
         }
         if (isUpcomingA && !isUpcomingB) {
-          return -1; // 今後の予定を先頭に
+          return -1; // 未完了の予定を必ず完了済み面談より先頭に表示
         }
         if (!isUpcomingA && isUpcomingB) {
           return 1;
         }
-        return timeB - timeA; // 過去の面談は新しい順
+        return timeB - timeA; // 過去の完了済み面談は新しい順
       });
   }
 

@@ -75,11 +75,18 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
   const [deleteCertificate, setDeleteCertificate] = useState<string | null>(null);
 
   const persons = store.getPersons();
-  const confirmedCount = persons.filter(p => p.status !== 'provisional').length;
+  const scheduledParticipantIds = new Set(
+    store.getMeetings().flatMap(m => m.participant_ids || [])
+  );
+  const isScheduledOrConfirmed = (p: (typeof persons)[number]) =>
+    p.status !== 'provisional' ||
+    (scheduledParticipantIds.has(p.id) && !p.display_name.includes('相手未特定'));
+
+  const confirmedCount = persons.filter(p => isScheduledOrConfirmed(p)).length;
   const provisionalCount = persons.filter(p => p.status === 'provisional').length;
   const chapters = store.getBNIChapters();
 
-  // フィルタリング
+  // フィルタリング（1to1予定を登録した相手も「すべて」「BNI」等のメイン一覧に即座に表示）
   const filteredPersons = persons.filter(p => {
     const matchQuery =
       p.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -88,10 +95,10 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
 
     const matchTag =
       selectedTag === 'ALL'
-        ? p.status !== 'provisional'
+        ? isScheduledOrConfirmed(p)
         : selectedTag === 'PROVISIONAL'
         ? p.status === 'provisional'
-        : p.status !== 'provisional' && p.category_tags.includes(selectedTag as CategoryTag);
+        : isScheduledOrConfirmed(p) && p.category_tags.includes(selectedTag as CategoryTag);
 
     return matchQuery && matchTag;
   });
