@@ -80,7 +80,7 @@ export default async function handler(req: any, res: any) {
   "personalNotes": "年齢・出身・居住地・家族構成・趣味・共通の知人など、次回1to1で役立つパーソナル情報"
 }`;
 
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+      const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
       let lastError = '';
       for (const modelName of modelsToTry) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -132,7 +132,7 @@ export default async function handler(req: any, res: any) {
       const mimeType: string = parsed.mimeType || 'audio/mp4';
       const base64Data: string = parsed.base64Data || '';
       const promptText: string = parsed.promptText || '';
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+      const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
       let lastError = '';
       for (const modelName of modelsToTry) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -201,7 +201,7 @@ export default async function handler(req: any, res: any) {
 【登録済み人脈カルテ・面談要約・確定Factsデータ】
 ${JSON.stringify(contextData)}`;
 
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash'];
     let lastError = '';
 
     for (const modelName of modelsToTry) {
