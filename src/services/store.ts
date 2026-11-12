@@ -1988,36 +1988,72 @@ class DataStore {
       }
     }
 
-    // 8. 紹介元の三島様（シャングリラチャプター）と相関図エッジ、および田中義博様×岩根義行様の紹介提案
-    if (!this.deletedIds.has('p-mishima-prov') && !this.state.persons.some(p => p.id === 'p-mishima-prov')) {
+    // 8. 紹介元の三島様（だんじりチャプター・勝賀野様と同チャプター）および土林様（だんじりチャプター）の相関図エッジと紹介ハブ提案
+    this.state.persons = this.state.persons.filter(p => p.id !== 'p-mishima-prov');
+    this.state.relationships = this.state.relationships.filter(r => r.id !== 'rel-mishima-iwane');
+
+    if (!this.deletedIds.has('p-mishima-danjiri') && !this.state.persons.some(p => p.id === 'p-mishima-danjiri')) {
       this.state.persons.push({
-        id: 'p-mishima-prov',
+        id: 'p-mishima-danjiri',
         tenant_id: tid,
-        display_name: '三島さん（シャングリラチャプター・紹介元）',
+        display_name: '三島さん（だんじりチャプター・紹介元）',
         phonetic_name: 'ミシマ',
         status: 'provisional',
-        is_name_verified: false,
+        is_name_verified: true,
         category_tags: ['BNI'],
         service_areas: ['大阪府（北新地）'],
-        notes: '大阪セントラルリージョン・シャングリラチャプター所属（北新地でスナック経営）。岩根 義行様を勝賀野様へご紹介いただいたキーパーソン。',
+        notes: '大阪セントラルリージョン・だんじりチャプター所属（勝賀野様と同チャプター・北新地でスナック経営）。岩根 義行様を勝賀野様へご紹介いただいたキーパーソン。',
         meeting_count: 0,
         created_at: '2026-11-12T19:46:00Z',
         updated_at: '2026-11-12T19:46:00Z',
       });
     }
-    if (!this.state.relationships.some(r => r.id === 'rel-mishima-iwane')) {
-      this.state.relationships.push({
-        id: 'rel-mishima-iwane',
+
+    if (!this.deletedIds.has('p-tsuchibayashi-danjiri') && !this.state.persons.some(p => p.id === 'p-tsuchibayashi-danjiri')) {
+      this.state.persons.push({
+        id: 'p-tsuchibayashi-danjiri',
         tenant_id: tid,
-        from_person_id: 'p-mishima-prov',
+        display_name: '土林さん（だんじりチャプター）',
+        phonetic_name: 'ツチバヤシ',
+        status: 'provisional',
+        is_name_verified: true,
+        category_tags: ['BNI'],
+        service_areas: ['大阪府'],
+        notes: '大阪セントラルリージョン・だんじりチャプター所属（勝賀野様と同チャプター・3Dプリンター/ドローン事業）。岩根 義行様の一般社団法人ディスカイステージのインストラクター・協業メンバー。',
+        meeting_count: 0,
+        created_at: '2026-11-12T19:46:00Z',
+        updated_at: '2026-11-12T19:46:00Z',
+      });
+    }
+
+    if (!this.state.relationships.some(r => r.id === 'rel-mishima-danjiri-iwane')) {
+      this.state.relationships.push({
+        id: 'rel-mishima-danjiri-iwane',
+        tenant_id: tid,
+        from_person_id: 'p-mishima-danjiri',
         to_person_id: iwaneId,
-        relationship_type: '紹介元 / 同一BNIチャプター（シャングリラ）',
+        relationship_type: '紹介元（だんじりチャプターの三島様よりご紹介）',
         is_ai_inferred: false,
         confidence: 1.0,
-        evidence_text: '11/12 岩根義行様1to1面談にて「三島さん（シャングリラチャプター・新地でスナック経営）からご紹介」と双方確認',
+        evidence_text: '11/12 岩根義行様1to1面談にて「だんじりチャプターの三島様（北新地スナック経営）からご紹介」と双方確認',
         source_meeting_id: 'm-iwane-20261112',
       });
     }
+
+    if (!this.state.relationships.some(r => r.id === 'rel-tsuchibayashi-iwane')) {
+      this.state.relationships.push({
+        id: 'rel-tsuchibayashi-iwane',
+        tenant_id: tid,
+        from_person_id: 'p-tsuchibayashi-danjiri',
+        to_person_id: iwaneId,
+        relationship_type: '協業・ドローンインストラクター連携（だんじりチャプター）',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/12 岩根義行様1to1面談にて「だんじりチャプターの土林様がディスカイステージのインストラクター登録メンバーとして深く協業」と確認',
+        source_meeting_id: 'm-iwane-20261112',
+      });
+    }
+
     if (!this.deletedIds.has('ref-iwane-tanaka') && !this.state.referrals.some(r => r.id === 'ref-iwane-tanaka')) {
       this.state.referrals.unshift({
         id: 'ref-iwane-tanaka',
@@ -2039,6 +2075,30 @@ class DataStore {
           confirmed_by_user: false,
         },
         created_at: '2026-11-12T19:47:00Z',
+      });
+    }
+
+    if (!this.deletedIds.has('ref-iwane-kimura') && !this.state.referrals.some(r => r.id === 'ref-iwane-kimura')) {
+      this.state.referrals.unshift({
+        id: 'ref-iwane-kimura',
+        tenant_id: tid,
+        referrer_person_id: iwaneId,
+        candidate_person_id: 'p-kimura-naofumi',
+        target_person_id: iwaneId,
+        recommendation_reason: '岩根義行様からご紹介予定の「八尾等の工場経営者（工場機械・残置物撤去ニーズ）」および岩根様の「カンテノ（AI古物査定ツール・古物商免許保有済み）」導入検討に対し、勝賀野様（株式会社ZENNOBATE・桂リサイクルショップRoute Z）と木村尚史様（不用品回収・遺品整理・一般社団法人stone）のリユース体制を連携させる提案です。',
+        breakdown: {
+          area_match: '対応エリア一致（大阪・八尾・守口・京都・近畿圏）',
+          specialty_match: '工場機械・残置物撤去×AI古物査定「カンテノ」×リユース販路連携',
+          privacy_checked: true,
+          track_record: '11/12 岩根様1to1にて八尾の工場経営者紹介・カンテノ導入検討に合意済み',
+        },
+        draft_message: `岩根さん、先日は1to1ありがとうございました！\nお話しいただいていた八尾の工場経営者様（機械・残置物撤去）の件や、AI査定ツール「カンテノ」の古物市場同行・リユース連携について、ぜひ具体的なスケジュールをご相談できればと思います。\n祇園のバー「Route Z」でのお食事も楽しみにしております！`,
+        status: 'suggested',
+        outcome: {
+          type: 'pending',
+          confirmed_by_user: false,
+        },
+        created_at: '2026-11-12T19:48:00Z',
       });
     }
   }
@@ -3024,12 +3084,13 @@ class DataStore {
     return this.getMeetings().filter(m => m.participant_ids.includes(personId));
   }
 
-  // --- テナント境界（RLS）フィルタ ---
+  // --- テナント境界（RLS）フィルタ & SaaS月額会員テナント管理 ---
   public getTenantId(): string {
     return this.state.currentTenantId;
   }
 
   public setTenantId(tenantId: string) {
+    if (!this.state.tenants.some(t => t.id === tenantId)) return;
     this.state.currentTenantId = tenantId;
     this.persist();
   }
@@ -3040,6 +3101,36 @@ class DataStore {
 
   public getCurrentTenant(): Tenant {
     return this.state.tenants.find(t => t.id === this.state.currentTenantId) || this.state.tenants[0];
+  }
+
+  public createTenant(name: string, planTier: 'standard' | 'premium' = 'standard', monthlyBudgetJpy: number = 1000): Tenant {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('会員・テナント名を入力してください');
+    const newTenant: Tenant = {
+      id: `tenant-${Date.now().toString(36)}`,
+      name: trimmed,
+      plan_tier: planTier,
+      monthly_budget_jpy: monthlyBudgetJpy,
+      current_spend_jpy: 0,
+      is_budget_throttled: false,
+      created_at: new Date().toISOString(),
+    };
+    this.state.tenants.push(newTenant);
+    this.logAudit('CREATE_TENANT', 'tenant', newTenant.id, { name: trimmed, planTier, monthlyBudgetJpy });
+    this.persist();
+    return newTenant;
+  }
+
+  public deleteTenant(tenantId: string): boolean {
+    if (tenantId === 'tenant-001') return false; // オーナーテナントは保護
+    const idx = this.state.tenants.findIndex(t => t.id === tenantId);
+    if (idx < 0) return false;
+    this.state.tenants.splice(idx, 1);
+    if (this.state.currentTenantId === tenantId) {
+      this.state.currentTenantId = 'tenant-001';
+    }
+    this.persist();
+    return true;
   }
 
   // --- 人物 (Persons) ---

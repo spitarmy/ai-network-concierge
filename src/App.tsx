@@ -70,6 +70,14 @@ export const App: React.FC = () => {
       setRefreshKey(k => k + 1);
     }
 
+    // URLパラメータ (?tenant=tenant-xxx) による月額会員専用テナントの自動切替
+    const searchParams = new URLSearchParams(window.location.search);
+    const tenantParam = searchParams.get('tenant');
+    if (tenantParam && store.getTenants().some(t => t.id === tenantParam)) {
+      store.setTenantId(tenantParam);
+      setRefreshKey(k => k + 1);
+    }
+
     // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）や営業スライド（/deck）への遷移
     const checkPath = () => {
       const path = window.location.pathname.toLowerCase();

@@ -364,4 +364,27 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(res.summary.promise).toContain('山本 義行様からライバー活動者・工場経営者をLINEで順次勝賀野様へご紹介・おつなぎする');
     expect(res.summary.promise).not.toContain('どこに相談しても');
   });
+
+  it('岩根義行様の相関図（だんじりチャプターの三島様・土林様）と紹介ハブ提案、およびSaaS月額会員テナント完全分離が動作すること', () => {
+    store.setTenantId('tenant-001');
+    store.seedIwaneMeeting();
+
+    const rels = store.getRelationships('actual');
+    expect(rels.some(r => r.id === 'rel-mishima-danjiri-iwane')).toBe(true);
+    expect(rels.some(r => r.id === 'rel-tsuchibayashi-iwane')).toBe(true);
+
+    const refs = store.getReferrals();
+    expect(refs.some(r => r.id === 'ref-iwane-tanaka')).toBe(true);
+    expect(refs.some(r => r.id === 'ref-iwane-kimura')).toBe(true);
+
+    // 新規SaaS月額会員テナントの発行とデータ完全分離(RLS)
+    const memberTenant = store.createTenant('テスト会員様 (¥4,980/月)', 'standard', 1000);
+    expect(memberTenant.monthly_budget_jpy).toBe(1000);
+    store.setTenantId(memberTenant.id);
+    expect(store.getPersons().length).toBe(0);
+
+    // オーナーテナントへ戻して後片付け
+    store.deleteTenant(memberTenant.id);
+    expect(store.getTenantId()).toBe('tenant-001');
+  });
 });

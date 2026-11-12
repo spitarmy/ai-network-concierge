@@ -128,6 +128,78 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    if (mode === 'card_ocr') {
+      const mimeType: string = parsed.mimeType || 'image/webp';
+      const base64Data: string = parsed.base64Data || '';
+      const cardOcrPrompt = `あなたは高精度な日本語名刺OCR専用エンジンです。
+添付された名刺画像に印字されている文字のみを正確に読み取り、以下のJSON形式のみで出力してください。
+
+【絶対厳守ルール（AGENTS.md準拠）】
+1. 名刺画像に実際に印字されている文字のみを読み取ってください。Web検索結果や推測を混ぜて架空の会社名・役職・氏名・住所を生成することは厳禁です。
+2. 記載がない項目は必ず空文字 "" にしてください。
+3. 氏名（person_name）は姓と名の間に半角スペースを入れてください。筆文字や旧字体・異体字がある場合は画像通りに正確に読み取ってください。
+4. 電話番号が複数ある場合は携帯電話番号または代表番号を優先して記載してください。
+
+{
+  "person_name": "氏名（例：岩根 義行）",
+  "phonetic_name": "ふりがな（ローマ字表記やふりがな印字がある場合、または確実な読みをひらがなで記載）",
+  "company_name": "会社名・法人名・屋号（複数の法人記載があれば併記）",
+  "title": "役職・肩書",
+  "phone": "電話番号",
+  "email": "メールアドレス",
+  "address": "所在地・住所（郵便番号除く、または含む）",
+  "website": "WebサイトURL（記載がある場合のみ）",
+  "business_summary": "名刺裏面や表面に記載されている事業内容・資格・強み（記載がある場合のみ）",
+  "confidence": 0.98
+}`;
+
+      const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+      let lastError = '';
+      for (const modelName of modelsToTry) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const geminiRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { inline_data: { mime_type: mimeType, data: base64Data } },
+                  { text: cardOcrPrompt },
+                ],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.1,
+            },
+          }),
+        });
+        if (geminiRes.ok) {
+          const data: any = await geminiRes.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            const resultJson = JSON.parse(text.trim());
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              ok: true,
+              gemini_configured: true,
+              model: modelName,
+              card: resultJson,
+            }));
+            return;
+          }
+        } else {
+          lastError = await geminiRes.text().catch(() => `HTTP ${geminiRes.status}`);
+        }
+      }
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ ok: false, gemini_configured: true, error: lastError }));
+      return;
+    }
+
     if (mode === 'transcribe_audio') {
       const mimeType: string = parsed.mimeType || 'audio/mp4';
       const base64Data: string = parsed.base64Data || '';

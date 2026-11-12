@@ -11,6 +11,8 @@ export const CardsView: React.FC = () => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [compressionStats, setCompressionStats] = useState<CompressionResult | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isOcrScanning, setIsOcrScanning] = useState(false);
+  const [ocrStatusText, setOcrStatusText] = useState<string | null>(null);
 
   const [cardName, setCardName] = useState('');
   const [cardPhonetic, setCardPhonetic] = useState('');
@@ -23,16 +25,67 @@ export const CardsView: React.FC = () => {
 
   const cardScans = store.getCardScans();
 
+  const runGeminiCardOCR = async (dataUrl: string) => {
+    const currentTenant = store.getCurrentTenant();
+    if (currentTenant && (currentTenant.is_budget_throttled || currentTenant.current_spend_jpy >= currentTenant.monthly_budget_jpy)) {
+      return;
+    }
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx < 0) return;
+    const header = dataUrl.slice(0, commaIdx);
+    const base64Data = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = header.match(/data:([^;]+);base64/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/webp';
+
+    setIsOcrScanning(true);
+    setOcrStatusText('✨ Gemini Vision AIが名刺の文字（氏名・会社・役職・連絡先）を自動読み取り中...');
+    try {
+      const apiKey = typeof window !== 'undefined' ? (window.localStorage.getItem('ai_concierge_gemini_api_key') || '') : '';
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'card_ocr',
+          apiKey: apiKey || undefined,
+          mimeType,
+          base64Data,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.card) {
+          const c = data.card;
+          if (c.person_name) setCardName(c.person_name);
+          if (c.phonetic_name) setCardPhonetic(c.phonetic_name);
+          if (c.company_name) setCardCompany(c.company_name);
+          if (c.title) setCardTitle(c.title);
+          if (c.phone) setCardPhone(c.phone);
+          if (c.email) setCardEmail(c.email);
+          if (c.address) setCardAddress(c.address);
+          store.recordAICost('ocr_pages', data.model || 'Gemini Vision', 1, 0.2, `名刺AI-OCR自動読み取り: ${c.person_name || '名刺画像'}`);
+          setOcrStatusText(`✅ Gemini AI自動読み取り完了！漢字に誤りがないか確認して「カルテに登録」を押してください`);
+          return;
+        }
+      }
+      setOcrStatusText(null);
+    } catch {
+      setOcrStatusText(null);
+    } finally {
+      setIsOcrScanning(false);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setIsCompressing(true);
+      setOcrStatusText(null);
       try {
         // スマホの生写真（3MB〜8MB）を自動で高精細WebP（約30〜60KB）に超圧縮
         const result = await compressImage(file, {
-          maxWidth: 1000,
-          maxHeight: 1000,
-          quality: 0.72,
+          maxWidth: 1200,
+          maxHeight: 1200,
+          quality: 0.78,
           preferredFormat: 'image/webp',
         });
         setCapturedImage(result.dataUrl);
@@ -43,11 +96,16 @@ export const CardsView: React.FC = () => {
         if (!cardName && baseName.length > 1 && !baseName.startsWith('image') && !baseName.startsWith('IMG')) {
           setCardName(baseName);
         }
+
+        // Gemini Vision AIで名刺文字を全自動OCR抽出
+        runGeminiCardOCR(result.dataUrl);
       } catch (err) {
         console.error('画像圧縮エラー。フォールバック読み込みを実行します:', err);
         const reader = new FileReader();
         reader.onload = (event) => {
-          setCapturedImage(event.target?.result as string);
+          const dUrl = event.target?.result as string;
+          setCapturedImage(dUrl);
+          if (dUrl) runGeminiCardOCR(dUrl);
         };
         reader.readAsDataURL(file);
       } finally {
@@ -183,6 +241,29 @@ export const CardsView: React.FC = () => {
                 </span>
               </div>
               <span className="text-[10px] text-blue-600 dark:text-blue-400">文字・ロゴの鮮明度維持</span>
+            </div>
+          )}
+
+          {/* Gemini Vision AI OCR ステータスバナー */}
+          {(isOcrScanning || ocrStatusText) && (
+            <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
+              isOcrScanning
+                ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/50 text-purple-700 dark:text-purple-300 animate-pulse'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span className="font-semibold">{ocrStatusText || 'Gemini Vision AIで読み取り中...'}</span>
+              </div>
+              {!isOcrScanning && capturedImage && (
+                <button
+                  type="button"
+                  onClick={() => runGeminiCardOCR(capturedImage)}
+                  className="text-[11px] font-bold underline hover:opacity-80 shrink-0 ml-2"
+                >
+                  再読み取り
+                </button>
+              )}
             </div>
           )}
 
