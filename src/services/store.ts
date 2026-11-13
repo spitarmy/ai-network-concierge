@@ -6,6 +6,7 @@ import {
   MeetingTranscript, Fact, CardScan, ReviewQueueItem, PersonRelationship,
   Referral, AICostEntry, AuditLog, OAuthIntegrationConfig
 } from '../types';
+import { OFFICIAL_BNI_REGIONS, OFFICIAL_BNI_CHAPTERS } from '../data/bniJapanOfficialData';
 
 const STORAGE_KEY = 'ai_network_concierge_db_v1';
 
@@ -57,14 +58,13 @@ const SAMPLE_SEED_STATE: DatabaseState = {
     }
   ],
   bniRegions: [
-    { id: 'reg-kyoto', prefecture: '京都府', region_code: 'KYOTO', region_name: '京都リージョン' },
-    { id: 'reg-osaka-s', prefecture: '大阪府', region_code: 'OSAKA_S', region_name: '阪神南リージョン' },
+    ...OFFICIAL_BNI_REGIONS,
     { id: 'reg-tokyo-c', prefecture: '東京都', region_code: 'TOKYO_C', region_name: '東京セントラルリージョン' },
   ],
   bniChapters: [
+    ...OFFICIAL_BNI_CHAPTERS,
     { id: 'chap-kyoto-e', region_id: 'reg-kyoto', chapter_name: '京都東チャプター', meeting_day: '火曜', meeting_time: '06:45〜08:30', is_verified: true },
     { id: 'chap-kyoto-n', region_id: 'reg-kyoto', chapter_name: '京都北チャプター', meeting_day: '木曜', meeting_time: '06:45〜08:30', is_verified: true },
-    { id: 'chap-osaka-bay', region_id: 'reg-osaka-s', chapter_name: 'ベイサイドチャプター', meeting_day: '水曜', meeting_time: '06:45〜08:30', is_verified: true },
     { id: 'chap-tokyo-ginza', region_id: 'reg-tokyo-c', chapter_name: '銀座チャプター', meeting_day: '金曜', meeting_time: '06:45〜08:30', is_verified: true },
   ],
   persons: [
@@ -615,17 +615,8 @@ const EMPTY_PRODUCTION_STATE: DatabaseState = {
       created_at: new Date().toISOString(),
     }
   ],
-  bniRegions: [
-    { id: 'reg-kyoto', prefecture: '京都府', region_code: 'KYOTO', region_name: '京都リージョン' },
-    { id: 'reg-osaka-s', prefecture: '大阪府', region_code: 'OSAKA_S', region_name: '阪神南リージョン' },
-    { id: 'reg-tokyo-c', prefecture: '東京都', region_code: 'TOKYO_C', region_name: '東京セントラルリージョン' },
-  ],
-  bniChapters: [
-    { id: 'chap-kyoto-e', region_id: 'reg-kyoto', chapter_name: '京都東チャプター', meeting_day: '火曜', meeting_time: '06:45〜08:30', is_verified: true },
-    { id: 'chap-kyoto-n', region_id: 'reg-kyoto', chapter_name: '京都北チャプター', meeting_day: '木曜', meeting_time: '06:45〜08:30', is_verified: true },
-    { id: 'chap-osaka-bay', region_id: 'reg-osaka-s', chapter_name: 'ベイサイドチャプター', meeting_day: '水曜', meeting_time: '06:45〜08:30', is_verified: true },
-    { id: 'chap-tokyo-ginza', region_id: 'reg-tokyo-c', chapter_name: '銀座チャプター', meeting_day: '金曜', meeting_time: '06:45〜08:30', is_verified: true },
-  ],
+  bniRegions: OFFICIAL_BNI_REGIONS,
+  bniChapters: OFFICIAL_BNI_CHAPTERS,
   persons: [],
   organizations: [],
   organizationMemberships: [],
@@ -2032,6 +2023,34 @@ class DataStore {
       });
     }
 
+    // 三島様・土林様のだんじりチャプター所属レコードもBNIマスターへ反映
+    if (!this.state.bniMemberships.some(bm => bm.id === 'bnim-mishima-1')) {
+      this.state.bniMemberships.push({
+        id: 'bnim-mishima-1',
+        tenant_id: tid,
+        person_id: 'p-mishima-danjiri',
+        chapter_id: 'chap-osaka-danjiri',
+        chapter_name: 'だんじりチャプター',
+        region_name: '大阪東リージョン (Osaka East)',
+        category: 'スナック・飲食店経営（北新地）',
+        status: 'active',
+        joined_on: '2024-04-01',
+      });
+    }
+    if (!this.state.bniMemberships.some(bm => bm.id === 'bnim-tsuchibayashi-1')) {
+      this.state.bniMemberships.push({
+        id: 'bnim-tsuchibayashi-1',
+        tenant_id: tid,
+        person_id: 'p-tsuchibayashi-danjiri',
+        chapter_id: 'chap-osaka-danjiri',
+        chapter_name: 'だんじりチャプター',
+        region_name: '大阪東リージョン (Osaka East)',
+        category: '3Dプリンター・ドローンインストラクター',
+        status: 'active',
+        joined_on: '2024-04-01',
+      });
+    }
+
     const coreRelationships: PersonRelationship[] = [
       {
         id: 'rel-mishima-danjiri-iwane',
@@ -2599,6 +2618,24 @@ class DataStore {
       this.state.relationships = this.state.relationships.filter(
         rel => validPersonIds.has(rel.from_person_id) && validPersonIds.has(rel.to_person_id) && rel.id !== 'rel-mishima-iwane'
       );
+    }
+
+    // 6. BNI全国公式マスターデータ（53リージョン・401チャプター）への自動アップグレード＆旧サンプルチャプター排除
+    const isSampleTestMode = (this.state.persons || []).some(p => p.id === 'p-yamada');
+    if (!isSampleTestMode) {
+      const bogusChapterIds = ['chap-kyoto-e', 'chap-kyoto-n', 'chap-osaka-bay', 'chap-tokyo-ginza'];
+      const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
+      const hasBogus =
+        (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
+        (this.state.bniChapters || []).length < 100;
+      if (hasBogus) {
+        for (const id of [...bogusChapterIds, ...bogusRegionIds]) {
+          this.deletedIds.add(id);
+        }
+        this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
+        this.state.bniChapters = JSON.parse(JSON.stringify(OFFICIAL_BNI_CHAPTERS));
+        changed = true;
+      }
     }
 
     if (changed) {
