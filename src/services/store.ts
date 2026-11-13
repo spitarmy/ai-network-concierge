@@ -2359,6 +2359,30 @@ class DataStore {
     this.state.facts = this.state.facts.filter(f => f.person_id !== 'p-zoom-participant');
     if (this.state.facts.length !== beforeFacts) changed = true;
 
+    // 2.4 辻晃典様（ツージー）および木村尚史様の重複カルテを本カルテへ自動統合
+    const tsujiMain = this.state.persons.find(p => p.id === 'p-tsuji-akinori');
+    if (tsujiMain) {
+      const dupTsuji = this.state.persons.filter(
+        p => p.tenant_id === tid && p.id !== 'p-tsuji-akinori' && /^ツージー$|^辻\s*晃典$/.test(p.display_name.trim())
+      );
+      for (const dupP of dupTsuji) {
+        this.deletedIds.add(dupP.id);
+        this.mergePersons(tsujiMain.id, dupP.id);
+        changed = true;
+      }
+    }
+    const kimuraMain = this.state.persons.find(p => p.id === 'p-kimura-naofumi');
+    if (kimuraMain) {
+      const dupKimura = this.state.persons.filter(
+        p => p.tenant_id === tid && p.id !== 'p-kimura-naofumi' && /^木村\s*尚史$/.test(p.display_name.trim())
+      );
+      for (const dupP of dupKimura) {
+        this.deletedIds.add(dupP.id);
+        this.mergePersons(kimuraMain.id, dupP.id);
+        changed = true;
+      }
+    }
+
     // 2.5 田中義博様（夢叶開発）の重複人物・重複予定（未完了・完了済み問わず、スマホ登録分や文字起こし貼り付け分も含む）を完全統合
     const tanakaMain = this.state.persons.find(p => p.id === 'p-tanaka-yoshihiro');
     if (tanakaMain) {
