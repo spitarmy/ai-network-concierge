@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { QuickAddModal } from './components/QuickAddModal';
 import { IdentifyParticipantModal } from './components/IdentifyParticipantModal';
 import { ThankYouFollowUpModal } from './components/ThankYouFollowUpModal';
+import { TenantOnboardingModal } from './components/TenantOnboardingModal';
 import { HomeView } from './views/HomeView';
 import { PersonsView } from './views/PersonsView';
 import { BNIView } from './views/BNIView';
@@ -29,6 +30,8 @@ export const App: React.FC = () => {
   const [isSimpleMode, setIsSimpleMode] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isNewSignupMode, setIsNewSignupMode] = useState(false);
   const [, setRefreshKey] = useState(0);
 
   const runCloudAndZoomSync = useCallback(async () => {
@@ -70,12 +73,28 @@ export const App: React.FC = () => {
       setRefreshKey(k => k + 1);
     }
 
-    // URLパラメータ (?tenant=tenant-xxx) による月額会員専用テナントの自動切替
+    // URLパラメータ (?tenant=tenant-xxx / ?signup=1 / ?onboarding=1) による月額会員専用テナントの自動切替＆初回オンボーディング起動
     const searchParams = new URLSearchParams(window.location.search);
     const tenantParam = searchParams.get('tenant');
-    if (tenantParam && store.getTenants().some(t => t.id === tenantParam)) {
-      store.setTenantId(tenantParam);
+    const signupParam = searchParams.get('signup');
+    const onboardingParam = searchParams.get('onboarding');
+    if (tenantParam && tenantParam.trim()) {
+      const cleanId = tenantParam.trim();
+      if (cleanId !== 'tenant-001') {
+        store.setTenantLockedMode(cleanId);
+      }
+      store.setTenantId(cleanId);
       setRefreshKey(k => k + 1);
+      if (
+        onboardingParam === '1' ||
+        (cleanId !== 'tenant-001' && !store.getCurrentOwnerProfile().is_onboarded)
+      ) {
+        setIsNewSignupMode(false);
+        setIsOnboardingOpen(true);
+      }
+    } else if (signupParam === '1') {
+      setIsNewSignupMode(true);
+      setIsOnboardingOpen(true);
     }
 
     // URLハッシュまたはパスによる法的文書画面（/privacy, /terms）や営業スライド（/deck）への遷移
@@ -222,6 +241,10 @@ export const App: React.FC = () => {
           updateAvailable={updateAvailable}
           isSyncing={isSyncing}
           onManualSync={runCloudAndZoomSync}
+          onOpenOwnerSetup={() => {
+            setIsNewSignupMode(false);
+            setIsOnboardingOpen(true);
+          }}
         />
 
         {/* 新バージョン配信バナー（PWA・ホーム画面利用時用） */}
@@ -307,6 +330,10 @@ export const App: React.FC = () => {
             <SettingsView
               onRefresh={handleRefresh}
               onNavigate={(v) => setCurrentView(v)}
+              onOpenOwnerSetup={() => {
+                setIsNewSignupMode(false);
+                setIsOnboardingOpen(true);
+              }}
             />
           )}
 
@@ -349,6 +376,20 @@ export const App: React.FC = () => {
         isOpen={!!thankYouMeetingId}
         meetingId={thankYouMeetingId}
         onClose={() => setThankYouMeetingId(null)}
+      />
+
+      {/* 新規会員・テナント専用オーナー初期設定モーダル */}
+      <TenantOnboardingModal
+        isOpen={isOnboardingOpen}
+        isNewSignup={isNewSignupMode}
+        onClose={() => setIsOnboardingOpen(false)}
+        onComplete={(newTenantId) => {
+          setIsOnboardingOpen(false);
+          setIsNewSignupMode(false);
+          const nextUrl = `${window.location.pathname}?tenant=${encodeURIComponent(newTenantId)}`;
+          window.history.replaceState({}, '', nextUrl);
+          handleRefresh();
+        }}
       />
     </div>
   );

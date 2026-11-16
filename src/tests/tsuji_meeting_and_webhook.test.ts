@@ -488,4 +488,46 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     const kobiRels = store.getRelationshipsForPerson(kobi!.id);
     expect(kobiRels.some(r => r.to_person_id === 'p-hori-miyabi' && r.relationship_type.includes('紹介予定'))).toBe(true);
   });
+
+  it('商用マルチテナントSaaS分離: 新規顧客テナントでは勝賀野様の人脈データが一切見えず、顧客自身のオーナー設定が独立保持されること', () => {
+    const newCustomer = store.createTenant('株式会社テスト商事 鈴木一郎様 (¥4,980/月)', 'standard', 1000);
+    store.setTenantLockedMode(newCustomer.id);
+    store.setTenantId(newCustomer.id);
+
+    // 顧客テナント表示中にseedメソッド群が呼ばれても、勝賀野様(tenant-001)の個人データが顧客テナントへ漏洩しないこと
+    store.seedTsujiMeeting();
+    store.seedKimuraMeeting();
+    store.seedTanakaMeeting();
+    store.seedIwaneMeeting();
+    store.seedKobiMeeting();
+    store.seedMishimaMeeting();
+
+    expect(store.getPersons().length).toBe(0);
+    expect(store.getMeetings().length).toBe(0);
+    expect(store.isTenantLockedMode()).toBe(true);
+
+    // 顧客自身のオーナープロフィール登録
+    store.updateTenantOwnerProfile({
+      owner_name: '鈴木 一郎',
+      company_name: '株式会社テスト商事',
+      title: '代表取締役',
+      bni_region_name: '大阪セントラルリージョン (Osaka Central)',
+      bni_chapter_name: 'シャングリラチャプター',
+      bni_category: 'オフィス内装・空間デザイン',
+    });
+
+    const custProfile = store.getCurrentOwnerProfile();
+    expect(custProfile.owner_name).toBe('鈴木 一郎');
+    expect(custProfile.company_name).toBe('株式会社テスト商事');
+    expect(custProfile.bni_chapter_name).toBe('シャングリラチャプター');
+    expect(custProfile.is_onboarded).toBe(true);
+
+    // 勝賀野様（tenant-001）に戻すと勝賀野様のプロフィールと人脈が完全に保持されていること
+    store.setTenantLockedMode(null);
+    store.setTenantId('tenant-001');
+    const ownerProfile = store.getCurrentOwnerProfile();
+    expect(ownerProfile.owner_name).toBe('勝賀野 太郎');
+    expect(ownerProfile.bni_chapter_name).toBe('だんじりチャプター');
+    expect(store.getPersons().length).toBeGreaterThanOrEqual(6);
+  });
 });

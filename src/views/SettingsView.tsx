@@ -12,19 +12,28 @@ import { getStoredGeminiApiKey, setStoredGeminiApiKey } from '../services/gemini
 interface SettingsViewProps {
   onRefresh: () => void;
   onNavigate?: (view: any) => void;
+  onOpenOwnerSetup?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigate }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigate, onOpenOwnerSetup }) => {
   const currentTenant = store.getCurrentTenant();
+  const ownerProfile = store.getCurrentOwnerProfile();
+  const isLockedTenant = store.isTenantLockedMode();
   const costLedger = store.getCostLedger();
   const auditLogs = store.getAuditLogs();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const oauthConfig = store.getOAuthConfig();
   const [zoomMode, setZoomMode] = useState<'bot' | 'cloud'>('bot');
-  const [zoomAccountId, setZoomAccountId] = useState(oauthConfig.zoom.account_id || '');
-  const [zoomClientId, setZoomClientId] = useState(oauthConfig.zoom.client_id || '');
-  const [zoomClientSecret, setZoomClientSecret] = useState(oauthConfig.zoom.client_secret || '');
+  const [zoomAccountId, setZoomAccountId] = useState(
+    currentTenant.id === 'tenant-001' ? (oauthConfig.zoom.account_id || '') : (ownerProfile.zoom_account_id || '')
+  );
+  const [zoomClientId, setZoomClientId] = useState(
+    currentTenant.id === 'tenant-001' ? (oauthConfig.zoom.client_id || '') : (ownerProfile.zoom_client_id || '')
+  );
+  const [zoomClientSecret, setZoomClientSecret] = useState(
+    currentTenant.id === 'tenant-001' ? (oauthConfig.zoom.client_secret || '') : (ownerProfile.zoom_client_secret || '')
+  );
   const [zoomWebhookSecret, setZoomWebhookSecret] = useState(oauthConfig.zoom.webhook_secret_token || '');
   const [zoomTestResult, setZoomTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -55,12 +64,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
 
   const handleSaveZoom = (e: React.FormEvent) => {
     e.preventDefault();
-    store.updateZoomConfig({
-      account_id: zoomAccountId,
-      client_id: zoomClientId,
-      client_secret: zoomClientSecret,
-      webhook_secret_token: zoomWebhookSecret,
-    });
+    if (currentTenant.id === 'tenant-001') {
+      store.updateZoomConfig({
+        account_id: zoomAccountId,
+        client_id: zoomClientId,
+        client_secret: zoomClientSecret,
+        webhook_secret_token: zoomWebhookSecret,
+      });
+    } else {
+      store.updateTenantOwnerProfile({
+        zoom_account_id: zoomAccountId.trim(),
+        zoom_client_id: zoomClientId.trim(),
+        zoom_client_secret: zoomClientSecret.trim(),
+      });
+      store.pushStateToCloud().catch(() => {});
+    }
     const res = store.testOAuthConnection('zoom');
     setZoomTestResult(res);
     onRefresh();
@@ -144,6 +162,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
         </p>
       </div>
 
+      {/* 👤 現在のテナントのオーナープロフィール設定（氏名・会社名・BNIチャプター） */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+          <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+            <Sparkles className="w-4 h-4 text-apple-blue" />
+            <span>👤 オーナープロフィール設定（相関図の中心ハブ・話者識別・お礼文署名）</span>
+          </div>
+          {onOpenOwnerSetup && (
+            <button
+              type="button"
+              onClick={onOpenOwnerSetup}
+              className="px-3.5 py-1.5 rounded-xl bg-apple-blue text-white text-xs font-bold hover:opacity-90 transition-opacity shadow-xs"
+            >
+              プロフィール・所属チャプターを変更
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder">
+            <span className="text-[11px] text-neutral-400 block">オーナー氏名・役職</span>
+            <span className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+              {ownerProfile.owner_name} {ownerProfile.title ? `（${ownerProfile.title}）` : ''}
+            </span>
+          </div>
+          <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder">
+            <span className="text-[11px] text-neutral-400 block">会社名・屋号</span>
+            <span className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+              {ownerProfile.company_name || '未設定'}
+            </span>
+          </div>
+          <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder">
+            <span className="text-[11px] text-neutral-400 block">BNI所属リージョン・チャプター</span>
+            <span className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+              {ownerProfile.bni_chapter_name
+                ? `${ownerProfile.bni_region_name ? `${ownerProfile.bni_region_name} / ` : ''}${ownerProfile.bni_chapter_name}`
+                : 'BNI未設定（一般経営者モード）'}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* 本番データ運用 & バックアップカード (リアル利用に必須) */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
         <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
@@ -219,139 +278,210 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
           </div>
         </div>
       </div>
-      {/* 👥 SaaS月額会員（マルチテナント）発行 & 専用URL管理 */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
-        <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
-          <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-            <Shield className="w-4 h-4 text-emerald-600" />
-            <span>👥 月額会員アカウント発行・個別環境（RLS完全分離・1人あたりAI原価上限 ¥1,000/月）</span>
+      {/* 👥 SaaS月額会員（マルチテナント）発行 & 専用URL・Stripe決済管理（オーナー管理者画面のみ表示、顧客ロック時は自身のプラン表示） */}
+      {isLockedTenant ? (
+        <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-3 shadow-sm">
+          <div className="flex items-center justify-between pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+            <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              <Shield className="w-4 h-4 text-emerald-600" />
+              <span>🔒 ご契約プラン・専用データ領域保護（RLS分離済み）</span>
+            </div>
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              {currentTenant.plan_tier === 'premium' ? 'プレミアムプラン (¥5,980/月)' : 'スタンダードプラン (¥4,980/月)'}
+            </span>
           </div>
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-            登録テナント: {store.getTenants().length}社
-          </span>
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            このアカウント（ID: <code>{currentTenant.id}</code>）はあなた専用のデータ領域としてロック・保護されており、他の会員からあなたの人脈や面談記録が閲覧されることはありません。
+          </p>
         </div>
-
-        <p className="text-xs text-neutral-500 leading-relaxed">
-          他のBNIメンバーや経営者様に月額（¥4,980 / ¥5,980）でご利用いただく際、ここで会員専用環境を発行できます。発行された専用URLをLINE等でお送りすると、<strong>勝賀野様の人脈データは一切見えず（完全分離）</strong>、勝賀野様のマスターGemini APIを共用しながら<strong>「1人あたり月1,000円の原価上限ガード」</strong>付きでそのままご利用いただけます。
-        </p>
-
-        {/* 新規会員発行フォーム */}
-        <div className="flex flex-col sm:flex-row gap-2 pt-1">
-          <input
-            type="text"
-            value={newMemberName}
-            onChange={(e) => setNewMemberName(e.target.value)}
-            placeholder="新規会員名（例: 株式会社岩根工業 岩根義行様 / だんじり 三島様）"
-            className="flex-1 px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
-          />
-          <select
-            value={newMemberPlan}
-            onChange={(e) => setNewMemberPlan(e.target.value as '4980' | '5980')}
-            aria-label="月額プラン選択"
-            className="px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7]"
-          >
-            <option value="4980">月額 ¥4,980 プラン（原価上限 ¥1,000）</option>
-            <option value="5980">月額 ¥5,980 プラン（原価上限 ¥1,000）</option>
-          </select>
-          <button
-            type="button"
-            onClick={async () => {
-              if (!newMemberName.trim()) return;
-              store.createTenant(
-                `${newMemberName.trim()} (¥${Number(newMemberPlan).toLocaleString()}/月)`,
-                newMemberPlan === '5980' ? 'premium' : 'standard',
-                1000
-              );
-              setNewMemberName('');
-              await store.pushStateToCloud().catch(() => {});
-              onRefresh();
-            }}
-            className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shrink-0 shadow-sm"
-          >
-            ＋ 新規会員アカウントを発行
-          </button>
-        </div>
-
-        {/* 発行済み会員テナント一覧 */}
-        <div className="space-y-2 pt-2">
-          {store.getTenants().map((t) => {
-            const isActive = t.id === currentTenant.id;
-            const memberUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://ai-network-concierge.vercel.app'}/?tenant=${t.id}`;
-            return (
-              <div
-                key={t.id}
-                className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
-                  isActive
-                    ? 'bg-blue-50/70 dark:bg-blue-950/30 border-apple-blue/50'
-                    : 'bg-neutral-50 dark:bg-neutral-900/60 border-apple-border dark:border-apple-darkBorder'
-                }`}
+      ) : (
+        <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-apple-border dark:border-apple-darkBorder">
+            <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              <Shield className="w-4 h-4 text-emerald-600" />
+              <span>👥 月額会員アカウント発行・セルフ登録リンク・Stripe決済管理（RLS完全分離）</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const signupUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://ai-network-concierge.vercel.app'}/?signup=1`;
+                  navigator.clipboard.writeText(signupUrl);
+                  setCopiedTenantId('SELF_SIGNUP');
+                  setTimeout(() => setCopiedTenantId(null), 2000);
+                }}
+                className="px-3 py-1 rounded-xl bg-apple-blue/10 text-apple-blue text-[11px] font-bold hover:bg-apple-blue/20 flex items-center gap-1"
               >
-                <div className="space-y-0.5">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{t.name}</span>
-                    {t.id === 'tenant-001' && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
-                        オーナー（勝賀野様）
-                      </span>
-                    )}
-                    {isActive && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-blue text-white font-bold">
-                        現在表示中
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-neutral-500 font-mono">
-                    当月AI原価: ¥{t.current_spend_jpy.toFixed(0)} / 上限 ¥{t.monthly_budget_jpy.toLocaleString()} ・ ID: {t.id}
-                  </div>
-                </div>
+                {copiedTenantId === 'SELF_SIGNUP' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedTenantId === 'SELF_SIGNUP' ? 'セルフ登録URLをコピー済' : '新規顧客セルフ登録URL (?signup=1) をコピー'}</span>
+              </button>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                登録テナント: {store.getTenants().length}社
+              </span>
+            </div>
+          </div>
 
-                <div className="flex items-center space-x-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(memberUrl);
-                      setCopiedTenantId(t.id);
-                      setTimeout(() => setCopiedTenantId(null), 2000);
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl border border-apple-border dark:border-apple-darkBorder bg-white dark:bg-neutral-800 text-[11px] font-medium hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center space-x-1"
-                  >
-                    {copiedTenantId === t.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedTenantId === t.id ? '専用URLをコピー済' : '会員専用URLをコピー'}</span>
-                  </button>
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            他のBNIメンバーや経営者様に月額（¥4,980 / ¥5,980）で販売する際、<strong>①「新規顧客セルフ登録URL（<code>/?signup=1</code>）」を送って相手自身に名前・会社名・チャプターを登録してもらう方法</strong>と、<strong>② 下のフォームから専用環境を発行してURLを送る方法</strong>のどちらも使えます。専用URLで開いた顧客画面はロックされ、<strong>勝賀野様の人脈データは一切見えません（サーバーサイドRLS完全分離）</strong>。
+          </p>
 
-                  {!isActive && (
+          {/* 新規会員発行フォーム */}
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <input
+              type="text"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              placeholder="新規会員名（例: 株式会社岩根工業 岩根義行様 / だんじり 三島様）"
+              className="flex-1 px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
+            />
+            <select
+              value={newMemberPlan}
+              onChange={(e) => setNewMemberPlan(e.target.value as '4980' | '5980')}
+              aria-label="月額プラン選択"
+              className="px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7]"
+            >
+              <option value="4980">月額 ¥4,980 プラン（原価上限 ¥1,000）</option>
+              <option value="5980">月額 ¥5,980 プラン（原価上限 ¥1,000）</option>
+            </select>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!newMemberName.trim()) return;
+                store.createTenant(
+                  `${newMemberName.trim()} (¥${Number(newMemberPlan).toLocaleString()}/月)`,
+                  newMemberPlan === '5980' ? 'premium' : 'standard',
+                  1000
+                );
+                setNewMemberName('');
+                await store.pushStateToCloud().catch(() => {});
+                onRefresh();
+              }}
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shrink-0 shadow-sm"
+            >
+              ＋ 新規会員アカウントを発行
+            </button>
+          </div>
+
+          {/* 発行済み会員テナント一覧 */}
+          <div className="space-y-2 pt-2">
+            {store.getTenants().map((t) => {
+              const isActive = t.id === currentTenant.id;
+              const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ai-network-concierge.vercel.app';
+              const needsOnboarding = t.id !== 'tenant-001' && !t.owner_profile?.is_onboarded;
+              const memberUrl = `${origin}/?tenant=${t.id}${needsOnboarding ? '&onboarding=1' : ''}`;
+              return (
+                <div
+                  key={t.id}
+                  className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
+                    isActive
+                      ? 'bg-blue-50/70 dark:bg-blue-950/30 border-apple-blue/50'
+                      : 'bg-neutral-50 dark:bg-neutral-900/60 border-apple-border dark:border-apple-darkBorder'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{t.name}</span>
+                      {t.id === 'tenant-001' && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
+                          オーナー（勝賀野様）
+                        </span>
+                      )}
+                      {t.owner_profile?.bni_chapter_name && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold">
+                          {t.owner_profile.bni_chapter_name}
+                        </span>
+                      )}
+                      {isActive && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-blue text-white font-bold">
+                          現在表示中
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-neutral-500 font-mono">
+                      当月AI原価: ¥{t.current_spend_jpy.toFixed(0)} / 上限 ¥{t.monthly_budget_jpy.toLocaleString()} ・ ID: {t.id}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
-                        store.setTenantId(t.id);
-                        onRefresh();
+                        navigator.clipboard.writeText(memberUrl);
+                        setCopiedTenantId(t.id);
+                        setTimeout(() => setCopiedTenantId(null), 2000);
                       }}
-                      className="px-2.5 py-1.5 rounded-xl bg-apple-blue text-white text-[11px] font-medium hover:opacity-90"
+                      className="px-2.5 py-1.5 rounded-xl border border-apple-border dark:border-apple-darkBorder bg-white dark:bg-neutral-800 text-[11px] font-medium hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center space-x-1"
                     >
-                      この会員画面を見る
+                      {copiedTenantId === t.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedTenantId === t.id ? '専用URLをコピー済' : '会員専用URLをコピー'}</span>
                     </button>
-                  )}
 
-                  {t.id !== 'tenant-001' && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        store.deleteTenant(t.id);
-                        await store.pushStateToCloud().catch(() => {});
-                        onRefresh();
-                      }}
-                      className="p-1.5 rounded-xl text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                      title="会員テナントを削除"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                    {t.id !== 'tenant-001' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/billing/checkout', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                tenantId: t.id,
+                                planTier: t.plan_tier,
+                                ownerName: t.owner_profile?.owner_name || t.name,
+                                origin,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.checkoutUrl) {
+                              navigator.clipboard.writeText(data.checkoutUrl);
+                              setCopiedTenantId(`BILL_${t.id}`);
+                              setTimeout(() => setCopiedTenantId(null), 2500);
+                            }
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-indigo-600 text-white text-[11px] font-medium hover:opacity-90 flex items-center gap-1"
+                      >
+                        <DollarSign className="w-3 h-3" />
+                        <span>{copiedTenantId === `BILL_${t.id}` ? '決済・登録リンクをコピー済' : '決済・初期設定リンクをコピー'}</span>
+                      </button>
+                    )}
+
+                    {!isActive && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          store.setTenantId(t.id);
+                          onRefresh();
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-apple-blue text-white text-[11px] font-medium hover:opacity-90"
+                      >
+                        この会員画面を見る
+                      </button>
+                    )}
+
+                    {t.id !== 'tenant-001' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          store.deleteTenant(t.id);
+                          await store.pushStateToCloud().catch(() => {});
+                          onRefresh();
+                        }}
+                        className="p-1.5 rounded-xl text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        title="会員テナントを削除"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 📱 PWA / ホーム画面アプリの更新・キャッシュ管理 */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">

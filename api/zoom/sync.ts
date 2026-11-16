@@ -192,17 +192,40 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const { accountId, clientId, clientSecret } = healZoomCredentials({
-      accountId: bodyCreds.account_id,
-      clientId: bodyCreds.client_id,
-      clientSecret: bodyCreds.client_secret,
-    });
+    const requestedTenantId = String(bodyCreds.tenant_id || 'tenant-001');
+    const isCustomTenant = requestedTenantId !== 'tenant-001';
+
+    // 顧客テナント（tenant-001以外）の場合は、その顧客自身のZoom認証情報が設定されている場合のみ接続し、勝賀野様（オーナー）のZoom録画やWebhookキャッシュは一切返さない（テナント完全分離）
+    if (isCustomTenant && (!bodyCreds.account_id || !bodyCreds.client_id || !bodyCreds.client_secret)) {
+      res.setHeader('Content-Type', 'application/json');
+      res.statusCode = 200;
+      res.end(JSON.stringify({
+        status: 'ok',
+        api_connected: false,
+        sessions: [],
+        scheduled_meetings: [],
+        message: 'この会員テナント用のZoom連携キーが未設定です（設定画面からご自身のZoomキーを登録すると自動同期されます）',
+      }));
+      return;
+    }
+
+    const { accountId, clientId, clientSecret } = isCustomTenant
+      ? {
+          accountId: String(bodyCreds.account_id || '').trim(),
+          clientId: String(bodyCreds.client_id || '').trim(),
+          clientSecret: String(bodyCreds.client_secret || '').trim(),
+        }
+      : healZoomCredentials({
+          accountId: bodyCreds.account_id,
+          clientId: bodyCreds.client_id,
+          clientSecret: bodyCreds.client_secret,
+        });
 
     const sessionMap = new Map<string, any>();
-    const cache = loadSessionCache();
+    const cache = isCustomTenant ? {} : loadSessionCache();
 
-    // 1. まずリアルタイムWebhook受信箱を統合（会議終了40秒後に届くAI要約も即反映）
-    const inbox = loadWebhookInbox();
+    // 1. まずリアルタイムWebhook受信箱を統合（オーナーテナントのみ）
+    const inbox = isCustomTenant ? [] : loadWebhookInbox();
     for (const item of inbox) {
       const uuid = item.uuid || item.raw_payload?.payload?.object?.uuid || item.raw_payload?.payload?.object?.meeting_uuid;
       if (!uuid) continue;

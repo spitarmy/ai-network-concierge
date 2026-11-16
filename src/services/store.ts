@@ -1,7 +1,7 @@
 // AI人脈コンシェルジュ — コアストア & ドメインロジック（正本・確定仕様01〜34完全準拠）
 
 import {
-  Tenant, Person, Organization, OrganizationMembership, BusinessOffering,
+  Tenant, TenantOwnerProfile, Person, Organization, OrganizationMembership, BusinessOffering,
   BNIRegion, BNIChapter, BNIMembership, Meeting, MeetingType, ConsentRecord, MeetingRecording,
   MeetingTranscript, Fact, CardScan, ReviewQueueItem, PersonRelationship,
   Referral, AICostEntry, AuditLog, OAuthIntegrationConfig
@@ -760,6 +760,23 @@ class DataStore {
 
     // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
     this.reconcileLegacyAndDuplicateData();
+
+    // URLパラメータ (?tenant=tenant-xxx) が指定されている場合は起動直後から該当会員テナントへ即座に切り替え、顧客専用ロックモードを有効化
+    if (typeof window !== 'undefined' && window.location && window.location.search) {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const urlTenant = sp.get('tenant');
+        if (urlTenant && urlTenant.trim()) {
+          const cleanId = urlTenant.trim();
+          if (cleanId !== 'tenant-001') {
+            this.lockedTenantId = cleanId;
+          }
+          this.setTenantId(cleanId);
+        }
+      } catch {
+        // ignore URL parse error
+      }
+    }
   }
 
   public purgeBogusDemoData(): void {
@@ -805,7 +822,7 @@ class DataStore {
   }
 
   public seedTsujiMeeting(): void {
-    const tid = this.state.currentTenantId;
+    const tid = 'tenant-001';
     // 辻 晃典 様が未登録、または更新が必要な場合に自動登録
     let tsuji = this.state.persons.find(p => p.id === 'p-tsuji-akinori' || p.display_name === '辻 晃典');
     if (!tsuji) {
@@ -1039,7 +1056,7 @@ class DataStore {
 
   
   public seedKimuraMeeting(): void {
-    const tid = this.state.currentTenantId;
+    const tid = 'tenant-001';
 
     // 木村 尚史 様 カルテ
     let kimura = this.state.persons.find(p => p.id === 'p-kimura-naofumi' || p.display_name === '木村 尚史');
@@ -1316,7 +1333,7 @@ class DataStore {
   
 
   public seedTanakaMeeting(): void {
-    const tid = this.state.currentTenantId;
+    const tid = 'tenant-001';
 
     const fullTanakaNotes = '夢叶開発 代表。大阪拠点で中古マンション中心の買取再販（土地も大阪・兵庫で実施、最遠は函館も実績）。33歳（平成5年生まれ、勝賀野様と1歳差同世代）。子供3人（5歳、3歳、1歳）。長野出身→東京（元エンジニア1年半）→大阪転勤で独立10年。趣味はボードゲーム。リクシル不動産三浦さん・入江さん経由で西友寺案件の取引実績あり。夜は飲めないがランチなら京都・大阪とも歓迎。勝賀野様から不動産業者を1名紹介して3名でランチに行く約束。買取物件の残置物撤去・遺品整理（近畿一円・名古屋）を提携。';
 
@@ -2877,7 +2894,18 @@ class DataStore {
 
   private isSelfSpeaker(label: string): boolean {
     if (!label) return true;
-    return /勝賀野|生姜|善野|ZENNOBATE|ゼノベイト|残置物撤去|残地物撤去|Organizer|^自分$|^ホスト$/i.test(label);
+    if (/Organizer|^自分$|^ホスト$/i.test(label)) return true;
+    const owner = this.getCurrentOwnerProfile();
+    if (this.state.currentTenantId === 'tenant-001') {
+      return /勝賀野|生姜|善野|ZENNOBATE|ゼノベイト|残置物撤去|残地物撤去/i.test(label);
+    }
+    const tokens = [
+      owner.owner_name,
+      owner.owner_name?.replace(/\s+/g, ''),
+      owner.owner_name?.split(/\s+/)[0],
+      owner.company_name,
+    ].filter((t): t is string => !!t && t.length >= 2);
+    return tokens.some(tok => label.includes(tok));
   }
 
   private normalizeSpeakerName(raw: string): string {
@@ -3855,6 +3883,67 @@ class DataStore {
     }
   }
 
+  private lockedTenantId: string | null = null;
+
+  public setTenantLockedMode(tenantId: string | null): void {
+    this.lockedTenantId = tenantId;
+  }
+
+  public isTenantLockedMode(): boolean {
+    return !!this.lockedTenantId && this.lockedTenantId !== 'tenant-001';
+  }
+
+  public getCurrentOwnerProfile(): TenantOwnerProfile {
+    const t = this.getCurrentTenant();
+    if (t.owner_profile && t.owner_profile.owner_name) {
+      return t.owner_profile;
+    }
+    if (t.id === 'tenant-001') {
+      return {
+        owner_name: '勝賀野 太郎',
+        owner_phonetic: 'しょうがの たろう',
+        company_name: '株式会社ZENNOBATE（ゼノベイト）',
+        title: '代表取締役',
+        bni_region_name: '大阪東リージョン (Osaka East)',
+        bni_chapter_name: 'だんじりチャプター',
+        bni_category: '残置物撤去・遺品整理・リユース',
+        specialty_summary: '残置物撤去・遺品整理・リサイクルショップ運営・AI古物査定ツール「カンテノ」',
+        is_onboarded: true,
+      };
+    }
+    const cleanTenantTitle = t.name.replace(/\s*\(¥.*?\).*$/, '').trim();
+    return {
+      owner_name: cleanTenantTitle || 'オーナー様',
+      company_name: cleanTenantTitle || '',
+      title: '代表',
+      bni_region_name: '',
+      bni_chapter_name: '',
+      bni_category: '',
+      specialty_summary: '',
+      is_onboarded: false,
+    };
+  }
+
+  public updateTenantOwnerProfile(updates: Partial<TenantOwnerProfile>): TenantOwnerProfile {
+    const t = this.getCurrentTenant();
+    const current = this.getCurrentOwnerProfile();
+    const merged: TenantOwnerProfile = {
+      ...current,
+      ...updates,
+      is_onboarded: true,
+    };
+    t.owner_profile = merged;
+    if (merged.owner_name && t.id !== 'tenant-001') {
+      const priceSuffix = t.name.match(/\(¥.*?\)/)?.[0] || '';
+      const displayLabel = merged.company_name && merged.company_name !== merged.owner_name
+        ? `${merged.company_name} ${merged.owner_name}様`
+        : `${merged.owner_name}様`;
+      t.name = `${displayLabel}${priceSuffix ? ` ${priceSuffix}` : ''}`;
+    }
+    this.persist();
+    return merged;
+  }
+
   public async pushStateToCloud(): Promise<boolean> {
     if (!this.isBrowserSyncEnabled()) return false;
     if (this.isSyncingCloud) {
@@ -3869,6 +3958,7 @@ class DataStore {
         body: JSON.stringify({
           state: this.state,
           deletedIds: Array.from(this.deletedIds),
+          lockedTenantId: this.lockedTenantId || undefined,
         }),
       });
       if (!res.ok) return false;
@@ -3890,8 +3980,11 @@ class DataStore {
           `:${this.state.transcripts?.length || 0}:${this.state.facts?.length || 0}`;
         const prevJson = snapshot();
         const localBackup = this.state;
+        const activeTenantId = this.lockedTenantId || localBackup.currentTenantId || 'tenant-001';
         this.state = {
           ...data.state,
+          currentTenantId: activeTenantId,
+          tenants: this.mergeCollectionById(data.state.tenants, localBackup.tenants),
           persons: this.mergeCollectionById(data.state.persons, localBackup.persons),
           meetings: this.mergeCollectionById(data.state.meetings, localBackup.meetings),
           facts: this.mergeCollectionById(data.state.facts, localBackup.facts),
@@ -3904,11 +3997,13 @@ class DataStore {
           referrals: this.mergeCollectionById(data.state.referrals, localBackup.referrals),
           relationships: this.mergeCollectionById(data.state.relationships, localBackup.relationships),
         };
-        this.seedTsujiMeeting();
-        this.seedKimuraMeeting();
-        this.seedTanakaMeeting();
-        this.seedIwaneMeeting();
-        this.reconcileLegacyAndDuplicateData();
+        if (activeTenantId === 'tenant-001') {
+          this.seedTsujiMeeting();
+          this.seedKimuraMeeting();
+          this.seedTanakaMeeting();
+          this.seedIwaneMeeting();
+          this.reconcileLegacyAndDuplicateData();
+        }
         const nextJson = snapshot();
         this.persist(true);
         this.lastSyncedAt = new Date().toISOString();
@@ -3936,16 +4031,23 @@ class DataStore {
     const stateUpdated = await this.pushStateToCloud();
     if (stateUpdated) updated = true;
 
-    // 2. Zoom 公式クラウドAPI + Webhook受信箱 一括同期
+    // 2. Zoom 公式クラウドAPI + Webhook受信箱 一括同期（テナント別認証情報で完全分離）
     try {
+      const tid = this.state.currentTenantId;
+      const ownerProf = this.getCurrentOwnerProfile();
       const zoomCfg = this.oauthConfig.zoom;
+      const accountId = tid === 'tenant-001' ? zoomCfg.account_id : (ownerProf.zoom_account_id || '');
+      const clientId = tid === 'tenant-001' ? zoomCfg.client_id : (ownerProf.zoom_client_id || '');
+      const clientSecret = tid === 'tenant-001' ? zoomCfg.client_secret : (ownerProf.zoom_client_secret || '');
+
       const res = await fetch('/api/zoom/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          account_id: zoomCfg.account_id,
-          client_id: zoomCfg.client_id,
-          client_secret: zoomCfg.client_secret,
+          tenant_id: tid,
+          account_id: accountId,
+          client_id: clientId,
+          client_secret: clientSecret,
         }),
       });
       if (res.ok) {
@@ -3983,7 +4085,18 @@ class DataStore {
   }
 
   public setTenantId(tenantId: string) {
-    if (!this.state.tenants.some(t => t.id === tenantId)) return;
+    if (!tenantId) return;
+    if (!this.state.tenants.some(t => t.id === tenantId)) {
+      this.state.tenants.push({
+        id: tenantId,
+        name: '会員専用アカウント',
+        plan_tier: 'standard',
+        monthly_budget_jpy: 1000,
+        current_spend_jpy: 0,
+        is_budget_throttled: false,
+        created_at: new Date().toISOString(),
+      });
+    }
     this.state.currentTenantId = tenantId;
     this.persist();
   }

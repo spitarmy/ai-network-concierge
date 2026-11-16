@@ -198,6 +198,49 @@ function mergeStates(serverState: any | null, clientState: any, deletedSet: Set<
   return merged;
 }
 
+const TENANT_SCOPED_COLLECTIONS = [
+  'persons',
+  'organizations',
+  'organizationMemberships',
+  'businessOfferings',
+  'bniMemberships',
+  'meetings',
+  'consents',
+  'recordings',
+  'transcripts',
+  'facts',
+  'cardScans',
+  'reviewQueue',
+  'relationships',
+  'referrals',
+  'costLedger',
+  'auditLogs',
+];
+
+function filterStateForTenant(fullState: any, lockedTenantId?: string): any {
+  if (!fullState || !lockedTenantId || lockedTenantId === 'tenant-001') {
+    return fullState;
+  }
+  const filtered: any = {
+    ...fullState,
+    currentTenantId: lockedTenantId,
+    tenants: Array.isArray(fullState.tenants)
+      ? fullState.tenants.filter((t: any) => t.id === lockedTenantId)
+      : [],
+  };
+  for (const key of TENANT_SCOPED_COLLECTIONS) {
+    if (Array.isArray(fullState[key])) {
+      filtered[key] = fullState[key].filter((item: any) => item?.tenant_id === lockedTenantId);
+    }
+  }
+  if (fullState.customCategories && typeof fullState.customCategories === 'object') {
+    filtered.customCategories = {
+      [lockedTenantId]: fullState.customCategories[lockedTenantId] || [],
+    };
+  }
+  return filtered;
+}
+
 async function getRawBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -224,12 +267,14 @@ export default async function handler(req: any, res: any) {
     const envelope = await loadCloudEnvelope();
 
     if (req.method === 'GET') {
+      const urlObj = new URL(req.url || '/api/sync/state', 'http://localhost');
+      const queryTenantId = urlObj.searchParams.get('tenantId') || undefined;
       res.setHeader('Content-Type', 'application/json');
       res.statusCode = 200;
       res.end(JSON.stringify({
         status: 'ok',
         hasState: !!envelope.state,
-        state: envelope.state,
+        state: filterStateForTenant(envelope.state, queryTenantId),
         deletedIds: envelope.deletedIds,
         updatedAt: envelope.updatedAt,
       }));
@@ -246,7 +291,12 @@ export default async function handler(req: any, res: any) {
       ? req.body
       : (req.body ? JSON.stringify(req.body) : await getRawBody(req));
     const payload = raw ? JSON.parse(raw) : {};
-    const clientState = payload.state;
+    const lockedTenantId: string | undefined = payload.lockedTenantId || undefined;
+    const rawClientState = payload.state;
+    // ロック済み顧客テナントからのPOSTでは、そのテナント自身のレコードのみをマージ対象にし他テナントデータを保護（サーバーサイドRLS）
+    const clientState = lockedTenantId && lockedTenantId !== 'tenant-001'
+      ? filterStateForTenant(rawClientState, lockedTenantId)
+      : rawClientState;
     const clientDeletedIds: string[] = Array.isArray(payload.deletedIds) ? payload.deletedIds : [];
 
     const mergedDeletedSet = new Set<string>([
@@ -270,7 +320,7 @@ export default async function handler(req: any, res: any) {
     res.statusCode = 200;
     res.end(JSON.stringify({
       status: 'ok',
-      state: mergedState,
+      state: filterStateForTenant(mergedState, lockedTenantId),
       deletedIds: mergedDeletedIds,
       updatedAt,
     }));

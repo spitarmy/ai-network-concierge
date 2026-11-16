@@ -4,6 +4,23 @@ export type TenantId = string;
 export type PersonId = string;
 export type MeetingId = string;
 
+export interface TenantOwnerProfile {
+  owner_name: string;
+  owner_phonetic?: string;
+  company_name: string;
+  title?: string;
+  bni_region_name?: string;
+  bni_chapter_name?: string;
+  bni_category?: string;
+  specialty_summary?: string;
+  email?: string;
+  access_pin?: string;
+  is_onboarded?: boolean;
+  zoom_account_id?: string;
+  zoom_client_id?: string;
+  zoom_client_secret?: string;
+}
+
 export interface Tenant {
   id: TenantId;
   name: string;
@@ -12,6 +29,10 @@ export interface Tenant {
   current_spend_jpy: number;
   is_budget_throttled: boolean;
   created_at: string;
+  owner_profile?: TenantOwnerProfile;
+  subscription_status?: 'active' | 'trialing' | 'past_due' | 'canceled';
+  monthly_price_jpy?: number;
+  stripe_customer_id?: string;
 }
 
 export interface User {

@@ -343,23 +343,29 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
           </div>
         </div>
 
-        {/* 起点オーナーバッジ（勝賀野 太郎 様） */}
-        <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-sky-950/40 border border-sky-500/40 w-fit">
-          <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 font-bold text-xs">
-            起点
-          </div>
-          <div>
-            <div className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
-              <span>勝賀野 太郎</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                株式会社ZENNOBATE / だんじりC
-              </span>
+        {/* 起点オーナーバッジ（テナントごとのオーナー情報を動的表示） */}
+        {(() => {
+          const owner = store.getCurrentOwnerProfile();
+          const badgeSub = [owner.company_name, owner.bni_chapter_name].filter(Boolean).join(' / ') || 'オーナー';
+          return (
+            <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-sky-950/40 border border-sky-500/40 w-fit">
+              <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 font-bold text-xs">
+                起点
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-bold text-white flex flex-wrap items-center gap-2">
+                  <span>{owner.owner_name}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                    {badgeSub}
+                  </span>
+                </div>
+                <div className="text-[10px] text-neutral-400">
+                  1to1面談・名刺交換ネットワークの中心ハブ（人数が増えても縦に自動拡張されます）
+                </div>
+              </div>
             </div>
-            <div className="text-[10px] text-neutral-400">
-              1to1面談・名刺交換ネットワークの中心ハブ（人数が増えても縦に自動拡張されます）
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* マインドマップ・ツリー本体（各人物が独立した横レーンを持つため100名でも重なりゼロ） */}
         {visibleConnectedHubs.length === 0 ? (

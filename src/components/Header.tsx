@@ -18,6 +18,7 @@ interface HeaderProps {
   updateAvailable?: boolean;
   isSyncing?: boolean;
   onManualSync?: () => Promise<void>;
+  onOpenOwnerSetup?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,9 +35,12 @@ export const Header: React.FC<HeaderProps> = ({
   updateAvailable = false,
   isSyncing = false,
   onManualSync,
+  onOpenOwnerSetup,
 }) => {
   const budgetRatio = currentTenant.current_spend_jpy / currentTenant.monthly_budget_jpy;
   const isBudgetWarning = budgetRatio >= 0.8;
+  const isLockedTenant = store.isTenantLockedMode();
+  const ownerProfile = store.getCurrentOwnerProfile();
 
   return (
     <header
@@ -62,17 +66,28 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* 右側アクション群 */}
         <div className="flex items-center space-x-1 sm:space-x-2.5 shrink-0">
-          {/* テナント切替（PC表示・スマホでは非表示にして見切れ防止） */}
-          <select
-            value={currentTenant.id}
-            onChange={(e) => onSelectTenant(e.target.value)}
-            aria-label="テナント切り替え"
-            className="hidden md:block text-xs bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:outline-none max-w-[130px] truncate"
-          >
-            {tenants.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+          {/* 顧客ロックモード時は他テナント切替を完全非表示にし、専用オーナーバッジを表示（RLS保護） */}
+          {isLockedTenant ? (
+            <button
+              type="button"
+              onClick={onOpenOwnerSetup}
+              title="オーナープロフィール設定を編集"
+              className="hidden sm:flex items-center space-x-1 text-xs bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-2.5 py-1 text-emerald-700 dark:text-emerald-300 font-semibold max-w-[150px] truncate"
+            >
+              <span>🔒 {ownerProfile.owner_name}</span>
+            </button>
+          ) : (
+            <select
+              value={currentTenant.id}
+              onChange={(e) => onSelectTenant(e.target.value)}
+              aria-label="テナント切り替え"
+              className="hidden md:block text-xs bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:outline-none max-w-[130px] truncate"
+            >
+              {tenants.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
 
           {/* PC/スマホ・Zoomクラウド同期インジケータ & 即時同期ボタン */}
           <button
