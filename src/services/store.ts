@@ -2017,7 +2017,8 @@ class DataStore {
       const cf = iwaneCoreFacts[i];
       const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
       if (existingIdx >= 0) {
-        this.state.facts[existingIdx] = cf;
+        const prevStatus = this.state.facts[existingIdx].verification_status;
+        this.state.facts[existingIdx] = { ...cf, verification_status: prevStatus || cf.verification_status };
       } else {
         this.state.facts.unshift(cf);
       }
@@ -2580,6 +2581,76 @@ class DataStore {
       }
     }
 
+    // 5.5 小比 直人様の確定Facts（Zoom同期ごとの点滅・入れ替わりを防ぐ固定ID: fact-kobi-1〜3）
+    for (const f of this.state.facts) {
+      if ((f.person_id === kobiId && !f.id.startsWith('fact-kobi-')) || f.id.includes('m-zoom-Hloc8gk6T9CevFvvf9bJLQ')) {
+        this.deletedIds.add(f.id);
+      }
+    }
+    this.state.facts = this.state.facts.filter(
+      f => !(f.person_id === kobiId && !f.id.startsWith('fact-kobi-')) && !f.id.includes('m-zoom-Hloc8gk6T9CevFvvf9bJLQ')
+    );
+    const kobiCoreFacts: Fact[] = [
+      {
+        id: 'fact-kobi-1',
+        tenant_id: tid,
+        person_id: kobiId,
+        fact_category: 'topic',
+        fact_key: '盛り上がった話題・本業と強み',
+        fact_value: 'BNI 大阪北東リージョン「ナインダーツチャプター」所属（司法書士・土地家屋調査士・独立4年目）。顧客の約6〜7割が不動産業者からの紹介。登記だけでなく相続相談の入口から寄り添う「相続コンサルティング」および遺品整理後の土地家屋調査・測量・不動産売却ワンストップ支援に強み',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-16T04:50:00Z',
+        created_at: '2026-11-16T04:50:00Z',
+      },
+      {
+        id: 'fact-kobi-2',
+        tenant_id: tid,
+        person_id: kobiId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（勝賀野様→小比様）',
+        fact_value: '勝賀野様からBNI外の不動産業者ネットワーク、遠藤様（システム・アプリ開発・1to1）、および司法書士向け顧客管理ツール担当者を小比様へご紹介する',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-16T04:50:00Z',
+        created_at: '2026-11-16T04:50:00Z',
+      },
+      {
+        id: 'fact-kobi-3',
+        tenant_id: tid,
+        person_id: kobiId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（小比様→勝賀野様）',
+        fact_value: '小比様からナインダーツチャプターのメンバーリストを送付いただき、堀様（株式会社雅・京都市伏見区の自動車販売）・木村様・石川様の3名へ勝賀野様をお繋ぎいただく',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-16T04:50:00Z',
+        created_at: '2026-11-16T04:50:00Z',
+      },
+    ];
+    for (let i = kobiCoreFacts.length - 1; i >= 0; i--) {
+      const cf = kobiCoreFacts[i];
+      const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
+      if (existingIdx >= 0) {
+        const prevStatus = this.state.facts[existingIdx].verification_status;
+        this.state.facts[existingIdx] = { ...cf, verification_status: prevStatus || cf.verification_status };
+      } else {
+        this.state.facts.unshift(cf);
+      }
+    }
+
     // 6. 相関図エッジ & 紹介ハブ提案
     if (!this.deletedIds.has('rel-kobi-endo') && !this.state.relationships.some(r => r.id === 'rel-kobi-endo')) {
       this.state.relationships.push({
@@ -2755,14 +2826,14 @@ class DataStore {
     const mishimaSummary =
       `だんじりチャプター（勝賀野様と同チャプター）の三島 宏幸様との1to1面談。${mishimaTopic}。【次回アクション】①${mishimaPromise1}、②${mishimaPromise2}。`;
 
-    // 話し言葉で抽出された旧Factを完全排除し、構造化された確定Factへ置換
+    // 話し言葉で抽出された旧Factを完全排除し、構造化された確定Factへ冪等更新（並び順やチェック状態を維持して点滅を防止）
     for (const f of this.state.facts) {
       if (f.person_id === mishimaId && !f.id.startsWith('fact-mishima-')) {
         this.deletedIds.add(f.id);
       }
     }
-    this.state.facts = this.state.facts.filter(f => f.person_id !== mishimaId);
-    this.state.facts.unshift(
+    this.state.facts = this.state.facts.filter(f => !(f.person_id === mishimaId && !f.id.startsWith('fact-mishima-')));
+    const mishimaCoreFacts: Fact[] = [
       {
         id: 'fact-mishima-1',
         tenant_id: tid,
@@ -2810,8 +2881,18 @@ class DataStore {
         visibility: 'referral_eligible',
         valid_from: '2026-11-16T07:15:00Z',
         created_at: '2026-11-16T07:15:00Z',
+      },
+    ];
+    for (let i = mishimaCoreFacts.length - 1; i >= 0; i--) {
+      const cf = mishimaCoreFacts[i];
+      const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
+      if (existingIdx >= 0) {
+        const prevStatus = this.state.facts[existingIdx].verification_status;
+        this.state.facts[existingIdx] = { ...cf, verification_status: prevStatus || cf.verification_status };
+      } else {
+        this.state.facts.unshift(cf);
       }
-    );
+    }
 
     const existingTr = this.state.transcripts.find(t => t.meeting_id === mishimaMeetingId);
     if (existingTr) {
@@ -3751,16 +3832,26 @@ class DataStore {
         }
       }
 
-      // Facts（要約トピック & ネクストステップ約束ToDo）を人物カルテの先頭へ冪等追加
-      if (partnerPerson) {
+      // Facts（要約トピック & ネクストステップ約束ToDo）を人物カルテの先頭へ冪等追加（確定シード面談や削除済みIDの再生成による点滅を完全遮断）
+      const isVerifiedSeedMeetingForFacts = [
+        'm-tanaka-20261110',
+        'm-iwane-20261112',
+        'm-kimura-20261109',
+        'm-tsuji-20261109',
+        'm-zoom-Hloc8gk6T9CevFvvf9bJLQ',
+        'm-1794813034745-2e1gm',
+      ].includes(targetMeeting.id);
+
+      if (partnerPerson && !isVerifiedSeedMeetingForFacts) {
         const existingMeetingFacts = this.state.facts.filter(
           f => f.person_id === partnerPerson!.id && f.source_id === targetMeeting!.id
         );
         if (existingMeetingFacts.length === 0) {
           const newFactsToPrepend: Fact[] = [];
-          if (cleanOverview) {
+          const sumFactId = `fact-zoom-sum-${targetMeeting.id}`;
+          if (cleanOverview && !this.deletedIds.has(sumFactId)) {
             newFactsToPrepend.push({
-              id: `fact-zoom-sum-${targetMeeting.id}`,
+              id: sumFactId,
               tenant_id: tid,
               person_id: partnerPerson.id,
               fact_category: 'topic',
@@ -3778,8 +3869,10 @@ class DataStore {
           }
 
           cleanDetails.slice(0, 2).forEach((det, idx) => {
+            const detFactId = `fact-zoom-det-${targetMeeting!.id}-${idx}`;
+            if (this.deletedIds.has(detFactId)) return;
             newFactsToPrepend.push({
-              id: `fact-zoom-det-${targetMeeting!.id}-${idx}`,
+              id: detFactId,
               tenant_id: tid,
               person_id: partnerPerson!.id,
               fact_category: 'topic',
@@ -3798,8 +3891,10 @@ class DataStore {
 
           cleanNextSteps.forEach((step: string, idx: number) => {
             if (!step || !step.trim()) return;
+            const stepFactId = `fact-zoom-step-${targetMeeting!.id}-${idx}`;
+            if (this.deletedIds.has(stepFactId)) return;
             newFactsToPrepend.push({
-              id: `fact-zoom-step-${targetMeeting!.id}-${idx}`,
+              id: stepFactId,
               tenant_id: tid,
               person_id: partnerPerson!.id,
               fact_category: 'promise',
@@ -4784,7 +4879,15 @@ class DataStore {
   // --- 事実 (Facts) ---
   public getAllFacts(): Fact[] {
     const tid = this.state.currentTenantId;
-    return this.state.facts.filter(f => f.tenant_id === tid);
+    return this.state.facts
+      .filter(f => f.tenant_id === tid && !this.deletedIds.has(f.id))
+      .slice()
+      .sort((a, b) => {
+        const ta = new Date(a.valid_from || a.created_at || 0).getTime() || 0;
+        const tb = new Date(b.valid_from || b.created_at || 0).getTime() || 0;
+        if (tb !== ta) return tb - ta;
+        return a.id.localeCompare(b.id);
+      });
   }
 
   public getFactsForPerson(personId: string): Fact[] {

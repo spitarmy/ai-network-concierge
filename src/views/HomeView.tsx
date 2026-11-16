@@ -36,6 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const allFacts = store.getAllFacts();
   const promiseFacts = allFacts.filter((f: Fact) => f.fact_category === 'promise');
   const [completedPromises, setCompletedPromises] = useState<Record<string, boolean>>({});
+  const [showAllPromises, setShowAllPromises] = useState(false);
 
   const handleTogglePromise = (factId: string) => {
     setCompletedPromises(prev => ({ ...prev, [factId]: !prev[factId] }));
@@ -423,7 +424,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="space-y-2 pt-1">
-          {promiseFacts.slice(0, 6).map((f: Fact) => {
+          {(showAllPromises ? promiseFacts : promiseFacts.slice(0, 6)).map((f: Fact) => {
             const p = store.getPersonById(f.person_id);
             const isDone = completedPromises[f.id] || f.verification_status === 'reported';
 
@@ -458,6 +459,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             );
           })}
+          {promiseFacts.length > 6 && (
+            <button
+              type="button"
+              onClick={() => setShowAllPromises(prev => !prev)}
+              className="w-full py-2 rounded-xl border border-amber-200/70 dark:border-amber-800/50 bg-amber-50/40 dark:bg-amber-950/20 text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100/60 transition-colors"
+            >
+              {showAllPromises
+                ? '▲ 上位6件のみに折りたたむ'
+                : `▼ 残り ${promiseFacts.length - 6} 件の約束・ToDoをすべて表示する（全${promiseFacts.length}件）`}
+            </button>
+          )}
         </div>
       </section>
 
