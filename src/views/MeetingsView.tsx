@@ -9,6 +9,7 @@ import { Meeting } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
 import { MeetingRecordingModal } from '../components/MeetingRecordingModal';
 import { UserAvatar } from '../components/UserAvatar';
+import { StructuredTextBlock } from '../components/StructuredTextBlock';
 
 interface MeetingsViewProps {
   onOpenQuickAdd?: () => void;
@@ -477,9 +478,10 @@ export const MeetingsView: React.FC<MeetingsViewProps> = ({
                   </div>
 
                   {transcript?.summary && (
-                    <p className="text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-line">
-                      {transcript.summary}
-                    </p>
+                    <StructuredTextBlock
+                      text={transcript.summary}
+                      className="text-neutral-700 dark:text-neutral-200"
+                    />
                   )}
 
                   {promiseFacts.length > 0 && (

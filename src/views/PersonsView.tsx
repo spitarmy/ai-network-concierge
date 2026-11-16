@@ -7,6 +7,7 @@ import { store } from '../services/store';
 import { CategoryTag, FactCategory, FactVisibility } from '../types';
 import { UserAvatar } from '../components/UserAvatar';
 import { compressImage } from '../utils/imageCompressor';
+import { StructuredTextBlock } from '../components/StructuredTextBlock';
 
 interface PersonsViewProps {
   selectedPersonId?: string;
@@ -890,10 +891,13 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
 
               {selectedPerson.notes && (
                 <div className="pt-4 border-t border-apple-border dark:border-apple-darkBorder">
-                  <span className="text-neutral-400 font-medium block mb-1">人物メモ</span>
-                  <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed bg-neutral-50 dark:bg-neutral-800/40 p-3 rounded-2xl">
-                    {selectedPerson.notes}
-                  </p>
+                  <span className="text-neutral-400 font-medium block mb-1.5">人物メモ・強み要約</span>
+                  <div className="bg-neutral-50 dark:bg-neutral-800/40 p-3.5 rounded-2xl">
+                    <StructuredTextBlock
+                      text={selectedPerson.notes}
+                      className="text-neutral-700 dark:text-neutral-300"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -946,9 +950,10 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
                             )}
                           </div>
                           {tr?.summary && (
-                            <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-line">
-                              {tr.summary}
-                            </p>
+                            <StructuredTextBlock
+                              text={tr.summary}
+                              className="text-neutral-700 dark:text-neutral-300"
+                            />
                           )}
                         </div>
                       );

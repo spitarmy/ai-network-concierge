@@ -5,6 +5,7 @@ import { Person, Fact } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
 import { UserAvatar } from '../components/UserAvatar';
 import { MeetingRecordingModal } from '../components/MeetingRecordingModal';
+import { StructuredTextBlock } from '../components/StructuredTextBlock';
 
 interface HomeViewProps {
   isSimpleMode: boolean;
@@ -297,31 +298,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           )}
 
-          {/* AI面談要約（全文）および話題・約束（U03要件） */}
+          {/* AI面談要約（全文）および話題・約束（U03要件：箇条書き＆改行で見やすく整形表示） */}
           <div className="mt-5 pt-4 border-t border-apple-border dark:border-apple-darkBorder space-y-3 text-xs">
             {upcomingTranscript?.summary && (
-              <div className="p-3.5 rounded-2xl bg-blue-50/60 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-800/50 space-y-1">
+              <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-800/50 space-y-2">
                 <span className="text-apple-blue dark:text-apple-darkBlue font-bold flex items-center space-x-1">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>AI面談要約（{upcomingParticipant?.display_name || '面談相手'}様）</span>
                 </span>
-                <p className="text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-line">
-                  {upcomingTranscript.summary}
-                </p>
+                <StructuredTextBlock
+                  text={upcomingTranscript.summary}
+                  className="text-neutral-700 dark:text-neutral-200"
+                />
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder">
-                <span className="text-neutral-400 font-medium block mb-1">盛り上がった話題・本業</span>
-                <p className="text-neutral-700 dark:text-neutral-200">
-                  {pastTopic?.fact_value || (upcomingParticipant ? '前回の記録はありません' : '会議終了後にAI文字起こしから話題が自動抽出されます')}
-                </p>
+              <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder space-y-1.5">
+                <span className="text-neutral-500 dark:text-neutral-400 font-bold block">💬 盛り上がった話題・本業</span>
+                <StructuredTextBlock
+                  text={pastTopic?.fact_value || (upcomingParticipant ? '前回の記録はありません' : '会議終了後にAI文字起こしから話題が自動抽出されます')}
+                  className="text-neutral-700 dark:text-neutral-200"
+                  bulletColorClass="text-emerald-600 dark:text-emerald-400"
+                />
               </div>
-              <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
-                <span className="text-amber-800 dark:text-amber-400 font-medium block mb-1">保留中の約束・フォロー</span>
-                <p className="text-amber-900 dark:text-amber-200 font-medium">
-                  {pendingPromise?.fact_value || (upcomingParticipant ? '保留中の約束はありません' : '「〜を紹介する」等の約束事が自動追跡されます')}
-                </p>
+              <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-1.5">
+                <span className="text-amber-800 dark:text-amber-400 font-bold block">📌 保留中の約束・フォロー</span>
+                <StructuredTextBlock
+                  text={pendingPromise?.fact_value || (upcomingParticipant ? '保留中の約束はありません' : '「〜を紹介する」等の約束事が自動追跡されます')}
+                  className="text-amber-900 dark:text-amber-200 font-medium"
+                  bulletColorClass="text-amber-600 dark:text-amber-400"
+                />
               </div>
             </div>
           </div>
@@ -385,9 +391,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
             {tr?.summary && (
-              <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed line-clamp-3">
-                {tr.summary}
-              </p>
+              <StructuredTextBlock
+                text={tr.summary}
+                className="text-xs text-neutral-700 dark:text-neutral-300"
+                compact
+              />
             )}
           </section>
         );
