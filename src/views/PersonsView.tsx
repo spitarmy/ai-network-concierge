@@ -755,20 +755,103 @@ export const PersonsView: React.FC<PersonsViewProps> = ({
             <div className="space-y-4 text-xs">
             <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4">
               {(orgMemberships.length > 0 || businessOfferings.length > 0) && (
-                <div className="p-3.5 rounded-2xl bg-apple-blue/5 dark:bg-apple-darkBlue/15 border border-apple-blue/20 space-y-1">
+                <div className="p-3.5 rounded-2xl bg-apple-blue/5 dark:bg-apple-darkBlue/15 border border-apple-blue/20 space-y-1.5">
                   <span className="text-[11px] font-bold text-apple-blue dark:text-apple-darkBlue">所属会社・本業</span>
                   {orgMemberships.map(om => (
-                    <div key={om.id} className="font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
-                      {om.organization_name} {om.title ? `（${om.title}）` : ''}
+                    <div key={om.id} className="flex items-center justify-between gap-2 font-bold text-sm text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      <span>{om.organization_name} {om.title ? `（${om.title}）` : ''}</span>
+                      {orgMemberships.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            store.deleteOrganizationMembership(om.id);
+                            onRefresh();
+                          }}
+                          className="text-[11px] font-normal text-neutral-400 hover:text-red-500 px-1.5 py-0.5 rounded"
+                          title="この所属会社表示を削除"
+                        >
+                          削除
+                        </button>
+                      )}
                     </div>
                   ))}
                   {businessOfferings.map(bo => (
-                    <div key={bo.id} className="text-neutral-600 dark:text-neutral-300">
-                      事業内容: {bo.service_title}
+                    <div key={bo.id} className="flex items-center justify-between gap-2 text-neutral-600 dark:text-neutral-300">
+                      <span>事業内容: {bo.service_title}</span>
+                      {businessOfferings.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            store.deleteBusinessOffering(bo.id);
+                            onRefresh();
+                          }}
+                          className="text-[11px] text-neutral-400 hover:text-red-500 px-1.5 py-0.5 rounded shrink-0"
+                          title="この事業表示を削除"
+                        >
+                          削除
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
+
+              {(() => {
+                const personRels = store.getRelationshipsForPerson(selectedPerson.id);
+                if (personRels.length === 0) return null;
+                return (
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">
+                      🤝 紹介・お繋ぎ関係（繋がりのある人物）
+                    </span>
+                    <div className="space-y-1.5">
+                      {personRels.map(rel => {
+                        const isOutgoing = rel.from_person_id === selectedPerson.id;
+                        const partnerId = isOutgoing ? rel.to_person_id : rel.from_person_id;
+                        const partner = store.getPersonById(partnerId);
+                        if (!partner) return null;
+                        const partnerOrgs = store.getOrgMembershipsForPerson(partner.id);
+                        return (
+                          <div
+                            key={rel.id}
+                            className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-white/80 dark:bg-neutral-900/60 border border-emerald-500/15"
+                          >
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold text-[10px]">
+                                  {isOutgoing ? 'お繋ぎ・紹介先' : '紹介元'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setInternalSelectedId(partner.id)}
+                                  className="font-bold text-xs text-apple-blue hover:underline text-left"
+                                >
+                                  {partner.display_name}
+                                </button>
+                                {partnerOrgs[0] && (
+                                  <span className="text-[11px] text-neutral-500">
+                                    （{partnerOrgs[0].organization_name}）
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-neutral-600 dark:text-neutral-400">
+                                関係: {rel.relationship_type}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setInternalSelectedId(partner.id)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-medium hover:opacity-90 shrink-0"
+                            >
+                              カルテを見る
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-neutral-400 font-medium block">連絡先情報</span>

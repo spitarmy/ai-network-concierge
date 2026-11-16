@@ -453,4 +453,39 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(draft.draft_text).not.toContain('パスパスタ');
     expect(draft.draft_text).not.toContain('言われたんですよ');
   });
+
+  it('小比直人様の面談中に登場する紹介先「株式会社みやびっていう（堀さん・自動車販売）」が小比様の所属会社に誤登録されず、小比様からの紹介予定人脈として登録されること', () => {
+    store.setTenantId('tenant-001');
+    store.seedKobiMeeting();
+
+    // 1. 会話中の「株式会社みやびっていう」から小比様の会社名として誤抽出されないことを検証
+    const extracted = store.extractPartnerOwnCompany(
+      '小比直人: 自動車販売の方とかは実は京都の人なんですよ。堀さんって。下ですね。株式会社みやびっていう。一回じゃあこの方おつなぎしますね。',
+      '小比 直人'
+    );
+    expect(extracted).toBe('');
+    expect(store.sanitizeCompanyName('株式会社みやびっていう')).toBe('株式会社みやび');
+
+    // 2. 小比直人様の所属会社が「小比司法書士・土地家屋調査士事務所」1件のみであり、「株式会社みやびっていう」や重複事業「小比 直人様の専門事業」が存在しないこと
+    const kobi = store.getPersons().find(p => p.display_name === '小比 直人');
+    expect(kobi).toBeDefined();
+    const kobiOrgs = store.getOrgMembershipsForPerson(kobi!.id);
+    expect(kobiOrgs.length).toBe(1);
+    expect(kobiOrgs[0].organization_name).toBe('小比司法書士・土地家屋調査士事務所');
+    expect(kobiOrgs.some(o => o.organization_name.includes('みやび'))).toBe(false);
+
+    const kobiOfferings = store.getBusinessOfferingsForPerson(kobi!.id);
+    expect(kobiOfferings.length).toBe(1);
+    expect(kobiOfferings[0].service_title).not.toContain('様の専門事業');
+
+    // 3. 堀さん（株式会社雅・自動車販売）が仮人脈として登録され、小比直人様からの「お繋ぎ・紹介予定」として紐付いていること
+    const hori = store.getPersonById('p-hori-miyabi');
+    expect(hori).toBeDefined();
+    expect(hori?.display_name).toContain('堀さん');
+    const horiOrgs = store.getOrgMembershipsForPerson('p-hori-miyabi');
+    expect(horiOrgs[0]?.organization_name).toBe('株式会社雅（みやび）');
+
+    const kobiRels = store.getRelationshipsForPerson(kobi!.id);
+    expect(kobiRels.some(r => r.to_person_id === 'p-hori-miyabi' && r.relationship_type.includes('紹介予定'))).toBe(true);
+  });
 });

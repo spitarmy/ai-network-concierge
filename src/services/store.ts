@@ -2253,7 +2253,7 @@ class DataStore {
       this.mergePersons(kobiId, dup.id);
     }
 
-    // 2. 所属事務所（小比司法書士・土地家屋調査士事務所）
+    // 2. 所属事務所（小比司法書士・土地家屋調査士事務所のみを正式所属とし、会話中に言及された第三者企業の誤紐付け「株式会社みやびっていう」等を完全削除）
     if (!this.state.organizations.some(o => o.id === 'org-kobi-office')) {
       this.state.organizations.push({
         id: 'org-kobi-office',
@@ -2261,8 +2261,13 @@ class DataStore {
         name: '小比司法書士・土地家屋調査士事務所',
       });
     }
+    for (const m of this.state.organizationMemberships) {
+      if ((m.person_id === kobiId && m.id !== 'om-kobi-1') || /みやびっていう/.test(m.organization_name || '')) {
+        this.deletedIds.add(m.id);
+      }
+    }
     this.state.organizationMemberships = this.state.organizationMemberships.filter(
-      m => !(m.person_id === kobiId && m.id !== 'om-kobi-1')
+      m => !(m.person_id === kobiId && m.id !== 'om-kobi-1') && !/みやびっていう/.test(m.organization_name || '')
     );
     if (!this.state.organizationMemberships.some(m => m.id === 'om-kobi-1')) {
       this.state.organizationMemberships.unshift({
@@ -2305,6 +2310,11 @@ class DataStore {
       });
     }
 
+    for (const bm of this.state.bniMemberships) {
+      if (bm.person_id === kobiId && bm.id !== 'bnim-kobi-1') {
+        this.deletedIds.add(bm.id);
+      }
+    }
     this.state.bniMemberships = this.state.bniMemberships.filter(
       bm => !(bm.person_id === kobiId && bm.id !== 'bnim-kobi-1')
     );
@@ -2330,7 +2340,12 @@ class DataStore {
       bm.status = 'active';
     }
 
-    // 4. 事業オファリング
+    // 4. 事業オファリング（重複した「小比 直人様の専門事業」を完全削除し正式オファリング1件に統一）
+    for (const b of this.state.businessOfferings) {
+      if (b.person_id === kobiId && b.id !== 'bo-kobi-1') {
+        this.deletedIds.add(b.id);
+      }
+    }
     this.state.businessOfferings = this.state.businessOfferings.filter(
       b => !(b.person_id === kobiId && b.id !== 'bo-kobi-1')
     );
@@ -2344,6 +2359,81 @@ class DataStore {
         target_clients: '不動産業者様（売買・買取再販・空き家管理）、遺品整理・残置物撤去事業者様、相続対策を検討する不動産オーナー様',
         service_area: '大阪府（北東エリア・全域）・京都府・関西一円',
         is_active: true,
+      });
+    }
+
+    // 4.5 小比様から勝賀野様へお繋ぎいただく紹介対象：堀さん（株式会社雅 / 京都市伏見区・自動車販売）
+    if (!this.deletedIds.has('p-hori-miyabi') && !this.state.persons.some(p => p.id === 'p-hori-miyabi')) {
+      this.state.persons.push({
+        id: 'p-hori-miyabi',
+        tenant_id: tid,
+        display_name: '堀さん（株式会社雅・自動車販売）',
+        phonetic_name: 'ホリ',
+        office_address: '京都府京都市伏見区（勝賀野様事務所のご近所）',
+        status: 'provisional',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事'],
+        service_areas: ['京都府（京都市伏見区）', '大阪府'],
+        notes: '株式会社雅（みやび / 京都市伏見区・自動車販売業・勝賀野様の事務所のご近所）。BNI 大阪北東リージョン・ナインダーツチャプター所属。小比 直人様から勝賀野様へお繋ぎいただく予定のキーパーソン（車屋・板金屋および京都飲食・バーネットワークとの連携ニーズあり）。',
+        meeting_count: 0,
+        created_at: '2026-11-16T04:50:00Z',
+        updated_at: '2026-11-16T04:50:00Z',
+      });
+    }
+    if (!this.state.organizations.some(o => o.id === 'org-hori-miyabi')) {
+      this.state.organizations.push({
+        id: 'org-hori-miyabi',
+        tenant_id: tid,
+        name: '株式会社雅（みやび）',
+      });
+    }
+    if (!this.deletedIds.has('om-hori-miyabi') && !this.state.organizationMemberships.some(m => m.id === 'om-hori-miyabi')) {
+      this.state.organizationMemberships.push({
+        id: 'om-hori-miyabi',
+        tenant_id: tid,
+        person_id: 'p-hori-miyabi',
+        organization_id: 'org-hori-miyabi',
+        organization_name: '株式会社雅（みやび）',
+        title: '代表（自動車販売・京都市伏見区）',
+        is_current: true,
+      });
+    }
+    if (!this.deletedIds.has('bnim-hori-miyabi') && !this.state.bniMemberships.some(bm => bm.id === 'bnim-hori-miyabi')) {
+      this.state.bniMemberships.push({
+        id: 'bnim-hori-miyabi',
+        tenant_id: tid,
+        person_id: 'p-hori-miyabi',
+        chapter_id: nineDartsId,
+        chapter_name: 'ナインダーツチャプター',
+        region_name: '大阪北東リージョン (Osaka North East)',
+        category: '自動車販売',
+        status: 'active',
+        joined_on: '2024-04-01',
+      });
+    }
+    if (!this.deletedIds.has('bo-hori-miyabi') && !this.state.businessOfferings.some(b => b.id === 'bo-hori-miyabi')) {
+      this.state.businessOfferings.push({
+        id: 'bo-hori-miyabi',
+        tenant_id: tid,
+        person_id: 'p-hori-miyabi',
+        service_title: '自動車販売・車両手配・車検整備（株式会社雅 / 京都市伏見区）',
+        specialties: '京都市伏見区を拠点とする新車・中古車販売、板金・整備連携',
+        target_clients: '京都市伏見区・京都・大阪エリアの法人・個人オーナー様、板金・整備パートナー、京都飲食・バー経営者様',
+        service_area: '京都府（京都市伏見区）・大阪府',
+        is_active: true,
+      });
+    }
+    if (!this.deletedIds.has('rel-kobi-hori') && !this.state.relationships.some(r => r.id === 'rel-kobi-hori')) {
+      this.state.relationships.push({
+        id: 'rel-kobi-hori',
+        tenant_id: tid,
+        from_person_id: kobiId,
+        to_person_id: 'p-hori-miyabi',
+        relationship_type: '紹介予定（株式会社雅・京都市伏見区の自動車販売）',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/16 小比直人様1to1面談にて「ナインダーツチャプターの自動車販売・株式会社雅（京都市伏見区・勝賀野様事務所のご近所）の堀さんを勝賀野様へお繋ぎする」と合意',
+        source_meeting_id: 'm-zoom-Hloc8gk6T9CevFvvf9bJLQ',
       });
     }
 
@@ -3077,6 +3167,35 @@ class DataStore {
       );
     }
 
+    // 5.5 会話中の第三者言及から誤抽出された会社名（「株式会社みやびっていう」等）および重複した「〜様の専門事業」オファリングの完全排除
+    if (Array.isArray(this.state.organizationMemberships)) {
+      for (const om of this.state.organizationMemberships) {
+        if (/っていう|という|って会社/.test(om.organization_name || '') || om.id === 'om-1794805667075') {
+          this.deletedIds.add(om.id);
+          changed = true;
+        }
+      }
+      this.state.organizationMemberships = this.state.organizationMemberships.filter(
+        om => !/っていう|という|って会社/.test(om.organization_name || '') && om.id !== 'om-1794805667075'
+      );
+    }
+    if (Array.isArray(this.state.businessOfferings)) {
+      const hasNamedOfferingByPerson = new Set(
+        this.state.businessOfferings
+          .filter(b => !/様の専門事業$/.test(b.service_title || ''))
+          .map(b => b.person_id)
+      );
+      for (const bo of this.state.businessOfferings) {
+        if (/様の専門事業$/.test(bo.service_title || '') && hasNamedOfferingByPerson.has(bo.person_id)) {
+          this.deletedIds.add(bo.id);
+          changed = true;
+        }
+      }
+      this.state.businessOfferings = this.state.businessOfferings.filter(
+        bo => !(/様の専門事業$/.test(bo.service_title || '') && hasNamedOfferingByPerson.has(bo.person_id))
+      );
+    }
+
     // 6. BNI全国公式マスターデータ（53リージョン・401チャプター）への自動アップグレード＆旧サンプルチャプター排除
     const isSampleTestMode = (this.state.persons || []).some(p => p.id === 'p-yamada');
     if (!isSampleTestMode) {
@@ -3084,6 +3203,7 @@ class DataStore {
       const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
       const hasColloquialMishima =
         !(this.state.facts || []).some(f => f.id === 'fact-mishima-1') ||
+        !(this.state.persons || []).some(p => p.id === 'p-hori-miyabi') ||
         (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ/.test(f.fact_value || '')) ||
         (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル/.test(b.service_title || ''));
       const hasBogus =
@@ -3092,7 +3212,7 @@ class DataStore {
         !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1') ||
         hasColloquialMishima;
       if (hasBogus) {
-        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii']) {
+        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii', 'om-1794805667075', 'bo-1794804591389-jv0hp']) {
           this.deletedIds.add(id);
         }
         this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
@@ -3291,36 +3411,28 @@ class DataStore {
         changed = true;
       }
 
-      // 会社名および事業強み(BusinessOffering)の自動紐付け
+      // 会社名および事業強み(BusinessOffering)の自動紐付け（会話中に登場した第三者の紹介先企業「株式会社みやびっていう」等を本人の会社として誤紐付けしない）
       if (partnerPerson) {
         const existingOrgs = this.getOrgMembershipsForPerson(partnerPerson.id);
-        let companyToLink = preScheduledCompany;
+        let companyToLink = preScheduledCompany ? this.sanitizeCompanyName(preScheduledCompany) : '';
         if (!companyToLink && existingOrgs.length === 0 && session.transcript_text) {
           const partnerLines = (session.transcript_text as string)
             .split('\n')
             .filter((l: string) => !this.isSelfSpeaker(l.split(':')[0] || ''))
             .join('\n');
-          const corpMatch = partnerLines.match(/(?:株式会社|合同会社|有限会社|一般社団法人)[A-Za-z0-9぀-ゟ゠-ヿ一-龯]{1,16}/);
-          if (corpMatch && !/ゼノベイト|ZENNOBATE/i.test(corpMatch[0])) {
-            companyToLink = corpMatch[0];
-          } else {
-            const tradeMatch = partnerLines.match(/([A-Za-z0-9゠-ヿ一-龯]{2,14}(?:開発|不動産|工業|建設|商事|企画|デザイン|事務所|システム|ワークス))の/);
-            if (tradeMatch && !/ゼノベイト|ZENNOBATE/i.test(tradeMatch[1])) {
-              companyToLink = tradeMatch[1].replace(/無党開発|武藤開発/g, '夢叶開発');
-            }
-          }
+          companyToLink = this.extractPartnerOwnCompany(partnerLines, partnerPerson.display_name);
         }
         if (companyToLink && !existingOrgs.some(o => o.organization_name === companyToLink)) {
           this.addOrganizationMembership(partnerPerson.id, companyToLink, '代表');
           changed = true;
         }
 
-        // 事業強み(BusinessOffering)が未登録ならAI要約から自動生成（紹介マッチング・お礼文に即活用）
+        // 事業強み(BusinessOffering)が未登録かつ具体的な会社・屋号または要約がある場合のみ自動生成（「〇〇様の専門事業」の重複生成を防止）
         const existingOfferings = this.getBusinessOfferingsForPerson(partnerPerson.id);
-        if (existingOfferings.length === 0 && cleanOverview) {
+        if (existingOfferings.length === 0 && cleanOverview && companyToLink) {
           this.addBusinessOffering({
             person_id: partnerPerson.id,
-            service_title: companyToLink ? `${companyToLink} 事業・協業` : `${partnerPerson.display_name}様の専門事業`,
+            service_title: `${companyToLink} 事業・協業`,
             specialties: cleanOverview.slice(0, 120),
             target_clients: cleanNextSteps[0] || '相互紹介・協業パートナー',
             service_area: '関西・全国対応',
@@ -4285,12 +4397,102 @@ class DataStore {
     return newOffering;
   }
 
+  public sanitizeCompanyName(raw: string): string {
+    if (!raw) return '';
+    const cleaned = raw
+      .replace(/無党開発|武藤開発/g, '夢叶開発')
+      .replace(/(?:っていう.*|という.*|って会社.*|という会社.*|さん.*|様.*|の代表.*|の社長.*|の[一-龯]{1,6}(?:です|と申します).*|です.*|ます.*|かな.*|ね.*|よ.*)$/, '')
+      .replace(/[のんでにをはがと、。\s]+$/, '')
+      .trim();
+    if (!cleaned || /^(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)$/.test(cleaned)) return '';
+    if (/っていう|という|ゼノベイト|ZENNOBATE/i.test(cleaned)) return '';
+    return cleaned;
+  }
+
+  public extractPartnerOwnCompany(partnerText: string, partnerName?: string): string {
+    if (!partnerText) return '';
+    const surname = (partnerName || '').replace(/（.*?）|\(.*?\)/g, '').trim().split(/\s+/)[0] || '';
+
+    // 1. 明示的なラベル指定（「会社名: 株式会社〇〇」「所属: 〇〇事務所」）
+    const labelMatch = partnerText.match(/(?:会社名|屋号|所属事務所|所属会社)[はが:：]\s*([^\s\n、。「」『』()（）]{2,24})/);
+    if (labelMatch) {
+      const c = this.sanitizeCompanyName(labelMatch[1]);
+      if (c) return c;
+    }
+
+    // 2. 本人の自己紹介パターン（「株式会社〇〇の代表/社長/〇〇です」「株式会社〇〇 代表取締役」「〇〇開発の〇〇と申します」）
+    const selfIntroPatterns = [
+      /((?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[A-Za-z0-9ァ-ヶー一-龯・]{1,16})(?:[\s　]*の?[\s　]*(?:代表|代表取締役|社長|取締役|理事|所長|院長|私|僕|件|[一-龯]{1,6}(?:と申します|です|が)))/,
+      /([A-Za-z0-9ァ-ヶー一-龯]{2,14}(?:開発|不動産|工務店|建設|工業|商事|企画|デザイン|事務所|コンサルティング|パートナーズ|ホーム|ハウス|ラボ|システム|ワークス))[\s　]*の[\s　]*(?:代表|代表取締役|社長|所長|院長|[一-龯]{1,6}(?:と申します|です))/,
+    ];
+    for (const pat of selfIntroPatterns) {
+      const m = partnerText.match(pat);
+      if (m && m[1]) {
+        const idx = m.index || 0;
+        const before = partnerText.slice(Math.max(0, idx - 80), idx);
+        const after = partnerText.slice(idx + m[1].length, idx + m[1].length + 12);
+        // 直前に第三者紹介の文脈（「〇〇さんって」「紹介」「おつなぎ」等）がある場合や直後に「っていう」「という」がある場合は除外
+        if (
+          !/紹介|おつなぎ|繋ぎ|知人|友人|別の|[一-龯]{1,4}さんって|京都の人/.test(before) &&
+          !/^(?:っていう|という|って会社)/.test(after)
+        ) {
+          const c = this.sanitizeCompanyName(m[1]);
+          if (c) return c;
+        }
+      }
+    }
+
+    // 2.5 法人格付きの社名（ただし「っていう」「という」等の伝聞表現や第三者紹介文脈を厳格に除外）
+    const corpMatchAll = Array.from(
+      partnerText.matchAll(/((?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[A-Za-z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF・]{1,16}?)(?=[の\s、。\n]|$)/g)
+    );
+    for (const m of corpMatchAll) {
+      const rawCorp = m[1] || '';
+      const idx = m.index || 0;
+      const before = partnerText.slice(Math.max(0, idx - 80), idx);
+      const after = partnerText.slice(idx + rawCorp.length, idx + rawCorp.length + 12);
+      if (
+        /っていう|という|って会社/.test(rawCorp) ||
+        /^(?:っていう|という|って会社)/.test(after) ||
+        /紹介|おつなぎ|繋ぎ|知人|友人|別の|[一-龯]{1,4}さんって|京都の人|自動車販売の方/.test(before)
+      ) {
+        continue;
+      }
+      const c = this.sanitizeCompanyName(rawCorp);
+      if (c) return c;
+    }
+
+    // 3. 相手姓を含む屋号・事務所名（例: 「小比司法書士・土地家屋調査士事務所」）
+    if (surname.length >= 2) {
+      const escapedSurname = surname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const surnameOfficeMatch = partnerText.match(
+        new RegExp(`(${escapedSurname}[A-Za-z0-9ァ-ヶー一-龯・]{1,16}(?:事務所|開発|不動産|工務店|建設|工業|商事|企画|デザイン|コンサルティング|システム))`)
+      );
+      if (surnameOfficeMatch && surnameOfficeMatch[1]) {
+        const c = this.sanitizeCompanyName(surnameOfficeMatch[1]);
+        if (c) return c;
+      }
+    }
+
+    return '';
+  }
+
   public addOrganizationMembership(personId: string, companyName: string, title: string): OrganizationMembership {
     const tid = this.state.currentTenantId;
+    const cleanCompany = this.sanitizeCompanyName(companyName) || companyName.replace(/(?:っていう.*|という.*)$/, '').trim();
+    const existing = this.state.organizationMemberships.find(
+      m => m.tenant_id === tid && m.person_id === personId && m.organization_name === cleanCompany
+    );
+    if (existing) {
+      if (title) existing.title = title;
+      this.persist();
+      return existing;
+    }
+
     const newOrg: Organization = {
       id: `org-${Date.now()}`,
       tenant_id: tid,
-      name: companyName,
+      name: cleanCompany,
     };
     this.state.organizations.push(newOrg);
 
@@ -4299,7 +4501,7 @@ class DataStore {
       tenant_id: tid,
       person_id: personId,
       organization_id: newOrg.id,
-      organization_name: companyName,
+      organization_name: cleanCompany,
       title: title,
       is_current: true,
       started_on: new Date().toISOString().split('T')[0],
@@ -4307,6 +4509,25 @@ class DataStore {
     this.state.organizationMemberships.push(newMem);
     this.persist();
     return newMem;
+  }
+
+  public deleteOrganizationMembership(membershipId: string): void {
+    this.deletedIds.add(membershipId);
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => m.id !== membershipId);
+    this.persist();
+  }
+
+  public deleteBusinessOffering(offeringId: string): void {
+    this.deletedIds.add(offeringId);
+    this.state.businessOfferings = this.state.businessOfferings.filter(b => b.id !== offeringId);
+    this.persist();
+  }
+
+  public getRelationshipsForPerson(personId: string): PersonRelationship[] {
+    const tid = this.state.currentTenantId;
+    return this.state.relationships.filter(
+      r => r.tenant_id === tid && (r.from_person_id === personId || r.to_person_id === personId)
+    );
   }
 
   public getCardScans(): CardScan[] {
@@ -4977,20 +5198,14 @@ class DataStore {
         }
       }
 
-      // 2. 会社名・役職の抽出（勝賀野様の株式会社ゼノベイトを除外し、「〇〇開発の田中」等の屋号も検出）
-      const corpMatches = Array.from(
-        partnerTextJoined.matchAll(/(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[A-Za-z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]{1,16}?(?=[の\s、。\n]|$)/g)
-      ).map(m => m[0]).filter(c => !/ゼノベイト|ZENNOBATE/i.test(c));
-
-      const yagoMatch = partnerTextJoined.match(/([一-龯ァ-ヶーA-Za-z0-9]{2,12}(?:開発|不動産|工務店|建設|工業|商事|企画|デザイン|事務所|コンサルティング|パートナーズ|ホーム|ハウス|ラボ|システム))の[一-龯]{1,6}(?:と申します|です)/);
+      // 2. 会社名・役職の抽出（勝賀野様の株式会社ゼノベイトおよび会話中に登場した第三者の紹介先企業「株式会社みやびっていう」等を除外し、本人の所属会社・屋号のみを検出）
+      const extractedOwnCompany = this.extractPartnerOwnCompany(partnerTextJoined, realName);
       const existingOrgs = existingParticipant
-        ? this.getOrgMembershipsForPerson(existingParticipant.id).filter(o => !/ゼノベイト|ZENNOBATE/i.test(o.organization_name))
+        ? this.getOrgMembershipsForPerson(existingParticipant.id).filter(o => !/ゼノベイト|ZENNOBATE|っていう|という/i.test(o.organization_name))
         : [];
 
-      if (corpMatches.length > 0) {
-        companyName = corpMatches[0].replace(/無党開発|武藤開発/g, '夢叶開発');
-      } else if (yagoMatch && !/ゼノベイト/i.test(yagoMatch[1])) {
-        companyName = yagoMatch[1].replace(/無党開発|武藤開発/g, '夢叶開発');
+      if (extractedOwnCompany) {
+        companyName = extractedOwnCompany;
       } else if (!companyName && existingOrgs.length > 0) {
         companyName = existingOrgs[0].organization_name;
       } else if (!companyName && existingParticipant?.category_tags?.includes('一般社団法人stone')) {
