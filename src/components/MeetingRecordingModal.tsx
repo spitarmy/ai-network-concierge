@@ -107,7 +107,7 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
           const res = store.processMeetingRecordingAndAutoRegister(meetingId, transcriptText.trim());
           await Promise.race([
             store.refineMeetingSummaryWithAI(res.meeting.id, transcriptText.trim()),
-            new Promise(resolve => setTimeout(resolve, 15000)),
+            new Promise(resolve => setTimeout(resolve, 35000)),
           ]);
           await store.pushStateToCloud().catch(() => {});
           setIsProcessing(false);

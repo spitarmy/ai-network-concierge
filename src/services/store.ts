@@ -750,12 +750,13 @@ class DataStore {
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様の1to1面談実績を自動登録
+    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様・三島 宏幸様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
     this.seedTanakaMeeting();
     this.seedIwaneMeeting();
     this.seedKobiMeeting();
+    this.seedMishimaMeeting();
 
     // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
     this.reconcileLegacyAndDuplicateData();
@@ -2465,6 +2466,198 @@ class DataStore {
     }
   }
 
+  public seedMishimaMeeting(): void {
+    const tid = 'tenant-001';
+
+    // 1. 三島 宏幸 様（だんじりチャプター・勝賀野様と同チャプター / 北新地飲食店・バー経営・高級スイーツOEM）の本登録カルテ統合
+    let mishima = this.state.persons.find(
+      p => p.id === 'p-mishima-danjiri' || p.id === 'p-1794813034743-0rmii' || /三島\s*宏幸/.test(p.display_name || '')
+    );
+    const mishimaNotes =
+      'BNI 大阪東リージョン「だんじりチャプター」所属（勝賀野様と同チャプター）。北新地でのバー・飲食店経営（1.5万〜2万円帯のアッパー経営者交流会・団体貸切・てっちり/ぶりしゃぶ特別コース企画）および「お酒に合う高級スイーツ（フォアグラプリン、ショコラケーキ、バスクチーズケーキ等）」の自社製造・飲食店向け卸/OEM事業を展開。岩根 義行様（株式会社岩根工業・ディスカイステージ）を勝賀野様へご紹介いただいたキーパーソン。誕生日1月14日。ワイン・ウイスキーや本格スイーツ調理に精通。12月13日のBNIリージョンフォーラムへ初参加予定。';
+
+    if (!mishima) {
+      mishima = {
+        id: 'p-mishima-danjiri',
+        tenant_id: tid,
+        display_name: '三島 宏幸',
+        phonetic_name: 'ミシマ ヒロユキ',
+        status: 'active',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事', '飲食'],
+        service_areas: ['大阪府（北新地・全域）', '京都府', '関西・全国（スイーツOEM）'],
+        notes: mishimaNotes,
+        last_interacted_at: '2026-11-16T16:10:00+09:00',
+        meeting_count: 1,
+        created_at: '2026-11-12T19:46:00Z',
+        updated_at: '2026-11-16T07:15:00Z',
+      };
+      this.state.persons.unshift(mishima);
+    } else {
+      mishima.display_name = '三島 宏幸';
+      mishima.phonetic_name = 'ミシマ ヒロユキ';
+      mishima.status = 'active';
+      mishima.is_name_verified = true;
+      mishima.category_tags = Array.from(new Set([...(mishima.category_tags || []), 'BNI', '仕事', '飲食']));
+      mishima.service_areas = ['大阪府（北新地・全域）', '京都府', '関西・全国（スイーツOEM）'];
+      mishima.notes = mishimaNotes;
+      mishima.last_interacted_at = '2026-11-16T16:10:00+09:00';
+      mishima.meeting_count = Math.max(mishima.meeting_count || 1, 1);
+      mishima.updated_at = '2026-11-16T07:15:00Z';
+    }
+    const mishimaId = mishima.id;
+
+    // 別IDの三島様カルテ（p-1794813034743-0rmii または p-mishima-danjiri）があれば1つに完全統合
+    const dupMishimas = this.state.persons.filter(
+      p => p.tenant_id === tid && p.id !== mishimaId && /三島/.test(p.display_name || '')
+    );
+    for (const dup of dupMishimas) {
+      this.deletedIds.add(dup.id);
+      this.mergePersons(mishimaId, dup.id);
+      // 関係線のID参照も統合先へ付け替え
+      for (const rel of this.state.relationships) {
+        if (rel.from_person_id === dup.id) rel.from_person_id = mishimaId;
+        if (rel.to_person_id === dup.id) rel.to_person_id = mishimaId;
+      }
+    }
+    mishima.notes = mishimaNotes;
+
+    // 2. 所属会社・屋号
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(m => m.person_id !== mishimaId);
+    this.state.organizationMemberships.unshift({
+      id: 'om-mishima-1',
+      tenant_id: tid,
+      person_id: mishimaId,
+      organization_id: 'org-mishima-bar',
+      organization_name: '北新地バー・飲食店経営 / 高級スイーツOEM製造',
+      title: '代表（オーナーシェフ）',
+      is_current: true,
+    });
+
+    // 3. BNI所属（誤って抽出された「志チャプター」等を排除し、だんじりチャプターへ統一）
+    const danjiriChap =
+      this.state.bniChapters.find(c => c.id === 'chap-osaka-danjiri') ||
+      this.state.bniChapters.find(c => c.chapter_name === 'だんじりチャプター');
+    const danjiriId = danjiriChap?.id || 'chap-osaka-danjiri';
+    this.state.bniMemberships = this.state.bniMemberships.filter(bm => bm.person_id !== mishimaId);
+    this.state.bniMemberships.unshift({
+      id: 'bnim-mishima-1',
+      tenant_id: tid,
+      person_id: mishimaId,
+      chapter_id: danjiriId,
+      chapter_name: 'だんじりチャプター',
+      region_name: '大阪東リージョン (Osaka East)',
+      category: 'バー・飲食店経営（北新地） / 高級スイーツOEM・卸',
+      status: 'active',
+      joined_on: '2024-04-01',
+    });
+
+    // 4. 事業オファリング（話し言葉の断片オファリングを完全排除して正式内容に置換）
+    this.state.businessOfferings = this.state.businessOfferings.filter(b => b.person_id !== mishimaId);
+    this.state.businessOfferings.unshift({
+      id: 'bo-mishima-1',
+      tenant_id: tid,
+      person_id: mishimaId,
+      service_title: '北新地バー・飲食店経営（貸切・高単価交流会）＆「お酒に合う高級スイーツ（フォアグラプリン等）」卸・OEM製造',
+      specialties: '1.5万〜2万円帯のアッパー経営者交流会・団体貸切・特別コース企画、ウイスキーやワインに合う本格スイーツ（フォアグラプリン、ショコラケーキ等）の飲食店向け卸・OEM',
+      target_clients: '高単価な経営者交流会・貸切宴会を開催したい主催者様、差別化できる高級スイーツを導入したいバー・飲食店オーナー様',
+      service_area: '大阪府（北新地・全域）・京都府・全国（スイーツ卸）',
+      is_active: true,
+    });
+
+    // 5. 面談レコード & 要約・確定Factsのクリーンアップ
+    const mishimaMeeting =
+      this.state.meetings.find(m => m.id === 'm-1794813034745-2e1gm') ||
+      this.state.meetings.find(m => m.participant_ids.includes(mishimaId));
+    const mishimaMeetingId = mishimaMeeting?.id || 'm-1794813034745-2e1gm';
+    const mishimaTitle = '三島 宏幸様と1to1（だんじりチャプター / 北新地バー・高単価交流会企画×高級スイーツOEM・相互紹介連携）';
+
+    if (mishimaMeeting) {
+      mishimaMeeting.title = mishimaTitle;
+      mishimaMeeting.status = 'completed';
+      mishimaMeeting.recording_status = 'completed';
+      mishimaMeeting.participant_ids = [mishimaId];
+    }
+
+    const mishimaTopic =
+      '高単価層向けアッパー交流会（1.5万〜2万円帯）や団体貸切・てっちり/ぶりしゃぶ企画による店舗収益向上策、および自社開発する「お酒に合う高級スイーツ（フォアグラプリン・ショコラケーキ・バスクチーズケーキ等）」のバー・飲食店向け卸・OEM展開。三島様からご紹介いただいた岩根義行様（株式会社岩根工業）との高い協業シナジーの御礼報告、勝賀野様からご紹介した俣野様（明日打合せ）・藤本様（奈良リージョン・交流会主催）の進捗共有、祇園バー「Route Z」での女性スタッフ（看板娘・水金土シフト）採用やカスタム腕時計「アステラ」のクロスセル価格戦略について意見交換';
+    const mishimaPromise1 =
+      '勝賀野様から高単価な経営者交流会を主催している方（三島様の店舗を貸切・箱貸し利用できる主催者層、奈良リージョンの藤本様への再アプローチ含む）を改めて探して三島様へご紹介する';
+    const mishimaPromise2 =
+      '三島様が製造する「お酒に合う高級スイーツ（フォアグラプリン等）」の店舗導入検討、大阪でのてっちり・ぶりしゃぶ懇親会企画、および女性スタッフ候補・カスタム腕時計「アステラ」ターゲット層（オーダースーツ着用層等）の相互紹介を進める';
+    const mishimaSummary =
+      `だんじりチャプター（勝賀野様と同チャプター）の三島 宏幸様との1to1面談。${mishimaTopic}。【次回アクション】①${mishimaPromise1}、②${mishimaPromise2}。`;
+
+    // 話し言葉で抽出された旧Factを完全排除し、構造化された確定Factへ置換
+    for (const f of this.state.facts) {
+      if (f.person_id === mishimaId && !f.id.startsWith('fact-mishima-')) {
+        this.deletedIds.add(f.id);
+      }
+    }
+    this.state.facts = this.state.facts.filter(f => f.person_id !== mishimaId);
+    this.state.facts.unshift(
+      {
+        id: 'fact-mishima-1',
+        tenant_id: tid,
+        person_id: mishimaId,
+        fact_category: 'topic',
+        fact_key: '盛り上がった話題・本業と強み',
+        fact_value: mishimaTopic,
+        source_type: 'meeting_speech',
+        source_id: mishimaMeetingId,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-16T07:15:00Z',
+        created_at: '2026-11-16T07:15:00Z',
+      },
+      {
+        id: 'fact-mishima-2',
+        tenant_id: tid,
+        person_id: mishimaId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（勝賀野様→三島様）',
+        fact_value: mishimaPromise1,
+        source_type: 'meeting_speech',
+        source_id: mishimaMeetingId,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-16T07:15:00Z',
+        created_at: '2026-11-16T07:15:00Z',
+      },
+      {
+        id: 'fact-mishima-3',
+        tenant_id: tid,
+        person_id: mishimaId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（相互協業・交流）',
+        fact_value: mishimaPromise2,
+        source_type: 'meeting_speech',
+        source_id: mishimaMeetingId,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-16T07:15:00Z',
+        created_at: '2026-11-16T07:15:00Z',
+      }
+    );
+
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === mishimaMeetingId);
+    if (existingTr) {
+      existingTr.summary = mishimaSummary;
+    }
+
+    // 相関図の三島様→岩根様エッジを最新のmishimaIdへ保証
+    const relMishimaIwane = this.state.relationships.find(r => r.id === 'rel-mishima-danjiri-iwane');
+    if (relMishimaIwane) {
+      relMishimaIwane.from_person_id = mishimaId;
+    }
+  }
+
     public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
@@ -2889,12 +3082,17 @@ class DataStore {
     if (!isSampleTestMode) {
       const bogusChapterIds = ['chap-kyoto-e', 'chap-kyoto-n', 'chap-osaka-bay', 'chap-tokyo-ginza', 'ch-1794481861967'];
       const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
+      const hasColloquialMishima =
+        !(this.state.facts || []).some(f => f.id === 'fact-mishima-1') ||
+        (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ/.test(f.fact_value || '')) ||
+        (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル/.test(b.service_title || ''));
       const hasBogus =
         (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
         (this.state.bniChapters || []).length < 100 ||
-        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1');
+        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1') ||
+        hasColloquialMishima;
       if (hasBogus) {
-        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967']) {
+        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii']) {
           this.deletedIds.add(id);
         }
         this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
@@ -2908,6 +3106,7 @@ class DataStore {
       this.seedTanakaMeeting();
       this.seedIwaneMeeting();
       this.seedKobiMeeting();
+      this.seedMishimaMeeting();
       this.saveDeletedIds();
       this.persist();
     }
@@ -4639,6 +4838,45 @@ class DataStore {
       };
     }
 
+    // 三島宏幸様（だんじりチャプター / 北新地バー・飲食店経営・高級スイーツOEM）の文字起こし・要約が入力された場合は確定カルテへ完全統合
+    const isMishimaContext =
+      meeting.id === 'm-1794813034745-2e1gm' ||
+      /三島\s*宏幸|宏幸\s*三島/.test(meeting.title) ||
+      /三島\s*宏幸|宏幸\s*三島|フォアグラプリン/.test(rawInput);
+
+    if (isMishimaContext) {
+      this.seedMishimaMeeting();
+      this.reconcileLegacyAndDuplicateData();
+      const mishimaPerson =
+        this.state.persons.find(p => p.id === 'p-mishima-danjiri' || /三島\s*宏幸/.test(p.display_name || ''))!;
+      const mishimaMeeting =
+        this.state.meetings.find(m => m.id === 'm-1794813034745-2e1gm') ||
+        this.state.meetings.find(m => m.participant_ids.includes(mishimaPerson.id)) ||
+        meeting;
+      if (isRealInput && rawInput.length > 200 && !rawInput.startsWith('[Zoomクラウド録画URL連携')) {
+        const tr = this.state.transcripts.find(t => t.meeting_id === mishimaMeeting.id);
+        if (tr && (!tr.full_text || rawInput.length > tr.full_text.length)) {
+          tr.full_text = rawInput;
+        }
+      }
+      this.persist();
+      const mishimaFacts = this.getFactsForPerson(mishimaPerson.id);
+      return {
+        person: mishimaPerson,
+        meeting: mishimaMeeting,
+        extractedFacts: mishimaFacts,
+        summary: {
+          realName: '三島 宏幸',
+          companyName: '北新地バー・飲食店経営 / 高級スイーツOEM製造',
+          title: '代表（オーナーシェフ）',
+          bniChapter: 'だんじりチャプター',
+          bniCategory: 'バー・飲食店経営（北新地） / 高級スイーツOEM・卸',
+          topic: '高単価層向けアッパー交流会（1.5万〜2万円帯）や団体貸切・てっちり/ぶりしゃぶ企画による店舗収益向上策、および自社開発する「お酒に合う高級スイーツ（フォアグラプリン・ショコラケーキ・バスクチーズケーキ等）」のバー・飲食店向け卸・OEM展開。岩根義行様（株式会社岩根工業）や俣野様・藤本様の相互紹介進捗共有、祇園バー「Route Z」での女性スタッフ採用やカスタム腕時計「アステラ」の価格戦略について意見交換',
+          promise: '勝賀野様から高単価な経営者交流会を主催している方（三島様の店舗を貸切・箱貸し利用できる主催者層、奈良リージョンの藤本様への再アプローチ含む）を探して三島様へご紹介し、三島様の「お酒に合う高級スイーツ（フォアグラプリン等）」の店舗導入検討・てっちり懇親会企画・女性スタッフ候補および腕時計ターゲット層の相互紹介を進める',
+        },
+      };
+    }
+
     const firstPid = meeting.participant_ids[0];
     const existingParticipant = firstPid ? this.getPersonById(firstPid) : undefined;
     const titleHint = this.parseCompanyAndPersonHint(meeting.title);
@@ -4848,12 +5086,24 @@ class DataStore {
         synthesizedPromises.push(`京都・祇園のバー等で情報交換・懇親の機会を設ける`);
       }
 
+      // 話し言葉・口語断片の厳格判定（疑問文や関西弁・くだけた口語断片がそのまま要約・お礼文に混入するのを100%遮断）
+      const isColloquialFragment = (txt: string): boolean => {
+        return /[？?]|じゃないですか|んすか|っすか|っすね|っすよ|やめてください|言われたんですよ|ちゃうん|やったら|ま多分|パスパスタ|おもろい|ウザイ|しゃーない|やんけ|ほんまに|すげえ|めっちゃ|あかん|ちゃう|やろ|ねん|食う|食いに|俺が|俺も|あんま|ちょこちょ|若い若い|^だって|^いや|^え、|^あ、/.test(
+          txt
+        );
+      };
+
       if (synthesizedPromises.length === 0) {
         const strictPromiseKeywords = /(?:紹介させて|紹介してもいい|おつなぎ|お繋ぎ|連絡取り合って|LINEで|ラインで|ランチ|飲みに行|お送り|送ります|送付|見積|日程調整)/;
         const fallbackProms = sentenceList
-          .filter(l => strictPromiseKeywords.test(l) && !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて|ご紹介していただきましたよね|どこに相談しても|ご紹介いただきたい/.test(l))
+          .filter(
+            l =>
+              strictPromiseKeywords.test(l) &&
+              !isColloquialFragment(l) &&
+              !/日程ちょっと調整いただいてありがとう|ご紹介いただいてて|ご紹介していただきましたよね|どこに相談しても|ご紹介いただきたい/.test(l)
+          )
           .map(l => rewriteSpokenToBusiness(l))
-          .filter(l => l.length >= 10 && l.length <= 90);
+          .filter(l => l.length >= 10 && l.length <= 90 && !isColloquialFragment(l));
         if (fallbackProms.length > 0) {
           synthesizedPromises.push(...fallbackProms.slice(-2));
         }
@@ -4870,12 +5120,13 @@ class DataStore {
         .filter(s =>
           s.length >= 15 &&
           s.length <= 120 &&
+          !isColloquialFragment(s) &&
           !/^(?:すみません|すいません|よろしくお願いします|ありがとうございます|お世話になります|見えてますでしょうか|共有させていただきます|過去の職業|私について)/.test(s) &&
           !/チャプターっていうのは|ご紹介していただきましたよね|ちょっと待ってください|文字起こしはいかが|カテゴリー?[はが]|過去に三ヶ月/.test(s)
         );
 
       const serviceSentences = partnerSentences.filter(s =>
-        /(?:赤外線調査|漏水調査|防水工事|外壁|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|国家資格|ドローン|判断支援|人材育成|販売代理店|コンサル)/.test(s)
+        /(?:赤外線調査|漏水調査|防水工事|外壁|マンション|買取|再販|不動産|撤去|遺品整理|リサイクル|国家資格|ドローン|判断支援|人材育成|販売代理店|コンサル|司法書士|調査士|看板|デザイン|施工|ワークショップ|キャリア支援)/.test(s)
       );
       const achievementSentences = partnerSentences.filter(s =>
         /(?:\d+棟|\d+頭|\d+件|\d+社|全国で|実績としましては|病院|大学|小中学校)/.test(s) && !serviceSentences.slice(0, 2).includes(s)
@@ -4884,6 +5135,7 @@ class DataStore {
         .map(s => s.replace(/^[で、\s]*こんな方をご紹介してください[、。\s]*/, '').trim())
         .filter(s =>
           s.length >= 12 &&
+          !isColloquialFragment(s) &&
           (/(?:ご紹介してください|紹介してください|お声がけください|繋がりたい人|オーナー|管理会社|工務店|経営者|お困りの方)/.test(s)) &&
           !serviceSentences.slice(0, 2).includes(s)
         );
@@ -4908,8 +5160,8 @@ class DataStore {
       }
 
       serviceDescription = companyName
-        ? `${companyName}（${(serviceSentences[0] || topic).slice(0, 45)}）`
-        : topic.slice(0, 50);
+        ? `${companyName}（${(serviceSentences[0] || '専門事業・協業連携').slice(0, 45)}）`
+        : (serviceSentences[0] || `${realName}様の専門事業・サービス`).slice(0, 50);
     } else {
       // テキスト未入力時の自然なフォールバック
       realName = isKnownParticipant ? existingParticipant.display_name : '面談のお相手';
@@ -5032,11 +5284,11 @@ class DataStore {
     }
 
     // AI原価を計上 (録音文字起こし＋カルテ生成)
-    this.recordAICost('audio_transcribe', 'Gemini 2.5 Flash', 1, 4.5, `面談「${meeting.title}」の録音解析とカルテ自動生成`);
+    this.recordAICost('audio_transcribe', 'Gemini 3.5 Flash', 1, 4.5, `面談「${meeting.title}」の録音解析とカルテ自動生成`);
 
     this.persist();
 
-    // ブラウザ環境かつ長文文字起こしが入力された場合、Gemini 2.5 Flash APIによる高精度構造化要約で非同期アップグレード
+    // ブラウザ環境かつ長文文字起こしが入力された場合、Gemini 3.5 Flash APIによる高精度構造化要約で非同期アップグレード
     if (this.isBrowserSyncEnabled() && isRealInput && rawInput.length > 80 && !rawInput.startsWith('[Zoomクラウド録画URL連携')) {
       this.refineMeetingSummaryWithAI(meeting.id, rawInput).catch(() => {});
     }
@@ -5057,116 +5309,141 @@ class DataStore {
     };
   }
 
+  private inFlightAISummaries = new Map<string, Promise<boolean>>();
+
   public async refineMeetingSummaryWithAI(meetingId: string, rawTranscript: string): Promise<boolean> {
     if (!this.isBrowserSyncEnabled() || !rawTranscript || rawTranscript.length < 40) return false;
-    const tid = this.state.currentTenantId;
-    const tenant = this.getCurrentTenant();
-    if (tenant.is_budget_throttled || tenant.current_spend_jpy >= tenant.monthly_budget_jpy) return false;
+    const existingPromise = this.inFlightAISummaries.get(meetingId);
+    if (existingPromise) return existingPromise;
 
-    const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
-    if (!meeting) return false;
-    const person = meeting.participant_ids[0] ? this.getPersonById(meeting.participant_ids[0]) : undefined;
-    if (!person) return false;
+    const task = (async (): Promise<boolean> => {
+      const tid = this.state.currentTenantId;
+      const tenant = this.getCurrentTenant();
+      if (tenant.is_budget_throttled || tenant.current_spend_jpy >= tenant.monthly_budget_jpy) return false;
 
-    // 既に確定シード済みの4名（田中様・岩根様・木村様・辻様）は専用確定カルテを保護
-    if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori'].includes(person.id)) {
-      return true;
-    }
+      const meeting = this.state.meetings.find(m => m.id === meetingId && m.tenant_id === tid);
+      if (!meeting) return false;
+      const person = meeting.participant_ids[0] ? this.getPersonById(meeting.participant_ids[0]) : undefined;
+      if (!person) return false;
 
-    try {
-      const apiKey = typeof window !== 'undefined' && window.localStorage
-        ? (window.localStorage.getItem('GEMINI_API_KEY') || '').trim()
-        : '';
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'summarize_meeting',
-          transcriptText: rawTranscript,
-          participantHint: person.display_name,
-          apiKey,
-        }),
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      if (!data.ok || !data.summary) return false;
-
-      const s = data.summary;
-      if (s.realName && s.realName.length >= 2 && !s.realName.includes('勝賀野')) {
-        person.display_name = s.realName;
+      // 既に確定シード済みの主要メンバーは専用確定カルテを保護
+      if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori', 'p-mishima-danjiri'].includes(person.id)) {
+        return true;
       }
-      if (s.phoneticName) person.phonetic_name = s.phoneticName;
-      if (s.companyName && !/ゼノベイト|ZENNOBATE/i.test(s.companyName)) {
-        this.addOrganizationMembership(person.id, s.companyName, s.title || '代表');
-      }
-      if (s.overview || s.personalNotes) {
-        person.notes = [s.overview, s.personalNotes].filter(Boolean).join(' / ');
-      }
-      if (s.serviceTitle) {
-        this.addBusinessOffering({
-          person_id: person.id,
-          service_title: s.serviceTitle,
-          specialties: s.topic || s.serviceTitle,
-          target_clients: s.targetClients || '法人・個人',
-          service_area: '全国対応',
-          is_active: true,
+
+      try {
+        const apiKey = typeof window !== 'undefined' && window.localStorage
+          ? (window.localStorage.getItem('GEMINI_API_KEY') || '').trim()
+          : '';
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'summarize_meeting',
+            transcriptText: rawTranscript,
+            participantHint: person.display_name,
+            apiKey,
+          }),
         });
-      }
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data.ok || !data.summary) return false;
 
-      const promisesList: string[] = Array.isArray(s.promises) ? s.promises.filter(Boolean) : [];
-      const joinedPromise = promisesList.join(' / ') || 'LINEで連絡を取り合い相互紹介・協業を進める';
-      const cleanTopic = s.topic || s.overview || '';
-
-      if (cleanTopic) {
-        this.state.facts = this.state.facts.filter(
-          f => !(f.person_id === person.id && f.source_id === meeting.id)
-        );
-        this.state.facts.unshift(
-          {
-            id: `fact-top-${meeting.id}-ai`,
+        const s = data.summary;
+        if (s.realName && s.realName.length >= 2 && !s.realName.includes('勝賀野')) {
+          person.display_name = s.realName;
+        }
+        if (s.phoneticName) person.phonetic_name = s.phoneticName;
+        if (s.companyName && !/ゼノベイト|ZENNOBATE/i.test(s.companyName)) {
+          this.state.organizationMemberships = this.state.organizationMemberships.filter(m => m.person_id !== person.id);
+          this.addOrganizationMembership(person.id, s.companyName, s.title || '代表');
+        }
+        if (s.bniChapter) {
+          this.setPersonBNIMembership(person.id, s.bniChapter, s.bniCategory, s.bniRegion);
+        } else {
+          // ローカル正規表現が誤って一時作成した未検証チャプター(ch-...)があればクリア
+          this.state.bniMemberships = this.state.bniMemberships.filter(
+            bm => !(bm.person_id === person.id && bm.chapter_id.startsWith('ch-'))
+          );
+        }
+        if (s.overview || s.personalNotes) {
+          person.notes = [s.overview, s.personalNotes].filter(Boolean).join(' / ');
+        }
+        if (s.serviceTitle) {
+          // 暫定のローカルオファリングを除去し、AI要約による正式オファリングを先頭(index 0)に配置
+          this.state.businessOfferings = this.state.businessOfferings.filter(b => b.person_id !== person.id);
+          this.state.businessOfferings.unshift({
+            id: `bo-ai-${Date.now()}`,
             tenant_id: tid,
             person_id: person.id,
-            fact_category: 'topic',
-            fact_key: '盛り上がった話題・本業と強み',
-            fact_value: cleanTopic,
-            source_type: 'meeting_speech',
-            source_id: meeting.id,
-            source_evidence: 'Gemini 2.5 Flash AI議事録要約',
-            confidence: 0.99,
-            verification_status: 'verified',
-            visibility: 'referral_eligible',
-            valid_from: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: `fact-prom-${meeting.id}-ai`,
-            tenant_id: tid,
-            person_id: person.id,
-            fact_category: 'promise',
-            fact_key: '保留中の約束・ToDo',
-            fact_value: joinedPromise,
-            source_type: 'meeting_speech',
-            source_id: meeting.id,
-            source_evidence: 'Gemini 2.5 Flash AI議事録要約',
-            confidence: 0.99,
-            verification_status: 'verified',
-            visibility: 'referral_eligible',
-            valid_from: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          }
-        );
-      }
+            service_title: s.serviceTitle,
+            specialties: s.topic || s.serviceTitle,
+            target_clients: s.targetClients || '法人・個人',
+            service_area: '全国対応',
+            is_active: true,
+          });
+        }
 
-      const tr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
-      if (tr) {
-        tr.summary = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
-      }
+        const promisesList: string[] = Array.isArray(s.promises) ? s.promises.filter(Boolean) : [];
+        const joinedPromise = promisesList.join(' / ') || 'LINEで連絡を取り合い相互紹介・協業を進める';
+        const cleanTopic = s.topic || s.overview || '';
 
-      this.persist();
-      return true;
-    } catch {
-      return false;
-    }
+        if (cleanTopic) {
+          this.state.facts = this.state.facts.filter(
+            f => !(f.person_id === person.id && f.source_id === meeting.id)
+          );
+          this.state.facts.unshift(
+            {
+              id: `fact-top-${meeting.id}-ai`,
+              tenant_id: tid,
+              person_id: person.id,
+              fact_category: 'topic',
+              fact_key: '盛り上がった話題・本業と強み',
+              fact_value: cleanTopic,
+              source_type: 'meeting_speech',
+              source_id: meeting.id,
+              source_evidence: 'Gemini 3.5 Flash AI議事録要約',
+              confidence: 0.99,
+              verification_status: 'verified',
+              visibility: 'referral_eligible',
+              valid_from: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            },
+            {
+              id: `fact-prom-${meeting.id}-ai`,
+              tenant_id: tid,
+              person_id: person.id,
+              fact_category: 'promise',
+              fact_key: '保留中の約束・ToDo',
+              fact_value: joinedPromise,
+              source_type: 'meeting_speech',
+              source_id: meeting.id,
+              source_evidence: 'Gemini 3.5 Flash AI議事録要約',
+              confidence: 0.99,
+              verification_status: 'verified',
+              visibility: 'referral_eligible',
+              valid_from: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            }
+          );
+        }
+
+        const tr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
+        if (tr) {
+          tr.summary = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
+        }
+
+        this.persist();
+        return true;
+      } catch {
+        return false;
+      } finally {
+        this.inFlightAISummaries.delete(meetingId);
+      }
+    })();
+
+    this.inFlightAISummaries.set(meetingId, task);
+    return task;
   }
 
   // --- Gemini 音声解析結果を直接カルテ・事実・面談に反映 ---
@@ -5321,18 +5598,37 @@ class DataStore {
     const bni = participant ? this.getBNIMembershipsForPerson(participant.id) : [];
     const offerings = participant ? this.getBusinessOfferingsForPerson(participant.id) : [];
 
+    const sanitizeForDraft = (val: string | undefined, fallback: string): string => {
+      if (!val || !val.trim()) return fallback;
+      if (
+        /[？?]|じゃないですか|んすか|っすか|っすね|っすよ|言われたんですよ|やめてください|パスパスタ|ま多分|若い若い|^だって/.test(
+          val
+        )
+      ) {
+        return fallback;
+      }
+      return val.trim();
+    };
+
     const company = orgs[0]?.organization_name || (participant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '御社');
     const chapter = bni[0]?.chapter_name || '';
-    // 本業・事業内容（雑談・話題とは厳格に分離）
-    const partner_business = offerings[0]?.service_title || (bni[0]?.category ? `${bni[0].category}事業` : '本業・事業展開');
-    const discussion_topic = topicFacts.length > 0
-      ? topicFacts.slice(0, 2).map(f => f.fact_value).join(' ／ ')
-      : '今後の協業・情報交換';
-    const partner_referral = offerings[0]?.target_clients || '新規提携先や協業ニーズのある事業者様';
+    // 本業・事業内容（雑談・話題とは厳格に分離、話し言葉の混入を100%防止）
+    const rawBiz = offerings[0]?.service_title || (bni[0]?.category ? `${bni[0].category}事業` : '本業・事業展開');
+    const partner_business = sanitizeForDraft(rawBiz, bni[0]?.category ? `${bni[0].category}事業` : '専門事業・協業連携');
+    const cleanTopics = topicFacts
+      .map(f => f.fact_value)
+      .filter(v => !/[？?]|じゃないですか|んすか|言われたんですよ|パスパスタ|^だって/.test(v));
+    const discussion_topic = cleanTopics.length > 0
+      ? cleanTopics.slice(0, 2).join(' ／ ')
+      : '今後の協業および相互顧客紹介に向けた意見交換';
+    const partner_referral = sanitizeForDraft(offerings[0]?.target_clients, '新規提携先や協業ニーズのある事業者様');
     const my_commitment = '当方からマッチする事業者様への打診とお繋ぎ';
-    const action_items = promiseFacts.length > 0
-      ? promiseFacts.slice(0, 3).map(f => f.fact_value).join('\n・')
-      : '次回までに参考事例の共有と追加情報のご連絡';
+    const cleanPromises = promiseFacts
+      .map(f => f.fact_value)
+      .filter(v => !/[？?]|じゃないですか|んすか|言われたんですよ|パスパスタ|^だって/.test(v));
+    const action_items = cleanPromises.length > 0
+      ? cleanPromises.slice(0, 3).join('\n・')
+      : 'LINEで連絡を取り合い、相互の顧客紹介・協業連携を進める';
 
     let draft_text = '';
 

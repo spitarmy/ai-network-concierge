@@ -22,24 +22,63 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [participants, setParticipants] = useState<{ id: string; name: string }[]>([]);
   const [askCompany, setAskCompany] = useState(false);
+  const [isRefiningAI, setIsRefiningAI] = useState(false);
+
+  const refreshDraft = (targetId?: string | null) => {
+    if (!meetingId) return;
+    const draft = store.generateThankYouDraft(meetingId, tone, (targetId ?? selectedPersonId) || undefined);
+    setMessageText(draft.draft_text);
+    setRecipientName(draft.recipient_name);
+    setParticipants(draft.all_participants || []);
+    if (!selectedPersonId && draft.all_participants && draft.all_participants.length > 0) {
+      setSelectedPersonId(draft.all_participants[0].id);
+    }
+    if (draft.recipient_person_id) {
+      const person = store.getPersonById(draft.recipient_person_id);
+      setKanjiVerified(Boolean(person?.is_name_verified));
+    }
+  };
+
+  const handleRefineWithAI = async () => {
+    if (!meetingId || isRefiningAI) return;
+    const tr = store.getTranscriptForMeeting(meetingId);
+    if (!tr || !tr.full_text || tr.full_text.length < 40) return;
+    setIsRefiningAI(true);
+    try {
+      await store.refineMeetingSummaryWithAI(meetingId, tr.full_text);
+      await store.pushStateToCloud().catch(() => {});
+      refreshDraft();
+    } finally {
+      setIsRefiningAI(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && meetingId) {
+      refreshDraft();
+      const tr = store.getTranscriptForMeeting(meetingId);
       const draft = store.generateThankYouDraft(meetingId, tone, selectedPersonId || undefined);
-      setMessageText(draft.draft_text);
-      setRecipientName(draft.recipient_name);
-      setParticipants(draft.all_participants || []);
-      if (!selectedPersonId && draft.all_participants && draft.all_participants.length > 0) {
-        setSelectedPersonId(draft.all_participants[0].id);
-      }
-      // 対象人物の漢字検証フラグをチェック
-      if (draft.recipient_person_id) {
-        const person = store.getPersonById(draft.recipient_person_id);
-        if (person?.is_name_verified) {
-          setKanjiVerified(true);
-        } else {
-          setKanjiVerified(false);
-        }
+      const pid = draft.recipient_person_id;
+      const facts = pid ? store.getFactsForPerson(pid) : [];
+      const hasVerifiedSummary = facts.some(
+        f =>
+          f.id.endsWith('-ai') ||
+          f.id.startsWith('fact-mishima-') ||
+          f.id.startsWith('fact-iwane-') ||
+          f.id.startsWith('fact-tanaka-') ||
+          f.id.startsWith('fact-kimura-') ||
+          f.id.startsWith('fact-tsuji-')
+      );
+      if (tr && tr.full_text && tr.full_text.length > 120 && !hasVerifiedSummary) {
+        setIsRefiningAI(true);
+        store
+          .refineMeetingSummaryWithAI(meetingId, tr.full_text)
+          .then(updated => {
+            if (updated) {
+              refreshDraft();
+            }
+          })
+          .finally(() => setIsRefiningAI(false));
       }
     }
   }, [isOpen, meetingId, tone, selectedPersonId]);
@@ -281,7 +320,18 @@ export const ThankYouFollowUpModal: React.FC<ThankYouFollowUpModalProps> = ({
           <div>
             <div className="flex items-center justify-between text-neutral-500 mb-1.5">
               <span className="font-medium">生成された送信メッセージ（編集可能）</span>
-              <span className="text-[11px] text-neutral-400">{messageText.length}文字</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRefineWithAI}
+                  disabled={isRefiningAI}
+                  className="px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 text-[11px] font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                >
+                  <Sparkles className={`w-3 h-3 ${isRefiningAI ? 'animate-spin' : ''}`} />
+                  <span>{isRefiningAI ? 'AI構造化要約中...' : 'AIで再要約'}</span>
+                </button>
+                <span className="text-[11px] text-neutral-400">{messageText.length}文字</span>
+              </div>
             </div>
             <textarea
               value={messageText}

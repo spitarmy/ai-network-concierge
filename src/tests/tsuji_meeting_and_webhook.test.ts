@@ -419,4 +419,38 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(cmdRes.executed).toBe(true);
     expect(cmdRes.summaryLines[0]).toContain('ナインダーツチャプター');
   });
+
+  it('三島宏幸様（だんじりチャプター）の文字起こしやお礼文作成において、話し言葉（「だってそんなに〜」「パスパスタ〜」等）が一切混入せず構造化ビジネス要約になること', () => {
+    store.setTenantId('tenant-001');
+    store.seedMishimaMeeting();
+
+    const m = store.createMeeting({
+      id: 'm-1794813034745-2e1gm',
+      title: '三島 宏幸様と1to1面談',
+      participant_name: '三島 宏幸',
+      meeting_type: '1to1',
+      scheduled_start_at: '2026-11-16T06:00:00Z',
+    });
+
+    const noisyTranscript = `
+宏幸 三島
+15:00:00
+だってそんなにみんなリサイクルすることないじゃないですか、え？それってそのリサイクルの商品が入ってるんすか？
+ま多分女性経営者の人と、まあ若い若い
+ランチ行った時にパスパスタ食べて
+パスタランチ頂きましたって言ってやめてくださいって言われたんですよ
+フォアグラプリンやショコラケーキなどのお酒に合うスイーツを飲食店向けに卸しています。
+    `.trim();
+
+    const res = store.processMeetingRecordingAndAutoRegister(m.id, noisyTranscript);
+    expect(res.person.display_name).toBe('三島 宏幸');
+    expect(res.summary.bniChapter).toBe('だんじりチャプター');
+
+    const draft = store.generateThankYouDraft(res.meeting.id, 'line_casual');
+    expect(draft.draft_text).toContain('だんじりチャプター');
+    expect(draft.draft_text).toContain('フォアグラプリン');
+    expect(draft.draft_text).not.toContain('だってそんなにみんなリサイクル');
+    expect(draft.draft_text).not.toContain('パスパスタ');
+    expect(draft.draft_text).not.toContain('言われたんですよ');
+  });
 });

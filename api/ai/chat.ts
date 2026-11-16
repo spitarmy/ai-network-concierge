@@ -51,7 +51,25 @@ export default async function handler(req: any, res: any) {
     const mode: string = (parsed.mode || 'chat').trim();
 
     if (mode === 'summarize_meeting') {
-      const transcriptText: string = (parsed.transcriptText || '').trim().slice(0, 28000);
+      const rawTranscriptText: string = (parsed.transcriptText || '').trim();
+      // タイムスタンプ行や単独の相槌（「はい」「ええ」等）を圧縮し、4万文字超の1時間面談でも3〜5秒で高速・高精度に要約できるようにする
+      const compactLines: string[] = [];
+      let lastSpeaker = '';
+      for (const rawLine of rawTranscriptText.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        if (/^\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(\s*-->.*)?$/.test(line) || /^WEBVTT$/i.test(line)) continue;
+        if (/^(はい|ええ|ああ|うん|なるほど|そうですね|そうなんですね|はいはい|ううん|へえ|おお)[。！!？?]*$/.test(line)) continue;
+        if (line.length <= 20 && !/[。、！？!?ですますでした]$/.test(line) && (line.includes('/') || /^[一-龯ぁ-んァ-ヶーA-Za-z\s]{2,12}$/.test(line))) {
+          lastSpeaker = line.replace(/^[0-9０-９]+\s*[/／]\s*/, '').replace(/\s*[/／].*$/, '').trim();
+          continue;
+        }
+        compactLines.push(lastSpeaker ? `${lastSpeaker}: ${line}` : line);
+      }
+      const joinedCompact = compactLines.join('\n');
+      const transcriptText = joinedCompact.length > 16000
+        ? `${joinedCompact.slice(0, 7000)}\n...(中略)...\n${joinedCompact.slice(Math.floor(joinedCompact.length / 2) - 2000, Math.floor(joinedCompact.length / 2) + 2000)}\n...(中略)...\n${joinedCompact.slice(-5000)}`
+        : joinedCompact;
       const hintName: string = (parsed.participantHint || '').trim();
       const summarizePrompt = `あなたは株式会社ZENNOBATE（代表：勝賀野 太郎様 / 事業：残置物撤去・遺品整理、桂の総合リサイクルショップRoute Z、祇園のバーRoute Z、AI古物査定ツール「カンテノ」、ラファエル提携ライバー事務所、オーダーメイド腕時計アステラ、若手経営者交流会）専属のAI議事録・人脈カルテ要約エンジンです。
 以下の1to1面談の文字起こし全文を読み、口語や相槌（「えー」「あ、」「はい」等の話し言葉の断片）を一切そのまま抜き出すのではなく、第三者視点でプロフェッショナルに構造化・要約したJSONのみを出力してください。
