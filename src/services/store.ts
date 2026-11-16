@@ -5019,28 +5019,9 @@ class DataStore {
           .trim();
       }
 
-      // 話し言葉・音声認識ゆれを自然な第三者視点ビジネス日本語へ整形する関数
+      // 話し言葉・音声認識ゆれを完全な書き言葉（第三者視点・議事録調ビジネス日本語）へ変換する関数
       const rewriteSpokenToBusiness = (rawLine: string): string => {
-        return rawLine
-          .replace(/一般車の方[、。\s]*ディスカイステージ/g, '一般社団法人ディスカイステージ')
-          .replace(/一般車の方/g, '一般社団法人')
-          .replace(/世界線調査/g, '赤外線調査')
-          .replace(/老衰/g, '漏水')
-          .replace(/ロックアクセス|ロップアクセス/g, 'ロープアクセス')
-          .replace(/仮説ゴンドラ|仮設コンドラ/g, '仮設ゴンドラ')
-          .replace(/^(?:はい|ええ|ああ|おお|うん|なるほど|そうですね|あ、|えー、?|えっと、?|あのー?|まあ、?|なんか、?|で、?|それで、?|ちょっと、?|すいません、?|すみません、?|改めまして、?|ちなみに、?|よろしくお願いします、?|ありがとうございます、?|はいでちょっと)+/g, '')
-          .replace(/(?:あのま|あのー|えーと|えっと|えー|まあまあ|まー|なんかこう|なんか|やっぱりその|やっぱり|やっぱ|ぶっちゃけ|ほんまに|むちゃくちゃ|めちゃめちゃ|わりかし|一応|要は|ここら辺が|そういったところで|そういったところが|会社の紹介なんですけれども、?|はいでちょっと)\s*/g, '')
-          .replace(/^(?:僕は|私は|私の方は|うちは|弊社は|私たちは|会社の紹介なんですけれども、?|ドローンの方が)\s*/g, '')
-          .replace(/してい支援をしていますと/g, '支援を展開')
-          .replace(/とかやってるんですけども/g, 'を展開')
-          .replace(/(?:っていうふうになってます|というふうになってます|っていうところもやってます|というところもやってます|っていうような感じでやってます|っていう感じでやってます|をやったりはしてます|をやってます|をやっております|をしてます)$/g, 'を展開')
-          .replace(/を支援を展開/g, 'を支援')
-          .replace(/(?:っていうところの方が|っていうところが|というところが)/g, 'は')
-          .replace(/(?:っていうところ|というところ)/g, '')
-          .replace(/(?:かなと思ってます|かなというところで|と思ってます|ていけたらなと思ってます)$/g, '')
-          .replace(/(?:とか、今|で。|て。|けど。|ので。|ですけども|なんですけれども|なんですけど)$/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
+        return this.toStrictWrittenJapanese(rawLine);
       };
 
       // 同一話者の連続発話を結合したターンリストを作成（文途切れを防止）
@@ -5560,6 +5541,34 @@ class DataStore {
     return this.processMeetingRecordingAndAutoRegister(newMeeting.id, transcriptText);
   }
 
+  public toStrictWrittenJapanese(rawLine: string): string {
+    return (rawLine || '')
+      .replace(/一般車の方[、。\s]*ディスカイステージ/g, '一般社団法人ディスカイステージ')
+      .replace(/一般車の方/g, '一般社団法人')
+      .replace(/世界線調査/g, '赤外線調査')
+      .replace(/老衰/g, '漏水')
+      .replace(/ロックアクセス|ロップアクセス/g, 'ロープアクセス')
+      .replace(/仮説ゴンドラ|仮設コンドラ/g, '仮設ゴンドラ')
+      .replace(/^(?:はい|ええ|ああ|おお|うん|なるほど|そうですね|あ、|えー、?|えっと、?|あのー?|まあ、?|なんか、?|で、?|それで、?|ちょっと、?|すいません、?|すみません、?|改めまして、?|ちなみに、?|よろしくお願いします、?|ありがとうございます、?|はいでちょっと)+/g, '')
+      .replace(/(?:あのま|あのー|えーと|えっと|えー|まあまあ|まー|なんかこう|なんか|やっぱりその|やっぱり|やっぱ|ぶっちゃけ|ほんまに|むちゃくちゃ|めちゃめちゃ|わりかし|一応|要は|ここら辺が|そういったところで|そういったところが|会社の紹介なんですけれども、?|はいでちょっと)\s*/g, '')
+      .replace(/^(?:僕は|私は|私の方は|うちは|弊社は|私たちは|会社の紹介なんですけれども、?|ドローンの方が)\s*/g, '')
+      .replace(/してい支援をしていますと/g, '支援を展開')
+      .replace(/とかやってるんですけども/g, 'を展開')
+      .replace(/(?:っていうふうになってます|というふうになってます|っていうところもやってます|というところもやってます|っていうような感じでやってます|っていう感じでやってます|をやったりはしてます|をやってます|をやっております|をしてます)$/g, 'を展開')
+      .replace(/を支援を展開/g, 'を支援')
+      .replace(/(?:っていうところの方が|っていうところが|というところが)/g, 'は')
+      .replace(/(?:っていうところ|というところ)/g, '')
+      .replace(/(?:共有しますね|お送りしますね|送りますね|確認しますね|連絡しますね|声をかけてみますね)$/g, (m) =>
+        m.replace(/しますね$/, 'する').replace(/みますね$/, 'る')
+      )
+      .replace(/(?:いただきたいです|ほしいです|お願いしたいです)$/g, 'を希望')
+      .replace(/(?:かなと思ってます|かなというところで|と思ってます|ていけたらなと思ってます|かなと思います)$/g, '')
+      .replace(/(?:ですね|ますね|ましたね|ですよ|ますよ|ましたよ|なんですけども?|なんですけれども?)(?=[。、\n]|$)/g, '')
+      .replace(/(?:とか、今|で。|て。|けど。|ので。|ですけども|なんですけれども|なんですけど)$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   // --- 面談後のお礼文 & 相互要約の自動生成 (LINE/メール手動送信用) ---
   public generateThankYouDraft(
     meetingId: string,
@@ -5607,7 +5616,8 @@ class DataStore {
       ) {
         return fallback;
       }
-      return val.trim();
+      const cleaned = this.toStrictWrittenJapanese(val);
+      return cleaned || fallback;
     };
 
     const company = orgs[0]?.organization_name || (participant?.category_tags?.includes('一般社団法人stone') ? '一般社団法人stone' : '御社');
@@ -5616,16 +5626,16 @@ class DataStore {
     const rawBiz = offerings[0]?.service_title || (bni[0]?.category ? `${bni[0].category}事業` : '本業・事業展開');
     const partner_business = sanitizeForDraft(rawBiz, bni[0]?.category ? `${bni[0].category}事業` : '専門事業・協業連携');
     const cleanTopics = topicFacts
-      .map(f => f.fact_value)
-      .filter(v => !/[？?]|じゃないですか|んすか|言われたんですよ|パスパスタ|^だって/.test(v));
+      .map(f => this.toStrictWrittenJapanese(f.fact_value))
+      .filter(v => v.length >= 6 && !/[？?]|じゃないですか|んすか|言われたんですよ|パスパスタ|^だって/.test(v));
     const discussion_topic = cleanTopics.length > 0
       ? cleanTopics.slice(0, 2).join(' ／ ')
       : '今後の協業および相互顧客紹介に向けた意見交換';
     const partner_referral = sanitizeForDraft(offerings[0]?.target_clients, '新規提携先や協業ニーズのある事業者様');
     const my_commitment = '当方からマッチする事業者様への打診とお繋ぎ';
     const cleanPromises = promiseFacts
-      .map(f => f.fact_value)
-      .filter(v => !/[？?]|じゃないですか|んすか|言われたんですよ|パスパスタ|^だって/.test(v));
+      .map(f => this.toStrictWrittenJapanese(f.fact_value))
+      .filter(v => v.length >= 6 && !/[？?]|じゃないですか|んすか|言われたんですよ|パスパスタ|^だって/.test(v));
     const action_items = cleanPromises.length > 0
       ? cleanPromises.slice(0, 3).join('\n・')
       : 'LINEで連絡を取り合い、相互の顧客紹介・協業連携を進める';

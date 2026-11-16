@@ -75,7 +75,7 @@ export default async function handler(req: any, res: any) {
 以下の1to1面談の文字起こし全文を読み、口語や相槌（「えー」「あ、」「はい」等の話し言葉の断片）を一切そのまま抜き出すのではなく、第三者視点でプロフェッショナルに構造化・要約したJSONのみを出力してください。
 
 【絶対厳守ルール】
-1. 議事録の生の発言文（「〜ですね」「えー」「僕はえっと」等）をそのままコピーして貼り付けることは厳禁です。必ず簡潔・明瞭なビジネス日本語で要約してください。
+1. 議事録の生の発言文（「〜ですね」「〜ますね」「〜かなと」「〜じゃないですか」「〜ですよ」「〜って言われた」「〜んすか」「えー」「僕はえっと」等）をそのままコピーして貼り付けることは厳禁です。必ず客観的な「書き言葉（議事録調・体言止め、または簡潔なビジネス文書体）」で要約してください。疑問符「？」や関西弁・話し言葉の語尾は1文字たりとも含めないでください。
 2. 勝賀野 太郎様（4/勝賀野 太郎/残置物撤去・株式会社ゼノベイト・だんじりチャプター所属）自身のプロフィールとお相手のプロフィールを絶対に混同しないでください。主役はお相手（${hintName || '面談相手'}）です。
 3. 文字起こしにない事実や、会話中に登場する第三者（紹介者・知人など）の所属チャプター・会社・役職など、文脈上で100%確定していない推測情報を勝手に断定して書かないでください（紹介者などの所属が明言されていない場合は「〇〇様よりご紹介」とのみ記載し、未確定の所属チャプター等を推測で付与することは厳禁です）。
 4. 出力は以下のJSON形式のみとしてください:
@@ -87,16 +87,30 @@ export default async function handler(req: any, res: any) {
   "bniRegion": "BNIリージョン名（例：大阪セントラルリージョン）",
   "bniChapter": "BNIチャプター名（例：シャングリラチャプター）",
   "bniCategory": "BNIカテゴリー・専門分野",
-  "overview": "面談全体の3〜4文のプロフェッショナルな要約（誰と、どのような事業強み・実績を共有し、どんな協業・紹介に合意したか）",
-  "topic": "盛り上がった話題・お相手の本業と強み・実績・紹介してほしいターゲット（箇条書き風または端的な要約文）",
+  "overview": "面談全体の3〜4文のプロフェッショナルな書き言葉要約（誰と、どのような事業強み・実績を共有し、どんな協業・紹介に合意したか）",
+  "topic": "盛り上がった話題・お相手の本業と強み・実績・紹介してほしいターゲット（必ず書き言葉・体言止めまたは簡潔な議事録調で記述）",
   "promises": [
-    "具体的な次回ToDo・約束事項1（誰が誰に何を紹介・連絡・検討するか）",
+    "具体的な次回ToDo・約束事項1（誰が誰に何を紹介・連絡・検討するか、書き言葉で記述）",
     "具体的な次回ToDo・約束事項2"
   ],
-  "serviceTitle": "お相手の主力サービス名（30文字以内）",
-  "targetClients": "お相手が紹介してほしいターゲット層",
-  "personalNotes": "年齢・出身・居住地・家族構成・趣味・共通の知人など、次回1to1で役立つパーソナル情報"
+  "serviceTitle": "お相手の主力サービス名（30文字以内・体言止め）",
+  "targetClients": "お相手が紹介してほしいターゲット層（体言止め）",
+  "personalNotes": "年齢・出身・居住地・家族構成・趣味・共通の知人など、次回1to1で役立つパーソナル情報（書き言葉）"
 }`;
+
+      const enforceWrittenStyle = (val?: string): string => {
+        if (!val || typeof val !== 'string') return '';
+        return val
+          .replace(/ですね(?=[。、\n]|$)/g, '')
+          .replace(/ますね(?=[。、\n]|$)/g, 'ます')
+          .replace(/ましたね(?=[。、\n]|$)/g, 'ました')
+          .replace(/なんですけども?(?=[。、\n]|$)/g, '')
+          .replace(/なんですけれども?(?=[。、\n]|$)/g, '')
+          .replace(/かなと思います/g, '方針')
+          .replace(/じゃないですか/g, '')
+          .replace(/[？?]/g, '')
+          .trim();
+      };
 
       const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
       let lastError = '';
@@ -126,6 +140,14 @@ export default async function handler(req: any, res: any) {
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
             const resultJson = JSON.parse(text.trim());
+            resultJson.overview = enforceWrittenStyle(resultJson.overview);
+            resultJson.topic = enforceWrittenStyle(resultJson.topic);
+            resultJson.serviceTitle = enforceWrittenStyle(resultJson.serviceTitle);
+            resultJson.targetClients = enforceWrittenStyle(resultJson.targetClients);
+            resultJson.personalNotes = enforceWrittenStyle(resultJson.personalNotes);
+            if (Array.isArray(resultJson.promises)) {
+              resultJson.promises = resultJson.promises.map((p: string) => enforceWrittenStyle(p)).filter(Boolean);
+            }
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({

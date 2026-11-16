@@ -656,15 +656,21 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  store.autoRegisterFromPostMeetingTranscript(transcriptInput);
+                onClick={async () => {
+                  if (!transcriptInput.trim()) return;
+                  const res = store.autoRegisterFromPostMeetingTranscript(transcriptInput);
+                  await Promise.race([
+                    store.refineMeetingSummaryWithAI(res.meeting.id, transcriptInput.trim()),
+                    new Promise(resolve => setTimeout(resolve, 35000)),
+                  ]);
+                  await store.pushStateToCloud().catch(() => {});
                   setIsSuccess(true);
                   setTimeout(() => {
                     setIsSuccess(false);
                     setTranscriptInput('');
                     onRefresh();
                     onClose();
-                  }, 800);
+                  }, 600);
                 }}
                 className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 active:scale-[0.98]"
               >
