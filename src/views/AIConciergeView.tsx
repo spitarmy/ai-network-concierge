@@ -58,6 +58,9 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
     setInputQuery('');
     setMessages(prev => [...prev, userMsg]);
 
+    // 1. まず登録・変更コマンド（例:「小比さんを大阪北東リージョンのナインダーツチャプターに登録しなおして」）があれば即座に実DBへ実行
+    const localCmd = store.executeAIConciergeCommand(q);
+
     const currentTenant = store.getCurrentTenant();
     const isThrottled = currentTenant.is_budget_throttled || currentTenant.current_spend_jpy >= currentTenant.monthly_budget_jpy;
 
@@ -71,6 +74,7 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
             id: p.id,
             name: p.display_name,
             status: p.status,
+            bni: store.getBNIMembershipsForPerson(p.id).map(b => `${b.region_name} / ${b.chapter_name} (${b.category})`).join(', '),
             company: store.getOrgMembershipsForPerson(p.id).map(o => `${o.organization_name}(${o.title || ''})`).join(', '),
             offerings: store.getBusinessOfferingsForPerson(p.id).map(b => `${b.service_title}: ${b.specialties} / 紹介対象:${b.target_clients}`),
             notes: p.notes,
@@ -97,25 +101,35 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
         });
         const data = await res.json();
         if (data && data.ok && data.answer) {
+          // Geminiがactionsを返していて、まだlocalCmdで実行されていない場合は実DBへ反映
+          const aiCmd = !localCmd.executed && Array.isArray(data.actions)
+            ? store.applyAIActions(data.actions)
+            : { summaryLines: [] as string[], updatedPersons: [] as any[] };
+
+          const allAppliedLines = [...localCmd.summaryLines, ...aiCmd.summaryLines];
+          const finalAnswerText = allAppliedLines.length > 0
+            ? `${allAppliedLines.join('\n')}\n\n${data.answer}`
+            : data.answer;
+
           const matchedPersons = Array.isArray(data.matched_person_ids)
             ? data.matched_person_ids.map((id: string) => store.getPersonById(id)).filter(Boolean)
-            : [];
+            : (localCmd.updatedPerson ? [localCmd.updatedPerson] : aiCmd.updatedPersons);
           const allFacts = persons.flatMap(p => store.getFactsForPerson(p.id));
           const citedFacts = Array.isArray(data.cited_fact_ids)
             ? allFacts.filter(f => data.cited_fact_ids.includes(f.id))
             : [];
 
-          store.recordAICost('llm_tokens', data.model || 'Gemini 2.5 Flash', 650, 0.65, `Gemini RAG検索: 「${q.substring(0, 15)}...」`);
+          store.recordAICost('llm_tokens', data.model || 'Gemini 3.5 Flash', 650, 0.65, `Gemini RAG検索・更新: 「${q.substring(0, 15)}...」`);
           setMessages(prev => [
             ...prev,
             {
               sender: 'ai',
-              text: data.answer,
+              text: finalAnswerText,
               facts: citedFacts,
               relatedPersons: matchedPersons,
               confidence: data.confidence ?? 0.98,
               hasDefiniteAnswer: data.has_definite_answer ?? true,
-              engineLabel: `Gemini AI (${data.model || 'gemini-2.5-flash'})`,
+              engineLabel: `Gemini AI (${data.model || 'gemini-3.5-flash'})`,
             },
           ]);
           setIsLoading(false);
@@ -125,6 +139,23 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
         // エラー時はローカル検索にフォールバック
       }
       setIsLoading(false);
+    }
+
+    if (localCmd.executed && localCmd.updatedPerson) {
+      const p = localCmd.updatedPerson;
+      setMessages(prev => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: `${localCmd.summaryLines.join('\n')}\n\n人物カルテおよび「BNI全国公式マスター」へ即座に反映いたしました。`,
+          facts: store.getFactsForPerson(p.id).filter(f => f.visibility !== 'private'),
+          relatedPersons: [p],
+          confidence: 1.0,
+          hasDefiniteAnswer: true,
+          engineLabel: 'AIカルテ自動更新エンジン',
+        },
+      ]);
+      return;
     }
 
     const result = store.queryAI(q);

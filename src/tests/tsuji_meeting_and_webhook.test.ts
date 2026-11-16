@@ -397,4 +397,26 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     store.deleteTenant(memberTenant.id);
     expect(store.getTenantId()).toBe('tenant-001');
   });
+
+  it('小比直人様が大阪北東リージョン・ナインダーツチャプター所属として登録され、AI人脈秘書の自然言語指示でも実際にBNIチャプター変更がDBへ反映されること', () => {
+    store.setTenantId('tenant-001');
+    store.seedKobiMeeting();
+
+    const kobi = store.getPersons().find(p => p.display_name === '小比 直人');
+    expect(kobi).toBeDefined();
+    expect(kobi?.notes).toContain('大阪北東リージョン');
+    expect(kobi?.notes).toContain('ナインダーツチャプター');
+    expect(kobi?.notes).not.toContain('ダンジェリチャプター');
+
+    const bniMems = store.getBNIMembershipsForPerson(kobi!.id);
+    expect(bniMems.length).toBeGreaterThan(0);
+    expect(bniMems[0].chapter_name).toBe('ナインダーツチャプター');
+    expect(bniMems[0].region_name).toContain('大阪北東リージョン');
+    expect(bniMems[0].category).toContain('司法書士・土地家屋調査士');
+
+    // AI人脈秘書への自然言語コマンドで実際にDBのBNI所属が書き換わることを検証
+    const cmdRes = store.executeAIConciergeCommand('小比さんを大阪北東リージョンのナインダーツチャプターに登録しなおして');
+    expect(cmdRes.executed).toBe(true);
+    expect(cmdRes.summaryLines[0]).toContain('ナインダーツチャプター');
+  });
 });

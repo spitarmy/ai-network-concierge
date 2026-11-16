@@ -750,11 +750,12 @@ class DataStore {
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様の1to1面談実績を自動登録
+    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
     this.seedTanakaMeeting();
     this.seedIwaneMeeting();
+    this.seedKobiMeeting();
 
     // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
     this.reconcileLegacyAndDuplicateData();
@@ -2201,6 +2202,269 @@ class DataStore {
     }
   }
 
+  public seedKobiMeeting(): void {
+    const tid = 'tenant-001';
+
+    // 1. 小比 直人 様（司法書士・土地家屋調査士 / BNI大阪北東リージョン・ナインダーツチャプター）の本登録カルテ
+    let kobi = this.state.persons.find(
+      p => p.id === 'p-kobi-naoto' || p.id === 'p-1794804591387-r4ts6' || p.display_name.replace(/\s+/g, '') === '小比直人'
+    );
+    const kobiNotes =
+      '司法書士・土地家屋調査士（独立4年目）。BNI 大阪北東リージョン（Osaka North East）「ナインダーツチャプター」所属（カテゴリー：司法書士・土地家屋調査士）。顧客の約6〜7割が不動産業者からの紹介。単なる登記手続きだけでなく、相続相談の初期段階から一気通貫で伴走する「相続コンサルティング」や成年後見業務、遺品整理・残置物撤去後の土地家屋調査・測量・不動産売却サポートに強み（大阪・京都で対応可能）。勝賀野様の遺品整理・残置物撤去、AI古物査定ツール「カンテノ」、カスタム腕時計「アステラ」、若手経営者交流会、および遠藤様（システム・アプリ開発）との相互送客・協業で合意。';
+
+    if (!kobi) {
+      kobi = {
+        id: 'p-1794804591387-r4ts6',
+        tenant_id: tid,
+        display_name: '小比 直人',
+        phonetic_name: 'コビ ナオト',
+        status: 'active',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事', '士業'],
+        service_areas: ['大阪府（北東エリア・全域）', '京都府', '関西一円'],
+        notes: kobiNotes,
+        last_interacted_at: '2026-11-16T13:49:00+09:00',
+        meeting_count: 1,
+        created_at: '2026-11-16T03:58:58Z',
+        updated_at: '2026-11-16T04:55:00Z',
+      };
+      this.state.persons.unshift(kobi);
+    } else {
+      kobi.display_name = '小比 直人';
+      kobi.phonetic_name = 'コビ ナオト';
+      kobi.status = 'active';
+      kobi.is_name_verified = true;
+      kobi.category_tags = Array.from(new Set([...(kobi.category_tags || []), 'BNI', '仕事', '士業']));
+      kobi.service_areas = ['大阪府（北東エリア・全域）', '京都府', '関西一円'];
+      kobi.notes = kobiNotes;
+      kobi.last_interacted_at = '2026-11-16T13:49:00+09:00';
+      kobi.meeting_count = Math.max(kobi.meeting_count || 1, 1);
+      kobi.updated_at = '2026-11-16T04:55:00Z';
+    }
+    const kobiId = kobi.id;
+
+    // 重複した小比様カルテがあれば統合
+    const dupKobis = this.state.persons.filter(
+      p => p.tenant_id === tid && p.id !== kobiId && p.display_name.replace(/\s+/g, '').includes('小比直人')
+    );
+    for (const dup of dupKobis) {
+      this.deletedIds.add(dup.id);
+      this.mergePersons(kobiId, dup.id);
+    }
+
+    // 2. 所属事務所（小比司法書士・土地家屋調査士事務所）
+    if (!this.state.organizations.some(o => o.id === 'org-kobi-office')) {
+      this.state.organizations.push({
+        id: 'org-kobi-office',
+        tenant_id: tid,
+        name: '小比司法書士・土地家屋調査士事務所',
+      });
+    }
+    this.state.organizationMemberships = this.state.organizationMemberships.filter(
+      m => !(m.person_id === kobiId && m.id !== 'om-kobi-1')
+    );
+    if (!this.state.organizationMemberships.some(m => m.id === 'om-kobi-1')) {
+      this.state.organizationMemberships.unshift({
+        id: 'om-kobi-1',
+        tenant_id: tid,
+        person_id: kobiId,
+        organization_id: 'org-kobi-office',
+        organization_name: '小比司法書士・土地家屋調査士事務所',
+        title: '代表（司法書士・土地家屋調査士）',
+        is_current: true,
+      });
+    } else {
+      const om = this.state.organizationMemberships.find(m => m.id === 'om-kobi-1')!;
+      om.person_id = kobiId;
+      om.organization_name = '小比司法書士・土地家屋調査士事務所';
+      om.title = '代表（司法書士・土地家屋調査士）';
+    }
+
+    // 3. BNI所属（大阪北東リージョン・ナインダーツチャプター）
+    if (!this.state.bniRegions.some(r => r.id === 'reg-osaka-ne')) {
+      this.state.bniRegions.push({
+        id: 'reg-osaka-ne',
+        prefecture: '大阪府',
+        region_code: 'OSAKA_NE',
+        region_name: '大阪北東リージョン (Osaka North East)',
+      });
+    }
+    const nineDartsChap =
+      this.state.bniChapters.find(c => c.chapter_name === 'ナインダーツチャプター') ||
+      this.state.bniChapters.find(c => c.id === 'chap-bni-301');
+    const nineDartsId = nineDartsChap?.id || 'chap-bni-301';
+    if (!nineDartsChap) {
+      this.state.bniChapters.push({
+        id: nineDartsId,
+        region_id: 'reg-osaka-ne',
+        chapter_name: 'ナインダーツチャプター',
+        meeting_day: '火曜',
+        meeting_time: '7:00 AM (オンライン（永続）)',
+        is_verified: true,
+      });
+    }
+
+    this.state.bniMemberships = this.state.bniMemberships.filter(
+      bm => !(bm.person_id === kobiId && bm.id !== 'bnim-kobi-1')
+    );
+    if (!this.state.bniMemberships.some(bm => bm.id === 'bnim-kobi-1')) {
+      this.state.bniMemberships.unshift({
+        id: 'bnim-kobi-1',
+        tenant_id: tid,
+        person_id: kobiId,
+        chapter_id: nineDartsId,
+        chapter_name: 'ナインダーツチャプター',
+        region_name: '大阪北東リージョン (Osaka North East)',
+        category: '司法書士・土地家屋調査士（相続コンサルティング・不動産登記・測量）',
+        status: 'active',
+        joined_on: '2022-04-01',
+      });
+    } else {
+      const bm = this.state.bniMemberships.find(b => b.id === 'bnim-kobi-1')!;
+      bm.person_id = kobiId;
+      bm.chapter_id = nineDartsId;
+      bm.chapter_name = 'ナインダーツチャプター';
+      bm.region_name = '大阪北東リージョン (Osaka North East)';
+      bm.category = '司法書士・土地家屋調査士（相続コンサルティング・不動産登記・測量）';
+      bm.status = 'active';
+    }
+
+    // 4. 事業オファリング
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === kobiId && b.id !== 'bo-kobi-1')
+    );
+    if (!this.state.businessOfferings.some(b => b.id === 'bo-kobi-1')) {
+      this.state.businessOfferings.unshift({
+        id: 'bo-kobi-1',
+        tenant_id: tid,
+        person_id: kobiId,
+        service_title: '司法書士・土地家屋調査士業務 / 相続コンサルティング・不動産登記・境界確定測量',
+        specialties: '相続登記・遺産整理、遺品整理後の土地家屋調査・測量・不動産売却ワンストップ支援、成年後見業務（不動産業者からの紹介比率約7割）',
+        target_clients: '不動産業者様（売買・買取再販・空き家管理）、遺品整理・残置物撤去事業者様、相続対策を検討する不動産オーナー様',
+        service_area: '大阪府（北東エリア・全域）・京都府・関西一円',
+        is_active: true,
+      });
+    }
+
+    // 5. 面談レコード & 文字起こし要約の補正（Zoom AIの「ダンジェリチャプター」「京都北東リージョン」誤認識を大阪北東・ナインダーツチャプターへ修正）
+    const kobiMeetingId = 'm-zoom-Hloc8gk6T9CevFvvf9bJLQ';
+    let meeting = this.state.meetings.find(m => m.id === kobiMeetingId || m.zoom_uuid === 'Hloc8gk6T9CevFvvf9bJLQ==');
+    const kobiTitle = '小比 直人様と1to1（大阪北東・ナインダーツチャプター / 司法書士・土地家屋調査士×遺品整理・不動産・システム連携）';
+    if (!meeting) {
+      meeting = {
+        id: kobiMeetingId,
+        tenant_id: tid,
+        title: kobiTitle,
+        meeting_type: '1to1',
+        provider: 'zoom',
+        meeting_url: 'https://us06web.zoom.us/rec/share/FCyJ1YTJn9fNkJieYGf59x0nAW7WYE2tFhaJSSysVAq7t-BL0YULk11y8ZpolklJ.r95xg77HbBl8hHas',
+        meeting_code: '89527504054',
+        zoom_uuid: 'Hloc8gk6T9CevFvvf9bJLQ==',
+        scheduled_start_at: '2026-11-16T03:58:58.000Z',
+        scheduled_end_at: '2026-11-16T04:49:00.000Z',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [kobiId],
+        created_at: '2026-11-16T03:58:58.000Z',
+        updated_at: '2026-11-16T04:55:00.000Z',
+      };
+      this.state.meetings.unshift(meeting);
+    } else {
+      meeting.title = kobiTitle;
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.participant_ids = [kobiId];
+    }
+
+    const kobiSummary =
+      'BNI 大阪北東リージョン「ナインダーツチャプター」所属の小比 直人様（司法書士・土地家屋調査士・独立4年目）との50分間の1to1面談。小比様は顧客の約6〜7割を不動産業者からの紹介が占めており、登記だけでなく相続相談の入口から寄り添う「相続コンサルティング」や遺品整理後の土地家屋調査・測量・売却のワンストップ支援（大阪・京都対応）に強み。勝賀野様の遺品整理・残置物撤去、AI古物査定ツール「カンテノ」、カスタム腕時計「アステラ」、若手経営者交流会、および遠藤様（システム・アプリ開発）との相互連携に合意。【次回アクション】①勝賀野様からBNI外の不動産業者ネットワークおよび遠藤様（1to1）・司法書士向け顧客管理ツール担当者を小比様へ紹介、②小比様からナインダーツチャプターのメンバーリストを勝賀野様へ送付し、木村様・堀様・石川様の3名へ勝賀野様を紹介。';
+
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === meeting!.id);
+    if (!existingTr) {
+      this.state.transcripts.unshift({
+        id: `tr-${meeting.id}`,
+        tenant_id: tid,
+        meeting_id: meeting.id,
+        language: 'ja',
+        full_text: kobiSummary,
+        summary: kobiSummary,
+        utterances: [
+          {
+            id: 'utt-kobi-1',
+            speaker_label: '小比 直人',
+            resolved_person_id: kobiId,
+            resolved_person_name: '小比 直人',
+            start_seconds: 0,
+            end_seconds: 3000,
+            text: kobiSummary,
+            confidence: 0.99,
+          },
+        ],
+        created_at: '2026-11-16T04:50:00Z',
+      });
+    } else {
+      existingTr.summary = kobiSummary;
+      if (existingTr.full_text) {
+        existingTr.full_text = existingTr.full_text
+          .replace(/ダンジェリチャプター/g, 'ナインダーツチャプター（勝賀野様はだんじりチャプター）')
+          .replace(/京都北東リージョン/g, '大阪北東リージョン');
+      }
+    }
+
+    // 6. 相関図エッジ & 紹介ハブ提案
+    if (!this.deletedIds.has('rel-kobi-endo') && !this.state.relationships.some(r => r.id === 'rel-kobi-endo')) {
+      this.state.relationships.push({
+        id: 'rel-kobi-endo',
+        tenant_id: tid,
+        from_person_id: 'p-endo-prov',
+        to_person_id: kobiId,
+        relationship_type: 'システム・アプリ開発協業・1to1紹介合意',
+        is_ai_inferred: false,
+        confidence: 1.0,
+        evidence_text: '11/16 小比直人様1to1面談にて「遠藤さん（システム・アプリ開発）との1to1セッティング・協業」に合意',
+        source_meeting_id: meeting.id,
+      });
+    }
+    if (!this.deletedIds.has('rel-ai-kobi-tanaka') && !this.state.relationships.some(r => r.id === 'rel-ai-kobi-tanaka')) {
+      this.state.relationships.push({
+        id: 'rel-ai-kobi-tanaka',
+        tenant_id: tid,
+        from_person_id: kobiId,
+        to_person_id: 'p-tanaka-yoshihiro',
+        relationship_type: 'AI紹介推薦（司法書士・土地家屋調査士・相続 × 中古マンション買取再販・不動産売買）',
+        is_ai_inferred: true,
+        confidence: 0.98,
+        evidence_text: '売上の約7割が不動産業者紹介である小比様（司法書士・土地家屋調査士）と、大阪・全国でマンション・土地買取再販を行う田中様（夢叶開発）の相互送客シナジー',
+        source_meeting_id: meeting.id,
+      });
+    }
+    if (!this.deletedIds.has('ref-kobi-tanaka') && !this.state.referrals.some(r => r.id === 'ref-kobi-tanaka')) {
+      this.state.referrals.unshift({
+        id: 'ref-kobi-tanaka',
+        tenant_id: tid,
+        referrer_person_id: kobiId,
+        candidate_person_id: 'p-tanaka-yoshihiro',
+        target_person_id: kobiId,
+        recommendation_reason:
+          '小比直人様（大阪北東リージョン・ナインダーツチャプター / 司法書士・土地家屋調査士）の主要紹介元ニーズである「不動産業者様との連携」と、田中義博様（夢叶開発：中古マンション・土地買取再販）および勝賀野様の遺品整理・残置物撤去を三位一体で接続する高シナジー提案です。',
+        breakdown: {
+          area_match: '対応エリア完全一致（大阪府・京都府・関西一円）',
+          specialty_match: '相続コンサル・不動産登記・土地家屋調査 × 不動産買取再販 × 遺品整理・残置物撤去',
+          privacy_checked: true,
+          track_record: '11/16 小比様1to1面談にて不動産業者紹介・遺品整理ワンストップ協業に合意済み',
+        },
+        draft_message: `小比さん、本日はZoomでの1to1ありがとうございました！\nナインダーツチャプターでのご活動や、相続コンサルティング×土地家屋調査・登記のワンストップ体制のお話、大変勉強になりました。\nお話ししていた不動産業者様のお繋ぎとして、大阪拠点でマンション・土地の買取再販を展開されている「夢叶開発」の田中義博代表や、システム開発の遠藤さんをぜひご紹介させてください！`,
+        status: 'suggested',
+        outcome: {
+          type: 'pending',
+          confirmed_by_user: false,
+        },
+        created_at: '2026-11-16T04:55:00Z',
+      });
+    }
+  }
+
     public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
@@ -2623,17 +2887,19 @@ class DataStore {
     // 6. BNI全国公式マスターデータ（53リージョン・401チャプター）への自動アップグレード＆旧サンプルチャプター排除
     const isSampleTestMode = (this.state.persons || []).some(p => p.id === 'p-yamada');
     if (!isSampleTestMode) {
-      const bogusChapterIds = ['chap-kyoto-e', 'chap-kyoto-n', 'chap-osaka-bay', 'chap-tokyo-ginza'];
+      const bogusChapterIds = ['chap-kyoto-e', 'chap-kyoto-n', 'chap-osaka-bay', 'chap-tokyo-ginza', 'ch-1794481861967'];
       const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
       const hasBogus =
         (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
-        (this.state.bniChapters || []).length < 100;
+        (this.state.bniChapters || []).length < 100 ||
+        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1');
       if (hasBogus) {
-        for (const id of [...bogusChapterIds, ...bogusRegionIds]) {
+        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967']) {
           this.deletedIds.add(id);
         }
         this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
         this.state.bniChapters = JSON.parse(JSON.stringify(OFFICIAL_BNI_CHAPTERS));
+        this.state.bniMemberships = (this.state.bniMemberships || []).filter(bm => bm.id !== 'bnim-1794481861967');
         changed = true;
       }
     }
@@ -2641,6 +2907,7 @@ class DataStore {
     if (changed) {
       this.seedTanakaMeeting();
       this.seedIwaneMeeting();
+      this.seedKobiMeeting();
       this.saveDeletedIds();
       this.persist();
     }
@@ -2861,6 +3128,63 @@ class DataStore {
             is_active: true,
           });
           changed = true;
+        }
+
+        // BNIチャプター・リージョン・専門カテゴリーの自動検出＆自動登録（今後のZoom 1to1で漏れなくBNIマスターへ反映）
+        const combinedZoomContext = [
+          ...(session.attendees || []),
+          ...cleanNextSteps,
+          ...cleanDetails.map(d => `${d.label} ${d.summary}`),
+          cleanOverview,
+          session.transcript_text || '',
+        ].join('\n');
+
+        if (/BNI|チャプター|リージョン/i.test(combinedZoomContext)) {
+          // 参加者名括弧内（例: 小比直人（司法書士・土地家屋調査士））から専門カテゴリーを抽出
+          let detectedCategory = '';
+          for (const att of session.attendees || []) {
+            if (!this.isSelfSpeaker(att)) {
+              const parenMatch = String(att).match(/[（(]([^）)]{2,25})[）)]/);
+              if (parenMatch) {
+                detectedCategory = parenMatch[1].trim();
+                break;
+              }
+            }
+          }
+          if (!detectedCategory) {
+            const catMatch = combinedZoomContext.match(/カテゴリー(?:は|が)?「?([^、。\n」]{2,24})」?/);
+            if (catMatch) detectedCategory = catMatch[1].trim();
+          }
+
+          // チャプター名の抽出（勝賀野様自身の「だんじり」「ダンジェリ」よりも相手固有のチャプター名を優先）
+          const chapRegex = /([A-Za-z0-9ァ-ヶー一-龠々ぁ-ん・]{2,18})チャプター/g;
+          const chapCandidates: string[] = [];
+          let cm: RegExpExecArray | null;
+          while ((cm = chapRegex.exec(combinedZoomContext)) !== null) {
+            const cName = cm[1]
+              .replace(/^(?:の|で|は|に|と|を|BNI\s*)/i, '')
+              .replace(/シャングリア/g, 'シャングリラ')
+              .trim();
+            if (cName && cName.length >= 2 && !/^(?:他の|同じ|別|どの|各|所属)$/.test(cName)) {
+              chapCandidates.push(cName);
+            }
+          }
+          const nonSelfChap = chapCandidates.find(c => !/だんじり|ダンジェリ/.test(c));
+          const targetChapKeyword = nonSelfChap || chapCandidates[0] || '';
+
+          if (targetChapKeyword) {
+            const updatedBni = this.setPersonBNIMembership(
+              partnerPerson.id,
+              targetChapKeyword,
+              detectedCategory || companyToLink || '専門カテゴリー'
+            );
+            if (updatedBni) {
+              if (!partnerPerson.category_tags.includes('BNI')) {
+                partnerPerson.category_tags.unshift('BNI');
+              }
+              changed = true;
+            }
+          }
         }
       }
 
@@ -3480,6 +3804,256 @@ class DataStore {
       reason,
     });
     this.persist();
+  }
+
+  public setPersonBNIMembership(
+    personId: string,
+    chapterKeywordOrId: string,
+    category?: string,
+    regionHint?: string
+  ): BNIMembership | null {
+    const tid = this.state.currentTenantId;
+    const person = this.getPersonById(personId);
+    if (!person) return null;
+
+    const cleanChap = chapterKeywordOrId
+      .replace(/^BNI\s*/i, '')
+      .replace(/チャプター$/i, '')
+      .replace(/シャングリア/g, 'シャングリラ')
+      .trim();
+    if (!cleanChap) return null;
+
+    const targetChapName = `${cleanChap}チャプター`;
+    let matchedChap =
+      this.state.bniChapters.find(c => c.id === chapterKeywordOrId) ||
+      this.state.bniChapters.find(c => c.chapter_name.toLowerCase() === targetChapName.toLowerCase()) ||
+      this.state.bniChapters.find(c => c.chapter_name.toLowerCase().includes(cleanChap.toLowerCase()));
+
+    let matchedReg = matchedChap
+      ? this.state.bniRegions.find(r => r.id === matchedChap!.region_id)
+      : undefined;
+
+    if (regionHint) {
+      const cleanReg = regionHint.replace(/リージョン$/i, '').trim();
+      const regByHint = this.state.bniRegions.find(r => r.region_name.includes(cleanReg));
+      if (regByHint) {
+        matchedReg = regByHint;
+        const chapInReg = this.state.bniChapters.find(
+          c => c.region_id === regByHint.id && c.chapter_name.toLowerCase().includes(cleanChap.toLowerCase())
+        );
+        if (chapInReg) matchedChap = chapInReg;
+      }
+    }
+
+    if (!matchedChap) {
+      const fallbackReg = matchedReg || this.state.bniRegions[0];
+      matchedChap = {
+        id: `chap-custom-${Date.now()}`,
+        region_id: fallbackReg?.id || 'reg-osaka-c',
+        chapter_name: targetChapName,
+        meeting_day: '定例会',
+        meeting_time: '07:00 AM',
+        is_verified: true,
+      };
+      this.state.bniChapters.push(matchedChap);
+    }
+
+    const regionName =
+      matchedReg?.region_name ||
+      this.state.bniRegions.find(r => r.id === matchedChap!.region_id)?.region_name ||
+      (regionHint ? `${regionHint.replace(/リージョン$/, '')}リージョン` : '大阪北東リージョン');
+
+    const existingActive = this.state.bniMemberships.find(
+      m => m.tenant_id === tid && m.person_id === personId && m.status === 'active'
+    );
+    const resolvedCategory =
+      (category && category.trim()) ||
+      existingActive?.category ||
+      this.getOrgMembershipsForPerson(personId)[0]?.title ||
+      '専門カテゴリー';
+
+    let resultMembership: BNIMembership;
+    if (existingActive) {
+      existingActive.chapter_id = matchedChap.id;
+      existingActive.chapter_name = matchedChap.chapter_name;
+      existingActive.region_name = regionName;
+      if (category && category.trim()) {
+        existingActive.category = category.trim();
+      }
+      resultMembership = existingActive;
+    } else {
+      resultMembership = {
+        id: `bnim-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        tenant_id: tid,
+        person_id: personId,
+        chapter_id: matchedChap.id,
+        chapter_name: matchedChap.chapter_name,
+        region_name: regionName,
+        category: resolvedCategory,
+        status: 'active',
+        joined_on: new Date().toISOString().split('T')[0],
+      };
+      this.state.bniMemberships.unshift(resultMembership);
+    }
+
+    if (!person.category_tags.includes('BNI')) {
+      person.category_tags = ['BNI', ...person.category_tags];
+    }
+    person.updated_at = new Date().toISOString();
+    this.persist();
+    return resultMembership;
+  }
+
+  public executeAIConciergeCommand(rawQuery: string): {
+    executed: boolean;
+    summaryLines: string[];
+    updatedPerson?: Person;
+  } {
+    const q = rawQuery.trim();
+    const isUpdateIntent = /登録|変更|修正|直して|なおして|設定|更新|入れて|所属|チャプター|会社名|役職|メモ/.test(q);
+    if (!isUpdateIntent) {
+      return { executed: false, summaryLines: [] };
+    }
+
+    const persons = this.getPersons();
+    const qNoSpace = q.replace(/\s+/g, '');
+
+    // 対象人物の特定（フルネームまたは姓で検索）
+    const targetPerson = persons.find(p => {
+      const full = p.display_name.replace(/（.*?）|\(.*?\)/g, '').trim();
+      const fullNoSpace = full.replace(/\s+/g, '');
+      const surname = full.split(/\s+/)[0] || '';
+      return (
+        (fullNoSpace.length >= 2 && qNoSpace.includes(fullNoSpace)) ||
+        (surname.length >= 2 && q.includes(surname))
+      );
+    });
+
+    if (!targetPerson) {
+      return { executed: false, summaryLines: [] };
+    }
+
+    const summaryLines: string[] = [];
+
+    // 1. BNIチャプター・リージョン登録/変更コマンドの実行
+    const chapMatch = q.match(/([A-Za-z0-9ァ-ヶー一-龠々ぁ-ん・]{2,18})チャプター/);
+    const regMatch = q.match(/([A-Za-z0-9ァ-ヶー一-龠々ぁ-ん・]{2,16})リージョン/);
+    let detectedChapterName = chapMatch ? chapMatch[1].replace(/^(?:の|で|は|に|と|を|BNI\s*)/i, '').trim() : '';
+
+    if (!detectedChapterName) {
+      const matchedOfficialChap = this.state.bniChapters.find(c => {
+        const bare = c.chapter_name.replace(/チャプター$/, '');
+        return bare.length >= 2 && q.includes(bare);
+      });
+      if (matchedOfficialChap) {
+        detectedChapterName = matchedOfficialChap.chapter_name;
+      }
+    }
+
+    if (detectedChapterName) {
+      const regionHint = regMatch ? regMatch[1].replace(/^(?:の|で|は|に|と|を|BNI\s*)/i, '').trim() : undefined;
+      const catMatch = q.match(/カテゴリー(?:は|を)?「?([^、。\s」]{2,20})」?/);
+      const bniMem = this.setPersonBNIMembership(
+        targetPerson.id,
+        detectedChapterName,
+        catMatch ? catMatch[1] : undefined,
+        regionHint
+      );
+      if (bniMem) {
+        summaryLines.push(
+          `✅ ${targetPerson.display_name}様のBNI所属を「${bniMem.region_name} / ${bniMem.chapter_name}（カテゴリー: ${bniMem.category}）」としてカルテおよびBNIマスターへ正式登録しました。`
+        );
+      }
+    }
+
+    // 2. 会社名変更コマンドの実行
+    const compMatch = q.match(/会社名(?:を|は)「?([^」\s、。にへ]{2,30})」?(?:に|へ|と|で)/);
+    if (compMatch) {
+      const newCompany = compMatch[1].trim();
+      const existingOrgs = this.getOrgMembershipsForPerson(targetPerson.id);
+      if (existingOrgs.length > 0) {
+        existingOrgs[0].organization_name = newCompany;
+        this.persist();
+      } else {
+        this.addOrganizationMembership(targetPerson.id, newCompany, '代表');
+      }
+      summaryLines.push(`✅ ${targetPerson.display_name}様の所属会社名を「${newCompany}」に更新しました。`);
+    }
+
+    return {
+      executed: summaryLines.length > 0,
+      summaryLines,
+      updatedPerson: summaryLines.length > 0 ? targetPerson : undefined,
+    };
+  }
+
+  public applyAIActions(
+    actions: Array<{
+      type: string;
+      person_id?: string;
+      person_name?: string;
+      chapter_name?: string;
+      region_name?: string;
+      category?: string;
+      company_name?: string;
+      title?: string;
+      notes_append?: string;
+    }>
+  ): { summaryLines: string[]; updatedPersons: Person[] } {
+    if (!Array.isArray(actions) || actions.length === 0) {
+      return { summaryLines: [], updatedPersons: [] };
+    }
+    const summaryLines: string[] = [];
+    const updatedPersons: Person[] = [];
+
+    for (const act of actions) {
+      let person = act.person_id ? this.getPersonById(act.person_id) : undefined;
+      if (!person && act.person_name) {
+        const cleanTarget = act.person_name.replace(/様|さん|氏|\s+/g, '');
+        person = this.getPersons().find(p => {
+          const pClean = p.display_name.replace(/\s+/g, '');
+          const surname = p.display_name.split(/\s+/)[0] || '';
+          return pClean.includes(cleanTarget) || cleanTarget.includes(pClean) || (surname.length >= 2 && cleanTarget.includes(surname));
+        });
+      }
+      if (!person) continue;
+
+      if (act.type === 'set_bni_chapter' && act.chapter_name) {
+        const bniMem = this.setPersonBNIMembership(
+          person.id,
+          act.chapter_name,
+          act.category,
+          act.region_name
+        );
+        if (bniMem) {
+          summaryLines.push(
+            `✅ ${person.display_name}様のBNI所属を「${bniMem.region_name} / ${bniMem.chapter_name}」に登録・反映しました。`
+          );
+          if (!updatedPersons.some(u => u.id === person!.id)) updatedPersons.push(person);
+        }
+      } else if (act.type === 'update_company' && act.company_name) {
+        const orgs = this.getOrgMembershipsForPerson(person.id);
+        if (orgs.length > 0) {
+          orgs[0].organization_name = act.company_name;
+          if (act.title) orgs[0].title = act.title;
+          this.persist();
+        } else {
+          this.addOrganizationMembership(person.id, act.company_name, act.title || '代表');
+        }
+        summaryLines.push(`✅ ${person.display_name}様の会社・屋号を「${act.company_name}」に更新しました。`);
+        if (!updatedPersons.some(u => u.id === person!.id)) updatedPersons.push(person);
+      } else if (act.type === 'update_notes' && act.notes_append) {
+        if (!person.notes?.includes(act.notes_append)) {
+          person.notes = (person.notes ? `${person.notes}\n` : '') + act.notes_append;
+          person.updated_at = new Date().toISOString();
+          this.persist();
+        }
+        summaryLines.push(`✅ ${person.display_name}様のカルテメモを更新しました。`);
+        if (!updatedPersons.some(u => u.id === person!.id)) updatedPersons.push(person);
+      }
+    }
+
+    return { summaryLines, updatedPersons };
   }
 
   // --- 会社 & 事業 ---
@@ -5195,7 +5769,7 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
     this.persist();
   }
 
-  // --- AIチャット検索エンジン (AI-07〜09: 完全動的検索) ---
+  // --- AIチャット検索エンジン (AI-07〜09: 完全動的検索 + カルテ更新実行) ---
   public queryAI(question: string): {
     answer: string;
     facts: Fact[];
@@ -5203,6 +5777,19 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
     confidence: number;
     hasDefiniteAnswer: boolean;
   } {
+    const cmdResult = this.executeAIConciergeCommand(question);
+    if (cmdResult.executed && cmdResult.updatedPerson) {
+      const p = cmdResult.updatedPerson;
+      const pFacts = this.getFactsForPerson(p.id);
+      return {
+        answer: `${cmdResult.summaryLines.join('\n')}\n\nカルテおよび「BNI全国公式マスター」へ即座に反映いたしました。`,
+        facts: pFacts.filter(f => f.visibility !== 'private'),
+        relatedPersons: [p],
+        confidence: 1.0,
+        hasDefiniteAnswer: true,
+      };
+    }
+
     const q = question.toLowerCase().trim();
     const persons = this.getPersons();
 
