@@ -827,6 +827,36 @@ class DataStore {
       this.state.persons.unshift(tsuji);
     }
 
+    // 辻 晃典様の事業オファリングを正式な1件（bo-tsuji-1）に統一し、「辻 晃典様の専門事業」や誤抽出された「うち以外のチャプター」等を完全削除
+    for (const b of this.state.businessOfferings) {
+      if (b.person_id === tsuji.id && b.id !== 'bo-tsuji-1') {
+        this.deletedIds.add(b.id);
+      }
+    }
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === tsuji!.id && b.id !== 'bo-tsuji-1')
+    );
+    if (!this.state.businessOfferings.some(b => b.id === 'bo-tsuji-1')) {
+      this.state.businessOfferings.unshift({
+        id: 'bo-tsuji-1',
+        tenant_id: tid,
+        person_id: tsuji.id,
+        service_title: '出張旅費・日当手当システム「日当くん」導入支援 / アミューズメントポーカー企画',
+        specialties: '旅費規程×位置情報アプリによる非課税日当システム「日当くん」導入、紹介制アミューズメントポーカー企画・運営',
+        target_clients: '手取りを増やし社会保険料・法人税を適正化したい法人代表者様、紹介制イベント連携パートナー',
+        service_area: '関西全域・全国対応',
+        is_active: true,
+      });
+    }
+    for (const bm of this.state.bniMemberships) {
+      if (bm.person_id === tsuji.id && /うち以外|他の|別の/.test(bm.chapter_name || '')) {
+        this.deletedIds.add(bm.id);
+      }
+    }
+    this.state.bniMemberships = this.state.bniMemberships.filter(
+      bm => !(bm.person_id === tsuji!.id && /うち以外|他の|別の/.test(bm.chapter_name || ''))
+    );
+
     // 遠藤さん（仮カルテ）
     let endo = this.state.persons.find(p => p.id === 'p-endo-prov');
     if (!endo) {
@@ -1030,6 +1060,28 @@ class DataStore {
         updated_at: '2026-11-09T15:05:00Z',
       };
       this.state.persons.unshift(kimura);
+    }
+
+    // 木村 尚史様の事業オファリングを正式な1件（bo-kimura-1）に統一し、「木村 尚史様の専門事業」の重複を完全削除
+    for (const b of this.state.businessOfferings) {
+      if (b.person_id === kimura.id && b.id !== 'bo-kimura-1') {
+        this.deletedIds.add(b.id);
+      }
+    }
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === kimura!.id && b.id !== 'bo-kimura-1')
+    );
+    if (!this.state.businessOfferings.some(b => b.id === 'bo-kimura-1')) {
+      this.state.businessOfferings.unshift({
+        id: 'bo-kimura-1',
+        tenant_id: tid,
+        person_id: kimura.id,
+        service_title: '不用品回収・大型/小型ゴミ処分・リユース連携（京都市内・関西）',
+        specialties: '京都市内・関西エリアの大型ゴミ・小型ゴミ・不用品回収、残置物撤去現場のリユース連携',
+        target_clients: '残置物撤去・遺品整理事業者様、不動産管理・引越しに伴う不用品処分案件',
+        service_area: '京都市内・京都府全域・関西',
+        is_active: true,
+      });
     }
 
     // 関連人物（相関図）: 康二（こうじ）
@@ -3167,17 +3219,38 @@ class DataStore {
       );
     }
 
-    // 5.5 会話中の第三者言及から誤抽出された会社名（「株式会社みやびっていう」等）および重複した「〜様の専門事業」オファリングの完全排除
+    // 5.5 会話中の第三者言及から誤抽出された会社名（「株式会社みやびっていう」等）、重複した「〜様の専門事業」オファリング、および「うち以外のチャプター」等の会話文BNI誤登録の完全排除
+    if (
+      !(this.state.businessOfferings || []).some(b => b.id === 'bo-tsuji-1') ||
+      (this.state.businessOfferings || []).filter(b => b.person_id === 'p-tsuji-akinori').length > 1
+    ) {
+      this.seedTsujiMeeting();
+      changed = true;
+    }
+    if (
+      !(this.state.businessOfferings || []).some(b => b.id === 'bo-kimura-1') ||
+      (this.state.businessOfferings || []).filter(b => b.person_id === 'p-kimura-naofumi').length > 1
+    ) {
+      this.seedKimuraMeeting();
+      changed = true;
+    }
+
     if (Array.isArray(this.state.organizationMemberships)) {
-      for (const om of this.state.organizationMemberships) {
-        if (/っていう|という|って会社/.test(om.organization_name || '') || om.id === 'om-1794805667075') {
+      const seenOrgKey = new Set<string>();
+      this.state.organizationMemberships = this.state.organizationMemberships.filter(om => {
+        const key = `${om.person_id}::${om.organization_name || ''}`;
+        if (
+          /っていう|という|って会社/.test(om.organization_name || '') ||
+          om.id === 'om-1794805667075' ||
+          seenOrgKey.has(key)
+        ) {
           this.deletedIds.add(om.id);
           changed = true;
+          return false;
         }
-      }
-      this.state.organizationMemberships = this.state.organizationMemberships.filter(
-        om => !/っていう|という|って会社/.test(om.organization_name || '') && om.id !== 'om-1794805667075'
-      );
+        seenOrgKey.add(key);
+        return true;
+      });
     }
     if (Array.isArray(this.state.businessOfferings)) {
       const hasNamedOfferingByPerson = new Set(
@@ -3185,15 +3258,46 @@ class DataStore {
           .filter(b => !/様の専門事業$/.test(b.service_title || ''))
           .map(b => b.person_id)
       );
-      for (const bo of this.state.businessOfferings) {
-        if (/様の専門事業$/.test(bo.service_title || '') && hasNamedOfferingByPerson.has(bo.person_id)) {
+      const seenBoKey = new Set<string>();
+      this.state.businessOfferings = this.state.businessOfferings.filter(bo => {
+        const key = `${bo.person_id}::${bo.service_title || ''}`;
+        if (
+          (/様の専門事業$/.test(bo.service_title || '') && hasNamedOfferingByPerson.has(bo.person_id)) ||
+          seenBoKey.has(key)
+        ) {
           this.deletedIds.add(bo.id);
           changed = true;
+          return false;
         }
-      }
-      this.state.businessOfferings = this.state.businessOfferings.filter(
-        bo => !(/様の専門事業$/.test(bo.service_title || '') && hasNamedOfferingByPerson.has(bo.person_id))
-      );
+        seenBoKey.add(key);
+        return true;
+      });
+    }
+    if (Array.isArray(this.state.bniMemberships)) {
+      const seenBniKey = new Set<string>();
+      this.state.bniMemberships = this.state.bniMemberships.filter(bm => {
+        const key = `${bm.person_id}::${bm.chapter_name || ''}`;
+        if (
+          /うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(bm.chapter_name || '') ||
+          seenBniKey.has(key)
+        ) {
+          this.deletedIds.add(bm.id);
+          changed = true;
+          return false;
+        }
+        seenBniKey.add(key);
+        return true;
+      });
+    }
+    if (Array.isArray(this.state.bniChapters)) {
+      this.state.bniChapters = this.state.bniChapters.filter(c => {
+        if (/うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(c.chapter_name || '')) {
+          this.deletedIds.add(c.id);
+          changed = true;
+          return false;
+        }
+        return true;
+      });
     }
 
     // 6. BNI全国公式マスターデータ（53リージョン・401チャプター）への自動アップグレード＆旧サンプルチャプター排除
@@ -3467,21 +3571,20 @@ class DataStore {
             if (catMatch) detectedCategory = catMatch[1].trim();
           }
 
-          // チャプター名の抽出（勝賀野様自身の「だんじり」「ダンジェリ」よりも相手固有のチャプター名を優先）
-          const chapRegex = /([A-Za-z0-9ァ-ヶー一-龠々ぁ-ん・]{2,18})チャプター/g;
-          const chapCandidates: string[] = [];
-          let cm: RegExpExecArray | null;
-          while ((cm = chapRegex.exec(combinedZoomContext)) !== null) {
-            const cName = cm[1]
-              .replace(/^(?:の|で|は|に|と|を|BNI\s*)/i, '')
-              .replace(/シャングリア/g, 'シャングリラ')
-              .trim();
-            if (cName && cName.length >= 2 && !/^(?:他の|同じ|別|どの|各|所属)$/.test(cName)) {
-              chapCandidates.push(cName);
+          // チャプター名の抽出（全国401公式BNIチャプターおよび音声認識表記ゆれ辞書とのみ照合し、「うち以外のチャプター」等の一般会話表現を厳格に除外）
+          const normalizedContext = combinedZoomContext
+            .replace(/ラインダース|マインダーズ|ライナッツ|ナインダーズ/g, 'ナインダーツ')
+            .replace(/シャングリア/g, 'シャングリラ')
+            .replace(/ダンジェリ/g, 'だんじり');
+          const officialMatches: string[] = [];
+          for (const ch of OFFICIAL_BNI_CHAPTERS) {
+            const bare = ch.chapter_name.replace(/チャプター$/, '');
+            if (bare.length >= 2 && normalizedContext.includes(`${bare}チャプター`)) {
+              officialMatches.push(ch.chapter_name);
             }
           }
-          const nonSelfChap = chapCandidates.find(c => !/だんじり|ダンジェリ/.test(c));
-          const targetChapKeyword = nonSelfChap || chapCandidates[0] || '';
+          const nonSelfChap = officialMatches.find(c => !/だんじり/.test(c));
+          const targetChapKeyword = nonSelfChap || '';
 
           if (targetChapKeyword) {
             const updatedBni = this.setPersonBNIMembership(
@@ -4385,6 +4488,16 @@ class DataStore {
 
   public addBusinessOffering(offering: Omit<BusinessOffering, 'id' | 'tenant_id'>): BusinessOffering {
     const tid = this.state.currentTenantId;
+    const existing = this.state.businessOfferings.find(
+      b => b.tenant_id === tid && b.person_id === offering.person_id && b.service_title === offering.service_title
+    );
+    if (existing) {
+      if (offering.specialties) existing.specialties = offering.specialties;
+      if (offering.target_clients) existing.target_clients = offering.target_clients;
+      if (offering.service_area) existing.service_area = offering.service_area;
+      this.persist();
+      return existing;
+    }
     const newOffering: BusinessOffering = {
       ...offering,
       id: `bo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
