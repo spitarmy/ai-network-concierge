@@ -47,6 +47,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberPlan, setNewMemberPlan] = useState<'4980' | '5980'>('4980');
   const [copiedTenantId, setCopiedTenantId] = useState<string | null>(null);
+  const [invoiceTenantId, setInvoiceTenantId] = useState<string | null>(null);
+  const [invoiceCycle, setInvoiceCycle] = useState<'monthly' | 'half_year' | 'yearly'>('yearly');
+  const [invoiceDocType, setInvoiceDocType] = useState<'invoice' | 'receipt'>('invoice');
+  const [copiedInvoiceMsg, setCopiedInvoiceMsg] = useState(false);
 
   const [csvText, setCsvText] = useState('');
   const [csvResult, setCsvResult] = useState<string | null>(null);
@@ -419,6 +423,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
                     {t.id !== 'tenant-001' && (
                       <button
                         type="button"
+                        onClick={() => {
+                          setInvoiceTenantId(t.id);
+                          setInvoiceDocType('invoice');
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500 text-white text-[11px] font-bold hover:bg-amber-600 flex items-center gap-1 shadow-xs"
+                      >
+                        <FileText className="w-3 h-3" />
+                        <span>請求書・領収書を発行</span>
+                      </button>
+                    )}
+
+                    {t.id !== 'tenant-001' && (
+                      <button
+                        type="button"
                         onClick={async () => {
                           try {
                             const res = await fetch('/api/billing/checkout', {
@@ -482,6 +500,205 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
           </div>
         </div>
       )}
+
+      {/* 📄 ワンタップ請求書・領収書（月額 / 半年一括 / 年額一括）自動発行モーダル */}
+      {invoiceTenantId && (() => {
+        const targetTenant = store.getTenants().find(t => t.id === invoiceTenantId);
+        if (!targetTenant) return null;
+        const baseMonthly = targetTenant.plan_tier === 'premium' ? 5980 : 4980;
+        const months = invoiceCycle === 'yearly' ? 12 : invoiceCycle === 'half_year' ? 6 : 1;
+        // 年額一括は1ヶ月分サービス（11ヶ月分価格）にも設定可能、ここでは分かりやすく実月数計算
+        const totalAmount = baseMonthly * months;
+        const taxExcluded = Math.round(totalAmount / 1.1);
+        const taxAmount = totalAmount - taxExcluded;
+        const clientTitle = targetTenant.owner_profile?.company_name
+          ? `${targetTenant.owner_profile.company_name} ${targetTenant.owner_profile.owner_name || ''} 御中`
+          : `${targetTenant.name.replace(/\s*\(¥.*?\).*$/, '')} 御中`;
+        const issueDate = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ai-network-concierge.vercel.app';
+        const memberUrl = `${origin}/?tenant=${targetTenant.id}&onboarding=1`;
+        const cycleLabel =
+          invoiceCycle === 'yearly'
+            ? '年額一括（12ヶ月分・毎月請求書不要）'
+            : invoiceCycle === 'half_year'
+            ? '半年一括（6ヶ月分）'
+            : '月額（1ヶ月分）';
+
+        const lineBillingText = `${clientTitle.replace(/ 御中$/, ' 様')}\n\nいつも大変お世話になっております！株式会社ZENNOBATEの勝賀野太郎です。\n「AI人脈コンシェルジュ」の専用アカウント環境をご用意いたしました。\n\n■ あなた専用のご利用URL（ブックマーク・ホーム画面追加推奨）\n${memberUrl}\n※初回アクセス時にご氏名・会社名・BNIチャプターを30秒で設定いただけます（データは完全分離・ロックされています）。\n\n■ ご請求内容（${cycleLabel}）\n・プラン: ${targetTenant.plan_tier === 'premium' ? 'プレミアムプラン' : 'スタンダードプラン'}（月額 ¥${baseMonthly.toLocaleString()} × ${months}ヶ月）\n・ご請求金額: ¥${totalAmount.toLocaleString()}（税込）\n・発行元: 株式会社ZENNOBATE 代表取締役 勝賀野 太郎\n\n今後ともどうぞよろしくお願いいたします！`;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+            <div className="w-full max-w-2xl bg-white dark:bg-[#1C1C1E] rounded-3xl border border-apple-border dark:border-apple-darkBorder p-6 sm:p-8 space-y-5 shadow-2xl my-auto">
+              <div className="flex items-center justify-between border-b border-apple-border dark:border-apple-darkBorder pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-amber-500" />
+                  <h3 className="font-bold text-base text-[#1D1D1F] dark:text-[#F5F5F7]">
+                    ワンタップ請求書・領収書発行（株式会社ZENNOBATE）
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceTenantId(null)}
+                  className="text-xs text-neutral-400 hover:text-neutral-600 px-2 py-1"
+                >
+                  ✕ 閉じる
+                </button>
+              </div>
+
+              {/* 請求期間・書類種別切り替え */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-neutral-500 font-semibold mb-1">
+                    お支払いサイクル（年額・半年一括なら毎月の請求書送付が不要！）
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {([
+                      { id: 'yearly', label: '年額一括(12ヶ月)' },
+                      { id: 'half_year', label: '半年一括(6ヶ月)' },
+                      { id: 'monthly', label: '月額(1ヶ月)' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setInvoiceCycle(opt.id)}
+                        className={`py-2 px-2 rounded-xl font-bold border text-[11px] transition-all ${
+                          invoiceCycle === opt.id
+                            ? 'bg-apple-blue text-white border-apple-blue'
+                            : 'bg-neutral-50 dark:bg-neutral-800 border-apple-border dark:border-apple-darkBorder'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-neutral-500 font-semibold mb-1">書類タイトル</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceDocType('invoice')}
+                      className={`py-2 px-3 rounded-xl font-bold border text-xs ${
+                        invoiceDocType === 'invoice'
+                          ? 'bg-amber-500 text-white border-amber-500'
+                          : 'bg-neutral-50 dark:bg-neutral-800 border-apple-border dark:border-apple-darkBorder'
+                      }`}
+                    >
+                      御請求書
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceDocType('receipt')}
+                      className={`py-2 px-3 rounded-xl font-bold border text-xs ${
+                        invoiceDocType === 'receipt'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-neutral-50 dark:bg-neutral-800 border-apple-border dark:border-apple-darkBorder'
+                      }`}
+                    >
+                      領収書
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 請求書・領収書プレビュー（そのまま印刷・PDF保存可能） */}
+              <div className="p-6 rounded-2xl bg-white text-neutral-900 border-2 border-neutral-200 space-y-4 text-xs shadow-inner">
+                <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-3">
+                  <div>
+                    <div className="text-xl font-extrabold tracking-widest">
+                      {invoiceDocType === 'invoice' ? '御 請 求 書' : '領 収 書'}
+                    </div>
+                    <div className="text-sm font-bold mt-2 underline">{clientTitle}</div>
+                  </div>
+                  <div className="text-right text-[11px] space-y-0.5">
+                    <div>発行日: {issueDate}</div>
+                    <div>文書番号: INV-{targetTenant.id.replace('tenant-', '').toUpperCase()}-{months}M</div>
+                    <div className="font-bold text-xs pt-1">株式会社ZENNOBATE（ゼノベイト）</div>
+                    <div>代表取締役 勝賀野 太郎</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-neutral-100 flex items-center justify-between">
+                  <span className="font-bold text-sm">
+                    {invoiceDocType === 'invoice' ? 'ご請求金額（税込）' : '領収金額（税込）'}
+                  </span>
+                  <span className="text-xl font-extrabold text-neutral-900">
+                    ¥{totalAmount.toLocaleString()} -
+                  </span>
+                </div>
+
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-neutral-300 text-neutral-500">
+                      <th className="py-1.5">品目・明細</th>
+                      <th className="py-1.5 text-right">単価</th>
+                      <th className="py-1.5 text-right">数量</th>
+                      <th className="py-1.5 text-right">金額（税込）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-neutral-200">
+                      <td className="py-2.5 font-semibold">
+                        AI人脈コンシェルジュ クラウド利用料（{targetTenant.plan_tier === 'premium' ? 'プレミアム' : 'スタンダード'}・{cycleLabel}）
+                      </td>
+                      <td className="py-2.5 text-right">¥{baseMonthly.toLocaleString()}</td>
+                      <td className="py-2.5 text-right">{months}ヶ月</td>
+                      <td className="py-2.5 text-right font-bold">¥{totalAmount.toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="flex justify-end text-[11px] text-neutral-600">
+                  <div className="w-48 space-y-1">
+                    <div className="flex justify-between">
+                      <span>税抜金額 (10%対象):</span>
+                      <span>¥{taxExcluded.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>消費税 (10%):</span>
+                      <span>¥{taxAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-neutral-900 border-t border-neutral-300 pt-1">
+                      <span>合計金額:</span>
+                      <span>¥{totalAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* アクションボタン */}
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(lineBillingText);
+                    setCopiedInvoiceMsg(true);
+                    setTimeout(() => setCopiedInvoiceMsg(false), 2500);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 shadow-sm"
+                >
+                  {copiedInvoiceMsg ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>
+                    {copiedInvoiceMsg
+                      ? 'LINE送付用メッセージ（専用URL＋請求案内）をコピー済！'
+                      : '💬 LINE送付用メッセージ（専用URL＋請求案内）をコピー'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2.5 rounded-xl bg-apple-blue text-white text-xs font-bold hover:opacity-90 flex items-center gap-1.5 shadow-sm"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>📄 この請求書・領収書をPDF保存 / 印刷</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 📱 PWA / ホーム画面アプリの更新・キャッシュ管理 */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder space-y-4 shadow-sm">
