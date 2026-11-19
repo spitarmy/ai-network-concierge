@@ -750,13 +750,14 @@ class DataStore {
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様・三島 宏幸様の1to1面談実績を自動登録
+    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様・三島 宏幸様・森 雄平様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
     this.seedTanakaMeeting();
     this.seedIwaneMeeting();
     this.seedKobiMeeting();
     this.seedMishimaMeeting();
+    this.seedMoriMeeting();
 
     // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
     this.reconcileLegacyAndDuplicateData();
@@ -2906,6 +2907,226 @@ class DataStore {
     }
   }
 
+  public seedMoriMeeting(): void {
+    const tid = 'tenant-001';
+
+    // 1. 森 雄平 様（BNI 京都リージョン・インヴィクタスチャプター / 遺品整理・残置物撤去・リサイクル販売）
+    let mori = this.state.persons.find(
+      p => p.id === 'p-1795057464160-kxovb' || p.id === 'p-mori-yuhei' || p.display_name.replace(/\s+/g, '') === '森雄平'
+    );
+    const moriNotes =
+      'BNI 京都リージョン（Kyoto）「インヴィクタスチャプター」所属。遺品整理・残置物撤去およびリサイクルショップ運営・不用品買取販売（京都・大阪・千葉等で展開、山科の古物市場や新大阪でも活動）。京都・松尾／桂エリアに地盤があり勝賀野様と地元京都トークで意気投合。森様の遺品整理・片付け現場から出る家電（7年以内中心〜10年超も相談可）や小型家具・キッチンボード・雑貨を勝賀野様のリサイクルショップ（桂）へ供給・買取連携する協業、およびAI真贋・相場査定＆メルカリSEO説明文生成ツール「カンテノ（月額9,800円）」の導入検討・京都エリアの残置物撤去相互協力に合意。';
+
+    if (!mori) {
+      mori = {
+        id: 'p-1795057464160-kxovb',
+        tenant_id: tid,
+        display_name: '森 雄平',
+        phonetic_name: 'モリ ユウヘイ',
+        status: 'active',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事'],
+        service_areas: ['京都府（松尾・桂・山科・全域）', '大阪府', '関西一円'],
+        office_address: '京都府京都市（松尾・桂エリア）',
+        notes: moriNotes,
+        last_interacted_at: '2026-11-19T02:59:12.000Z',
+        meeting_count: 1,
+        created_at: '2026-11-19T02:04:12.000Z',
+        updated_at: '2026-11-19T03:10:00.000Z',
+      };
+      this.state.persons.unshift(mori);
+    } else {
+      mori.display_name = '森 雄平';
+      mori.phonetic_name = mori.phonetic_name || 'モリ ユウヘイ';
+      mori.status = 'active';
+      mori.is_name_verified = true;
+      mori.category_tags = Array.from(new Set([...(mori.category_tags || []), 'BNI', '仕事']));
+      if (!mori.service_areas || mori.service_areas.length === 0) {
+        mori.service_areas = ['京都府（松尾・桂・山科・全域）', '大阪府', '関西一円'];
+      }
+      if (!mori.office_address) {
+        mori.office_address = '京都府京都市（松尾・桂エリア）';
+      }
+      if (!mori.notes || /ダンジリチャプターのメンバーである勝賀野と森/.test(mori.notes)) {
+        mori.notes = moriNotes;
+      }
+    }
+    const moriId = mori.id;
+
+    // 2. BNI所属（京都シティセントラルリージョン・インヴィクタスチャプター: chap-bni-258）
+    // 誤登録された「彼は京都のインヴィクタスチャプター」等を完全削除
+    for (const bm of this.state.bniMemberships) {
+      if (bm.person_id === moriId && bm.id !== 'bnim-mori-1') {
+        this.deletedIds.add(bm.id);
+      }
+    }
+    this.state.bniMemberships = this.state.bniMemberships.filter(
+      bm => !(bm.person_id === moriId && bm.id !== 'bnim-mori-1')
+    );
+    if (!this.state.bniMemberships.some(bm => bm.id === 'bnim-mori-1')) {
+      this.state.bniMemberships.unshift({
+        id: 'bnim-mori-1',
+        tenant_id: tid,
+        person_id: moriId,
+        chapter_id: 'chap-bni-258',
+        chapter_name: 'インヴィクタスチャプター',
+        region_name: '京都シティセントラルリージョン (Kyoto City Central)',
+        category: '遺品整理・残置物撤去・リサイクル販売',
+        status: 'active',
+        joined_on: '2026-04-01',
+      });
+    } else {
+      const bm = this.state.bniMemberships.find(b => b.id === 'bnim-mori-1')!;
+      bm.person_id = moriId;
+      bm.chapter_id = 'chap-bni-258';
+      bm.chapter_name = 'インヴィクタスチャプター';
+      bm.region_name = '京都シティセントラルリージョン (Kyoto City Central)';
+      bm.category = '遺品整理・残置物撤去・リサイクル販売';
+      bm.status = 'active';
+    }
+
+    // 3. 事業オファリング（bo-mori-1）
+    for (const b of this.state.businessOfferings) {
+      if (b.person_id === moriId && b.id !== 'bo-mori-1') {
+        this.deletedIds.add(b.id);
+      }
+    }
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === moriId && b.id !== 'bo-mori-1')
+    );
+    if (!this.state.businessOfferings.some(b => b.id === 'bo-mori-1')) {
+      this.state.businessOfferings.unshift({
+        id: 'bo-mori-1',
+        tenant_id: tid,
+        person_id: moriId,
+        service_title: '遺品整理・残置物撤去・不用品買取＆リサイクル商品卸（京都・大阪・関西対応）',
+        specialties: '遺品整理・残置物撤去現場からの家電・家具・雑貨回収およびリサイクルショップ・古物市場連携',
+        target_clients: '京都・大阪エリアの不動産売買・管理会社様、リサイクルショップ・古物買取パートナー様、遺品整理案件',
+        service_area: '京都府（松尾・桂・山科・全域）・大阪府・関西一円',
+        is_active: true,
+      });
+    }
+
+    // 4. 面談レコード & 要約・確定Facts（m-zoom-yWF6XymmQ9y7VeeDNcwag）
+    const moriMeetingId = 'm-zoom-yWF6XymmQ9y7VeeDNcwag';
+    let meeting = this.state.meetings.find(m => m.id === moriMeetingId || m.zoom_uuid === 'yWF6XymmQ9y7Ve/eDNcwag==');
+    const moriTitle = '森 雄平様と1to1（京都・インヴィクタスチャプター / 遺品整理・リサイクル家電供給連携×AI査定ツール「カンテノ」）';
+    if (!meeting) {
+      meeting = {
+        id: moriMeetingId,
+        tenant_id: tid,
+        title: moriTitle,
+        meeting_type: '1to1',
+        provider: 'zoom',
+        meeting_url: 'https://us06web.zoom.us/rec/share/hFUagbaV-0-cT0V9O11GFbgyo9uzQlmmEUjSaO4wiGVGuAgvN4u9hILK5JOsahjk.0o31GKOx2DHvkc-E',
+        meeting_code: '89527504054',
+        zoom_uuid: 'yWF6XymmQ9y7Ve/eDNcwag==',
+        scheduled_start_at: '2026-11-19T02:04:12.000Z',
+        scheduled_end_at: '2026-11-19T02:59:12.000Z',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [moriId],
+        created_at: '2026-11-19T02:04:12.000Z',
+        updated_at: '2026-11-19T03:10:00.000Z',
+      };
+      this.state.meetings.unshift(meeting);
+    } else {
+      meeting.title = moriTitle;
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.participant_ids = [moriId];
+    }
+
+    const moriSummary =
+      'BNI 京都リージョン「インヴィクタスチャプター」所属の森 雄平様（遺品整理・残置物撤去・リサイクル販売）との55分間の1to1面談。京都・松尾や桂エリアの地元トークで意気投合し、森様の遺品整理・片付け現場から出る家電（7年以内中心〜10年超も相談可）や小型家具・キッチンボード・雑貨を、勝賀野様のリサイクルショップ（桂）へ供給・買取連携する協業に合意。また、勝賀野様が展開するAI真贋・相場査定＆メルカリSEO説明文生成ツール「カンテノ（月額9,800円）」、主婦ライバー事務所、カスタム腕時計「アステラ」、および京都・大阪での不動産買取・残置物撤去案件の相互協力について意見交換。【次回アクション】①森様からリサイクルショップへ持ち込めそうな家電・雑貨の写真をLINEで送付し査定・持ち込みを実施、およびAI査定ツール「カンテノ」導入について代表へ確認、②勝賀野様から京都での残置物撤去案件の相談・協力打診、高田様へのコネクト入力依頼、および年明けに地元の友人（不動産関係者等）を交えた新年会・飲み会を企画。';
+
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === meeting!.id);
+    if (!existingTr) {
+      this.state.transcripts.unshift({
+        id: `tr-${meeting.id}`,
+        tenant_id: tid,
+        meeting_id: meeting.id,
+        language: 'ja',
+        full_text: moriSummary,
+        summary: moriSummary,
+        utterances: [],
+        created_at: '2026-11-19T03:04:24.164Z',
+      });
+    } else {
+      existingTr.summary = moriSummary;
+    }
+
+    for (const f of this.state.facts) {
+      if ((f.person_id === moriId && !f.id.startsWith('fact-mori-')) || f.id.includes('m-zoom-yWF6XymmQ9y7VeeDNcwag')) {
+        this.deletedIds.add(f.id);
+      }
+    }
+    this.state.facts = this.state.facts.filter(
+      f => !(f.person_id === moriId && !f.id.startsWith('fact-mori-')) && !f.id.includes('m-zoom-yWF6XymmQ9y7VeeDNcwag')
+    );
+    const moriCoreFacts: Fact[] = [
+      {
+        id: 'fact-mori-1',
+        tenant_id: tid,
+        person_id: moriId,
+        fact_category: 'topic',
+        fact_key: '盛り上がった話題・本業と強み',
+        fact_value: 'BNI 京都リージョン「インヴィクタスチャプター」所属。遺品整理・残置物撤去・リサイクル販売を展開。京都・松尾／桂エリアの地元繋がりで意気投合し、遺品整理現場から出る家電（7年以内〜10年超）・小型家具・キッチンボード・雑貨を勝賀野様のリサイクルショップ（桂）へ供給・買取する協業、およびAI査定ツール「カンテノ（月額9,800円）」の導入検討に合意',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-19T02:59:12.000Z',
+        created_at: '2026-11-19T03:04:24.164Z',
+      },
+      {
+        id: 'fact-mori-2',
+        tenant_id: tid,
+        person_id: moriId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（森様→勝賀野様）',
+        fact_value: '森様からリサイクルショップ（桂）へ持ち込めそうな家電・小型家具・雑貨の写真をLINEで送付して査定・持ち込みを実施し、AI査定ツール「カンテノ」の導入について代表へ確認する',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-19T02:59:12.000Z',
+        created_at: '2026-11-19T03:04:24.164Z',
+      },
+      {
+        id: 'fact-mori-3',
+        tenant_id: tid,
+        person_id: moriId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（勝賀野様→森様）',
+        fact_value: '勝賀野様から京都での残置物撤去案件の相談・協力打診、高田様へのコネクト入力依頼、および年明けに地元の友人（不動産関係者等）を交えた飲み会を調整する',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Zoom 1to1面談文字起こし',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-19T02:59:12.000Z',
+        created_at: '2026-11-19T03:04:24.164Z',
+      },
+    ];
+    for (let i = moriCoreFacts.length - 1; i >= 0; i--) {
+      const cf = moriCoreFacts[i];
+      const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
+      if (existingIdx >= 0) {
+        const prevStatus = this.state.facts[existingIdx].verification_status;
+        this.state.facts[existingIdx] = { ...cf, verification_status: prevStatus || cf.verification_status };
+      } else {
+        this.state.facts.unshift(cf);
+      }
+    }
+  }
+
     public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
@@ -3395,7 +3616,7 @@ class DataStore {
       this.state.bniMemberships = this.state.bniMemberships.filter(bm => {
         const key = `${bm.person_id}::${bm.chapter_name || ''}`;
         if (
-          /うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(bm.chapter_name || '') ||
+          /彼は|彼女は|この人|その人|さっき|うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(bm.chapter_name || '') ||
           seenBniKey.has(key)
         ) {
           this.deletedIds.add(bm.id);
@@ -3408,7 +3629,7 @@ class DataStore {
     }
     if (Array.isArray(this.state.bniChapters)) {
       this.state.bniChapters = this.state.bniChapters.filter(c => {
-        if (/うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(c.chapter_name || '')) {
+        if (/彼は|彼女は|この人|その人|さっき|うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(c.chapter_name || '')) {
           this.deletedIds.add(c.id);
           changed = true;
           return false;
@@ -3424,6 +3645,7 @@ class DataStore {
       const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
       const hasColloquialMishima =
         !(this.state.facts || []).some(f => f.id === 'fact-mishima-1') ||
+        !(this.state.facts || []).some(f => f.id === 'fact-mori-1') ||
         !(this.state.persons || []).some(p => p.id === 'p-hori-miyabi') ||
         (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ/.test(f.fact_value || '')) ||
         (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル/.test(b.service_title || ''));
@@ -3431,14 +3653,15 @@ class DataStore {
         (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
         (this.state.bniChapters || []).length < 100 ||
         !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1') ||
+        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-mori-1') ||
         hasColloquialMishima;
       if (hasBogus) {
-        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii', 'om-1794805667075', 'bo-1794804591389-jv0hp']) {
+        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii', 'om-1794805667075', 'bo-1794804591389-jv0hp', 'bnim-1795057589204-vyzn', 'chap-custom-1795057589204']) {
           this.deletedIds.add(id);
         }
         this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
         this.state.bniChapters = JSON.parse(JSON.stringify(OFFICIAL_BNI_CHAPTERS));
-        this.state.bniMemberships = (this.state.bniMemberships || []).filter(bm => bm.id !== 'bnim-1794481861967');
+        this.state.bniMemberships = (this.state.bniMemberships || []).filter(bm => bm.id !== 'bnim-1794481861967' && bm.id !== 'bnim-1795057589204-vyzn');
         changed = true;
       }
     }
@@ -3448,6 +3671,7 @@ class DataStore {
       this.seedIwaneMeeting();
       this.seedKobiMeeting();
       this.seedMishimaMeeting();
+      this.seedMoriMeeting();
       this.saveDeletedIds();
       this.persist();
     }
@@ -3820,6 +4044,7 @@ class DataStore {
             'm-tsuji-20261109',
             'm-zoom-Hloc8gk6T9CevFvvf9bJLQ',
             'm-1794813034745-2e1gm',
+            'm-zoom-yWF6XymmQ9y7VeeDNcwag',
           ].includes(targetMeeting.id);
           if (
             combinedSummary &&
@@ -3840,6 +4065,7 @@ class DataStore {
         'm-tsuji-20261109',
         'm-zoom-Hloc8gk6T9CevFvvf9bJLQ',
         'm-1794813034745-2e1gm',
+        'm-zoom-yWF6XymmQ9y7VeeDNcwag',
       ].includes(targetMeeting.id);
 
       if (partnerPerson && !isVerifiedSeedMeetingForFacts) {
@@ -4117,6 +4343,9 @@ class DataStore {
           this.seedKimuraMeeting();
           this.seedTanakaMeeting();
           this.seedIwaneMeeting();
+          this.seedKobiMeeting();
+          this.seedMishimaMeeting();
+          this.seedMoriMeeting();
           this.reconcileLegacyAndDuplicateData();
         }
         const nextJson = snapshot();
@@ -4458,70 +4687,113 @@ class DataStore {
     const person = this.getPersonById(personId);
     if (!person) return null;
 
-    const cleanChap = chapterKeywordOrId
+    const normalizedRaw = chapterKeywordOrId
       .replace(/^BNI\s*/i, '')
-      .replace(/チャプター$/i, '')
       .replace(/シャングリア/g, 'シャングリラ')
+      .replace(/インビクタス/g, 'インヴィクタス')
+      .replace(/ラインダース|マインダーズ|ライナッツ|ナインダーズ/g, 'ナインダーツ')
+      .replace(/ダンジリ|ダンジェリ/g, 'だんじり')
       .trim();
-    if (!cleanChap) return null;
+    if (!normalizedRaw) return null;
 
-    const targetChapName = `${cleanChap}チャプター`;
-    let matchedChap =
-      this.state.bniChapters.find(c => c.id === chapterKeywordOrId) ||
-      this.state.bniChapters.find(c => c.chapter_name.toLowerCase() === targetChapName.toLowerCase()) ||
-      this.state.bniChapters.find(c => c.chapter_name.toLowerCase().includes(cleanChap.toLowerCase()));
-
-    let matchedReg = matchedChap
-      ? this.state.bniRegions.find(r => r.id === matchedChap!.region_id)
-      : undefined;
-
-    if (regionHint) {
-      const cleanReg = regionHint.replace(/リージョン$/i, '').trim();
-      const regByHint = this.state.bniRegions.find(r => r.region_name.includes(cleanReg));
-      if (regByHint) {
-        matchedReg = regByHint;
-        const chapInReg = this.state.bniChapters.find(
-          c => c.region_id === regByHint.id && c.chapter_name.toLowerCase().includes(cleanChap.toLowerCase())
-        );
-        if (chapInReg) matchedChap = chapInReg;
+    // リージョンヒントの抽出（「京都のインヴィクタスチャプター」など「リージョン」という単語がなくても都道府県・地域名から自動検出）
+    let matchedReg: BNIRegion | undefined;
+    const combinedRegSearch = `${regionHint || ''} ${normalizedRaw}`;
+    const sortedRegions = [...OFFICIAL_BNI_REGIONS].sort((a, b) => {
+      const aBare = a.region_name.replace(/\s*\(.*?\)/, '').replace(/リージョン$/, '');
+      const bBare = b.region_name.replace(/\s*\(.*?\)/, '').replace(/リージョン$/, '');
+      return bBare.length - aBare.length;
+    });
+    for (const r of sortedRegions) {
+      const regBare = r.region_name.replace(/\s*\(.*?\)/, '').replace(/リージョン$/, '').trim();
+      if (regBare.length >= 2 && combinedRegSearch.includes(regBare)) {
+        matchedReg = r;
+        break;
       }
     }
 
+    // 1. まず全国401公式BNIチャプター（OFFICIAL_BNI_CHAPTERS）との照合を最優先で実行！
+    // （「彼は京都のインヴィクタスチャプター」のような文章が渡されても「インヴィクタスチャプター」に100%正確にマッチさせる）
+    let matchedChap: BNIChapter | undefined =
+      OFFICIAL_BNI_CHAPTERS.find(c => c.id === chapterKeywordOrId) ||
+      this.state.bniChapters.find(c => c.id === chapterKeywordOrId && !c.id.startsWith('chap-custom-'));
+
     if (!matchedChap) {
-      const fallbackReg = matchedReg || this.state.bniRegions[0];
-      matchedChap = {
-        id: `chap-custom-${Date.now()}`,
-        region_id: fallbackReg?.id || 'reg-osaka-c',
-        chapter_name: targetChapName,
-        meeting_day: '定例会',
-        meeting_time: '07:00 AM',
-        is_verified: true,
-      };
-      this.state.bniChapters.push(matchedChap);
+      const sortedOfficialChaps = [...OFFICIAL_BNI_CHAPTERS].sort(
+        (a, b) => b.chapter_name.length - a.chapter_name.length
+      );
+      const candidates = sortedOfficialChaps.filter(c => {
+        const bare = c.chapter_name.replace(/チャプター$/, '').trim();
+        return bare.length >= 2 && normalizedRaw.toLowerCase().includes(bare.toLowerCase());
+      });
+      if (candidates.length > 0) {
+        if (matchedReg) {
+          matchedChap = candidates.find(c => c.region_id === matchedReg!.id) || candidates[0];
+        } else {
+          matchedChap = candidates[0];
+        }
+      }
+    }
+
+    // 2. 公式401チャプターにない新設チャプター名の場合でも、助詞（「は」「の」「を」「に」等）や代名詞（「彼は」「京都の」等）を厳格に除去して単語のみを抽出
+    let cleanChap = normalizedRaw.replace(/チャプター.*$/i, '').trim();
+    if (!matchedChap) {
+      const segments = cleanChap
+        .split(/[のはがをにへでとからより、。「」『』（）()\s]+/)
+        .map(s => s.replace(/^(?:彼|彼女|この人|その人|さっき|先ほど|今日|昨日|面談|所属|登録|修正|変更|BNI)+/i, '').trim())
+        .filter(Boolean);
+      cleanChap = segments[segments.length - 1] || cleanChap;
+      if (!cleanChap || /^(?:うち以外|他の|別の|自|僕の|この|どの|各|所属)$/.test(cleanChap)) {
+        return null;
+      }
+      const targetChapName = `${cleanChap}チャプター`;
+      matchedChap =
+        OFFICIAL_BNI_CHAPTERS.find(c => c.chapter_name.toLowerCase() === targetChapName.toLowerCase()) ||
+        OFFICIAL_BNI_CHAPTERS.find(c => c.chapter_name.toLowerCase().includes(cleanChap.toLowerCase()));
+
+      if (!matchedChap) {
+        const fallbackReg = matchedReg || OFFICIAL_BNI_REGIONS.find(r => r.id === 'reg-kyoto') || this.state.bniRegions[0];
+        matchedChap = {
+          id: `chap-custom-${Date.now()}`,
+          region_id: fallbackReg?.id || 'reg-kyoto',
+          chapter_name: targetChapName,
+          meeting_day: '定例会',
+          meeting_time: '07:00 AM',
+          is_verified: true,
+        };
+        this.state.bniChapters.push(matchedChap);
+      }
+    }
+
+    if (matchedChap) {
+      matchedReg =
+        OFFICIAL_BNI_REGIONS.find(r => r.id === matchedChap!.region_id) ||
+        this.state.bniRegions.find(r => r.id === matchedChap!.region_id) ||
+        matchedReg;
     }
 
     const regionName =
       matchedReg?.region_name ||
-      this.state.bniRegions.find(r => r.id === matchedChap!.region_id)?.region_name ||
-      (regionHint ? `${regionHint.replace(/リージョン$/, '')}リージョン` : '大阪北東リージョン');
+      (regionHint ? `${regionHint.replace(/リージョン$/, '')}リージョン` : '京都リージョン (Kyoto)');
 
     const existingActive = this.state.bniMemberships.find(
       m => m.tenant_id === tid && m.person_id === personId && m.status === 'active'
     );
     const resolvedCategory =
-      (category && category.trim()) ||
-      existingActive?.category ||
-      this.getOrgMembershipsForPerson(personId)[0]?.title ||
-      '専門カテゴリー';
+      (category && category.trim() && category.trim() !== '専門カテゴリー')
+        ? category.trim()
+        : (existingActive?.category && existingActive.category !== '専門カテゴリー'
+            ? existingActive.category
+            : (this.getBusinessOfferingsForPerson(personId)[0]?.service_title ||
+               this.getOrgMembershipsForPerson(personId)[0]?.title ||
+               '専門カテゴリー'));
 
     let resultMembership: BNIMembership;
     if (existingActive) {
       existingActive.chapter_id = matchedChap.id;
       existingActive.chapter_name = matchedChap.chapter_name;
       existingActive.region_name = regionName;
-      if (category && category.trim()) {
-        existingActive.category = category.trim();
-      }
+      existingActive.category = resolvedCategory;
       resultMembership = existingActive;
     } else {
       resultMembership = {
@@ -4552,7 +4824,7 @@ class DataStore {
     updatedPerson?: Person;
   } {
     const q = rawQuery.trim();
-    const isUpdateIntent = /登録|変更|修正|直して|なおして|設定|更新|入れて|所属|チャプター|会社名|役職|メモ/.test(q);
+    const isUpdateIntent = /登録|変更|修正|直して|なおして|設定|更新|入れて|所属|チャプター|リージョン|会社名|役職|メモ/.test(q);
     if (!isUpdateIntent) {
       return { executed: false, summaryLines: [] };
     }
@@ -4560,16 +4832,23 @@ class DataStore {
     const persons = this.getPersons();
     const qNoSpace = q.replace(/\s+/g, '');
 
-    // 対象人物の特定（フルネームまたは姓で検索）
-    const targetPerson = persons.find(p => {
+    // 1. 対象人物の特定（フルネームまたは姓で検索、または「さっきの面談」「彼」等の場合は直近面談の相手を自動特定）
+    let targetPerson = persons.find(p => {
       const full = p.display_name.replace(/（.*?）|\(.*?\)/g, '').trim();
       const fullNoSpace = full.replace(/\s+/g, '');
       const surname = full.split(/\s+/)[0] || '';
       return (
         (fullNoSpace.length >= 2 && qNoSpace.includes(fullNoSpace)) ||
-        (surname.length >= 2 && q.includes(surname))
+        (surname.length >= 1 && q.includes(surname))
       );
     });
+
+    if (!targetPerson && /さっき|先ほど|直近|今日|彼|彼女|この人|その人|面談/.test(q)) {
+      const latestMeeting = this.getMeetings()[0];
+      if (latestMeeting && latestMeeting.participant_ids[0]) {
+        targetPerson = this.getPersonById(latestMeeting.participant_ids[0]);
+      }
+    }
 
     if (!targetPerson) {
       return { executed: false, summaryLines: [] };
@@ -4577,24 +4856,38 @@ class DataStore {
 
     const summaryLines: string[] = [];
 
-    // 1. BNIチャプター・リージョン登録/変更コマンドの実行
-    const chapMatch = q.match(/([A-Za-z0-9ァ-ヶー一-龠々ぁ-ん・]{2,18})チャプター/);
-    const regMatch = q.match(/([A-Za-z0-9ァ-ヶー一-龠々ぁ-ん・]{2,16})リージョン/);
-    let detectedChapterName = chapMatch ? chapMatch[1].replace(/^(?:の|で|は|に|と|を|BNI\s*)/i, '').trim() : '';
+    // 2. BNIチャプター・リージョン登録/変更コマンドの実行（全国401公式BNIチャプターとの照合を最優先し、文言そのまま貼り付けを100%防止）
+    const normalizedQ = q
+      .replace(/シャングリア/g, 'シャングリラ')
+      .replace(/インビクタス/g, 'インヴィクタス')
+      .replace(/ラインダース|マインダーズ|ライナッツ|ナインダーズ/g, 'ナインダーツ')
+      .replace(/ダンジリ|ダンジェリ/g, 'だんじり');
 
+    const sortedOfficialChaps = [...OFFICIAL_BNI_CHAPTERS].sort(
+      (a, b) => b.chapter_name.length - a.chapter_name.length
+    );
+    const matchedOfficialChap = sortedOfficialChaps.find(c => {
+      const bare = c.chapter_name.replace(/チャプター$/, '').trim();
+      return bare.length >= 2 && normalizedQ.toLowerCase().includes(bare.toLowerCase());
+    });
+
+    let detectedChapterName = matchedOfficialChap ? matchedOfficialChap.chapter_name : '';
     if (!detectedChapterName) {
-      const matchedOfficialChap = this.state.bniChapters.find(c => {
-        const bare = c.chapter_name.replace(/チャプター$/, '');
-        return bare.length >= 2 && q.includes(bare);
-      });
-      if (matchedOfficialChap) {
-        detectedChapterName = matchedOfficialChap.chapter_name;
+      const chapMatch = normalizedQ.match(/([^\s、。「」『』（）()のはがをにへでと]{2,14})チャプター/);
+      if (chapMatch && chapMatch[1]) {
+        const cleanToken = chapMatch[1]
+          .replace(/^(?:彼|彼女|この人|その人|さっき|先ほど|今日|面談|所属|登録|修正|変更|BNI)+/i, '')
+          .trim();
+        if (cleanToken.length >= 2) {
+          detectedChapterName = cleanToken;
+        }
       }
     }
 
     if (detectedChapterName) {
-      const regionHint = regMatch ? regMatch[1].replace(/^(?:の|で|は|に|と|を|BNI\s*)/i, '').trim() : undefined;
-      const catMatch = q.match(/カテゴリー(?:は|を)?「?([^、。\s」]{2,20})」?/);
+      const regMatch = normalizedQ.match(/([^\s、。「」『』（）()のはがをにへでと]{2,12})リージョン/);
+      const regionHint = regMatch ? regMatch[1].trim() : normalizedQ;
+      const catMatch = normalizedQ.match(/カテゴリー(?:は|を)?「?([^、。\s」]{2,20})」?/);
       const bniMem = this.setPersonBNIMembership(
         targetPerson.id,
         detectedChapterName,

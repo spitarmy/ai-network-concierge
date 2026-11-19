@@ -530,4 +530,23 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(ownerProfile.bni_chapter_name).toBe('だんじりチャプター');
     expect(store.getPersons().length).toBeGreaterThanOrEqual(6);
   });
+
+  it('AI人脈秘書で「彼は京都のインヴィクタスチャプター」等の自然文でチャプター修正を指示した際、文言がそのまま貼られず公式の「京都リージョン (Kyoto) / インヴィクタスチャプター」に解決されること', () => {
+    store.setTenantId('tenant-001');
+    store.seedMoriMeeting();
+
+    const mori = store.getPersons().find(p => p.display_name === '森 雄平');
+    expect(mori).toBeDefined();
+
+    // 1. 「彼は京都のインヴィクタスチャプター」という文言で直接呼び出しても公式チャプター名・京都リージョンになること
+    const cmdRes = store.executeAIConciergeCommand('さっきの面談の森さん、彼は京都のインヴィクタスチャプターに登録修正して');
+    expect(cmdRes.executed).toBe(true);
+
+    const bniMems = store.getBNIMembershipsForPerson(mori!.id);
+    expect(bniMems.length).toBe(1);
+    expect(bniMems[0].chapter_name).toBe('インヴィクタスチャプター');
+    expect(bniMems[0].chapter_name).not.toContain('彼は京都の');
+    expect(bniMems[0].region_name).toBe('京都シティセントラルリージョン (Kyoto City Central)');
+    expect(bniMems[0].category).toContain('遺品整理');
+  });
 });
