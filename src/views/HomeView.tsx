@@ -37,6 +37,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const promiseFacts = allFacts.filter((f: Fact) => f.fact_category === 'promise');
   const [completedPromises, setCompletedPromises] = useState<Record<string, boolean>>({});
   const [showAllPromises, setShowAllPromises] = useState(false);
+  const [showQuickGuide, setShowQuickGuide] = useState<boolean>(() => store.getMeetings().length === 0);
+  const [copiedGuideText, setCopiedGuideText] = useState(false);
+  const ownerProfile = store.getCurrentOwnerProfile();
+  const isGuideOpen = showQuickGuide;
 
   const handleTogglePromise = (factId: string) => {
     setCompletedPromises(prev => ({ ...prev, [factId]: !prev[factId] }));
@@ -70,6 +74,117 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 animate-fadeIn pb-24">
+      {/* 📖 使い方・Zoom設定ガイド切替バー（初回データ0件時は自動展開、いつでも1タップで開閉可能） */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+          👤 {ownerProfile.owner_name} 様の専用コンシェルジュ領域
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowQuickGuide(prev => !prev)}
+          className="px-3 py-1.5 rounded-xl bg-apple-blue/10 hover:bg-apple-blue/20 text-apple-blue dark:text-apple-darkBlue text-xs font-bold transition-colors flex items-center space-x-1.5"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>{isGuideOpen ? '▲ 使い方・Zoom設定ガイドを閉じる' : '📖 使い方・Zoom設定ガイドを見る'}</span>
+        </button>
+      </div>
+
+      {isGuideOpen && (
+        <section className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-blue-50/90 via-indigo-50/70 to-white dark:from-blue-950/35 dark:via-indigo-950/25 dark:to-[#1C1C1E] border border-blue-200/80 dark:border-blue-800/60 space-y-4 shadow-sm text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-blue-200/60 dark:border-blue-800/50 pb-3">
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center gap-2">
+                <span>📖 AI人脈コンシェルジュ 使い方 ＆ Zoom設定かんたんガイド</span>
+              </h2>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                はじめての方でも3ステップですぐに1to1面談の自動要約・お礼LINE作成・人脈相関図をお使いいただけます。
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const guideMsg = `【AI人脈コンシェルジュ 使い方＆Zoom設定ガイド】\n\n■ STEP 1：初期プロフィール設定（最初だけ・30秒）\n左メニュー（スマホは右上・下部）の「設定」＞「プロフィール・所属チャプターを変更」から、ご自身の氏名・会社名（屋号）・肩書・BNIチャプター（未所属なら空欄でOK）を登録してください。\n→ これでお礼LINEの署名や相関図の中心ハブがすべてあなた仕様になります。\n\n■ STEP 2：面談の記録・AI要約（3つの方法から選べます）\n①【一番カンタン・設定不要】相手がホストのZoomや対面商談で「ワンタップ録音」\n画面上の「＋クイック追加」＞「🎙️ 面談文字起こし・要約（一発登録）」を開き、「🔴 マイク＋PC音声で今すぐ録音開始」を押すだけ！面談後に停止するとAIが自動で文字起こし＆ビジネス要約＆カルテ登録します（関西弁などの方言も自動で標準語の書き言葉に変換されます）。\n\n②【文字起こし・メモ貼付】Zoomの文字起こしや商談メモをコピペ\n同じく「＋クイック追加」＞「🎙️ 面談文字起こし・要約（一発登録）」にテキストを貼り付けて「AI解析」を押すと、数秒で人物カルテ・要約・双方のToDoが自動登録されます。\n\n③【自分のZoomと連動させる場合のZoom側設定】\nご自身のZoom（Pro以上）で主催する場合は、Zoom Web設定（https://zoom.us/profile/setting）にて：\n・［記録］タブ ＞「クラウド記録」をON ＋ 詳細の「オーディオ文字起こしを作成」にチェック\n・［AI Companion］タブ ＞「ミーティング要約」をON\nにしておくと、毎回自動で文字起こしが作られます。\n（※さらに完全自動同期したい場合は、Zoom Marketplace https://marketplace.zoom.us/ で「Server-to-Server OAuth」アプリを作成し、Account ID / Client ID / Client Secret をコンシェルジュの「設定」画面に入力すると、Zoom終了後にボタンすら押さず全自動で取り込まれます）\n\n■ STEP 3：お礼LINE作成・2D相関図・AI人脈秘書\n・面談登録後、ホーム画面の「お礼文・相互要約を送る」から丁寧なお礼LINE文をワンタップでコピーできます。\n・「相関図」タブで「⬅相手から紹介（オレンジ）」「➡こちらが紹介（ブルー）」「✨双方を紹介可（パープル）」が色分け可視化されます。\n・「AI人脈秘書」タブで「〇〇さんのチャプターを〜に変更して」「飲食店に強い人誰だっけ？」と話しかけるだけで検索・修正ができます。`;
+                  navigator.clipboard.writeText(guideMsg);
+                  setCopiedGuideText(true);
+                  setTimeout(() => setCopiedGuideText(false), 2500);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors flex items-center gap-1 shadow-2xs"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>{copiedGuideText ? 'LINE送信用ガイドをコピー済！' : '📋 使い方＆Zoom設定文をコピー'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-4 rounded-2xl bg-white/90 dark:bg-neutral-900/80 border border-blue-200/60 dark:border-blue-900/50 space-y-2">
+              <div className="font-bold text-apple-blue dark:text-apple-darkBlue flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-apple-blue text-white text-[11px] flex items-center justify-center font-extrabold">1</span>
+                <span>初期プロフィール設定（30秒）</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                まずは「<strong>設定</strong>」画面の「プロフィール・所属チャプターを変更」から、あなたの<strong>氏名・会社名（屋号）・専門分野・BNIチャプター</strong>（未所属なら空欄でOK）を登録します。
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate('settings')}
+                className="text-[11px] font-bold text-apple-blue hover:underline inline-flex items-center gap-1 pt-1"
+              >
+                <span>設定画面を開く →</span>
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/90 dark:bg-neutral-900/80 border border-purple-200/60 dark:border-purple-900/50 space-y-2">
+              <div className="font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] flex items-center justify-center font-extrabold">2</span>
+                <span>面談の録音・文字起こし登録</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                <strong>【設定不要ですぐ使う場合】</strong><br />
+                「<strong>＋クイック追加</strong>」＞「<strong>🎙️ 面談文字起こし・要約</strong>」から、<strong>🔴ワンタップ録音</strong>（相手がホストのZoomや対面でもOK）または文字起こし貼付で一発登録できます。<br />
+                <strong>【自分のZoom設定】</strong><br />
+                Zoom Web設定の「記録 ＞ クラウド記録 ＋ オーディオ文字起こし作成」と「AI Companion ＞ ミーティング要約」をONにしておくと便利です。
+              </p>
+              <button
+                type="button"
+                onClick={onOpenQuickAdd}
+                className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline inline-flex items-center gap-1 pt-1"
+              >
+                <span>＋クイック追加（録音・文字起こし）を試す →</span>
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/90 dark:bg-neutral-900/80 border border-emerald-200/60 dark:border-emerald-900/50 space-y-2">
+              <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] flex items-center justify-center font-extrabold">3</span>
+                <span>お礼LINE・2D相関図・AI秘書</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                面談を登録すると、<strong>話し言葉ゼロの構造化ビジネス要約</strong>、<strong>双方の次回ToDo</strong>、<strong>お礼LINE文</strong>が自動生成されます。<br />
+                「<strong>相関図</strong>」タブでは紹介の向きが色分け表示され、「<strong>AI人脈秘書</strong>」に話しかけるだけでカルテ修正や人脈検索が可能です。
+              </p>
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('graph')}
+                  className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  相関図を見る →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('ai')}
+                  className="text-[11px] font-bold text-apple-blue hover:underline"
+                >
+                  AI人脈秘書を開く →
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* 最初の30秒体験: 直近面談ハイライトカード */}
       {upcomingMeeting ? (
         <section className="relative overflow-hidden rounded-3xl p-6 sm:p-7 bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder shadow-sm">

@@ -10,7 +10,7 @@ declare global {
   // eslint-disable-next-line no-var
   var __ZOOM_SESSIONS_CACHE__: Record<string, any> | undefined;
   // eslint-disable-next-line no-var
-  var __ZOOM_OAUTH_TOKEN__: { token: string; expiresAt: number } | undefined;
+  var __ZOOM_OAUTH_TOKEN__: { accountId: string; token: string; expiresAt: number } | undefined;
 }
 
 function healZoomCredentials(creds: { accountId?: string; clientId?: string; clientSecret?: string }) {
@@ -132,7 +132,11 @@ function extractAttendeesFromSummaryContent(summaryContent?: string): string[] {
 
 async function getAccessToken(accountId: string, clientId: string, clientSecret: string): Promise<string | null> {
   if (!accountId || !clientId || !clientSecret) return null;
-  if (global.__ZOOM_OAUTH_TOKEN__ && global.__ZOOM_OAUTH_TOKEN__.expiresAt > Date.now() + 60000) {
+  if (
+    global.__ZOOM_OAUTH_TOKEN__ &&
+    global.__ZOOM_OAUTH_TOKEN__.accountId === accountId &&
+    global.__ZOOM_OAUTH_TOKEN__.expiresAt > Date.now() + 60000
+  ) {
     return global.__ZOOM_OAUTH_TOKEN__.token;
   }
 
@@ -149,6 +153,7 @@ async function getAccessToken(accountId: string, clientId: string, clientSecret:
   if (!data.access_token) return null;
 
   global.__ZOOM_OAUTH_TOKEN__ = {
+    accountId,
     token: data.access_token,
     expiresAt: Date.now() + ((data.expires_in || 3500) - 120) * 1000,
   };

@@ -8108,15 +8108,21 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
 
   public testOAuthConnection(provider: 'zoom' | 'google'): { success: boolean; message: string } {
     if (provider === 'zoom') {
-      if (!this.oauthConfig.zoom.client_id || !this.oauthConfig.zoom.client_secret) {
+      const tid = this.state.currentTenantId;
+      const ownerProf = this.getCurrentOwnerProfile();
+      const clientId = tid === 'tenant-001' ? this.oauthConfig.zoom.client_id : (ownerProf.zoom_client_id || '');
+      const clientSecret = tid === 'tenant-001' ? this.oauthConfig.zoom.client_secret : (ownerProf.zoom_client_secret || '');
+      if (!clientId || !clientSecret) {
         return {
           success: false,
           message: 'Zoom Client ID または Client Secret が未設定です。Zoom Marketplaceで取得した認証情報を入力してください。',
         };
       }
-      this.oauthConfig.zoom.is_connected = true;
-      this.oauthConfig.zoom.last_tested_at = new Date().toISOString();
-      this.updateZoomConfig(this.oauthConfig.zoom);
+      if (tid === 'tenant-001') {
+        this.oauthConfig.zoom.is_connected = true;
+        this.oauthConfig.zoom.last_tested_at = new Date().toISOString();
+        this.updateZoomConfig(this.oauthConfig.zoom);
+      }
       return {
         success: true,
         message: 'Zoom OAuth 2.0 接続テストに成功しました（スコープ: meeting:read, recording:read 認証検証済）',

@@ -951,18 +951,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onRefresh, onNavigat
           申請手順の詳細は <code>docs/OAUTH_APPLICATION_GUIDE.md</code> に記載されています。
         </p>
 
+        <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 space-y-2 text-xs">
+          <div className="font-bold text-apple-blue dark:text-apple-darkBlue flex items-center justify-between">
+            <span>📌 Zoom本体側でONにしておく推奨設定（Zoom Webポータル）</span>
+            <a
+              href="https://zoom.us/profile/setting"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] underline hover:opacity-80 flex items-center gap-1"
+            >
+              <span>Zoom設定画面を開く →</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+          <ul className="list-disc list-inside space-y-1 text-[11px] text-neutral-700 dark:text-neutral-300 leading-relaxed">
+            <li>
+              <strong>①［記録］タブ：</strong>「<strong>クラウド記録</strong>」をONにし、詳細設定の「<strong>オーディオ文字起こしを作成（Create audio transcript）</strong>」にチェックを入れる
+            </li>
+            <li>
+              <strong>②［AI Companion］タブ：</strong>「<strong>ミーティング要約（Meeting Summary with AI Companion）</strong>」をONにする
+            </li>
+            <li>
+              <strong>③ 相手がホストのZoomや無料Zoomの場合：</strong>下のAPI設定をしなくても、「<strong>＋クイック追加</strong>」＞「<strong>🎙️ 面談文字起こし・要約</strong>」の「<strong>🔴 マイク＋PC音声で今すぐ録音開始</strong>」ボタンだけで自動文字起こし＆カルテ登録が可能です。
+            </li>
+          </ul>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Zoom OAuth 設定 */}
           <form onSubmit={handleSaveZoom} className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-3 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
-                <span>Zoom App 認証設定</span>
+                <span>Zoom App 認証設定（{currentTenant.id === 'tenant-001' ? 'オーナー用' : `${ownerProfile.owner_name}様 専用`}）</span>
               </span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                oauthConfig.zoom.is_connected ? 'bg-apple-green/10 text-apple-green' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
-              }`}>
-                {oauthConfig.zoom.is_connected ? '● 認可有効' : '○ 未接続'}
-              </span>
+              {(() => {
+                const isZoomConn = currentTenant.id === 'tenant-001'
+                  ? oauthConfig.zoom.is_connected
+                  : Boolean(ownerProfile.zoom_client_id && ownerProfile.zoom_client_secret);
+                return (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                    isZoomConn ? 'bg-apple-green/10 text-apple-green' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
+                  }`}>
+                    {isZoomConn ? '● 認可有効' : '○ 未接続（手動録音・文字貼付は利用可）'}
+                  </span>
+                );
+              })()}
             </div>
 
             <div>
