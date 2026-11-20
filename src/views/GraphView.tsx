@@ -9,6 +9,7 @@ import {
   UserCheck,
   Eye,
   EyeOff,
+  ArrowLeft,
   ArrowRight,
   ArrowLeftRight,
   ChevronRight,
@@ -111,19 +112,61 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
             if (!partner) return null;
             const partnerBni = store.getBNIMembershipsForPerson(partner.id)[0];
             const partnerOrg = store.getOrgMembershipsForPerson(partner.id)[0];
-            const shortBadge = rel.is_ai_inferred
-              ? 'AIシナジー推薦'
-              : rel.relationship_type.includes('紹介元')
-                ? '紹介元'
-                : rel.relationship_type.includes('協業') || rel.relationship_type.includes('企画')
-                  ? '協業・連携'
-                  : '取引・接点';
+            const combinedRelText = `${rel.relationship_type || ''} ${rel.evidence_text || ''}`;
+
+            let edgeCategory: 'referrer_origin' | 'receive_intro' | 'give_intro' | 'collaboration' | 'ai_synergy' =
+              'collaboration';
+            let shortBadge = '協業・取引連携';
+            let provisionalBadge = '協業・関係者';
+
+            if (rel.is_ai_inferred) {
+              edgeCategory = 'ai_synergy';
+              shortBadge = 'こちらが双方を紹介可';
+              provisionalBadge = 'AI推薦候補';
+            } else if (
+              rel.id === 'rel-takada-nakagawa' ||
+              /こちらが紹介|こちらから紹介|自分\s*→\s*先方|祇園バー.*?高田様.*?と.*?1to1をセッティング|勝賀野様(?:から|より).*?(?:紹介|お繋ぎ|おつなぎ|セッティング)/.test(
+                combinedRelText
+              )
+            ) {
+              edgeCategory = 'give_intro';
+              shortBadge = 'こちらが紹介・繋ぐ';
+              provisionalBadge = 'こちらが紹介';
+            } else if (rel.relationship_type.includes('紹介元')) {
+              if (isIncoming) {
+                edgeCategory = 'referrer_origin';
+                shortBadge = '紹介元（ご縁の起点）';
+                provisionalBadge = '紹介元';
+              } else {
+                edgeCategory = 'receive_intro';
+                shortBadge = '紹介してもらった人';
+                provisionalBadge = '紹介実績';
+              }
+            } else if (
+              /紹介予定|相手から紹介|紹介してもらう|先方\s*→\s*自分|(?:中川|小比|岩根|森|田中|木村|三島)様(?:から|より).*?(?:勝賀野様へ|お繋ぎ|おつなぎ|ご紹介)/.test(
+                combinedRelText
+              )
+            ) {
+              edgeCategory = 'receive_intro';
+              shortBadge = '相手から紹介してもらう';
+              provisionalBadge = '紹介してもらう予定';
+            } else if (rel.relationship_type.includes('同チャプター')) {
+              edgeCategory = 'collaboration';
+              shortBadge = '同チャプター連携';
+              provisionalBadge = '同チャプター';
+            } else {
+              edgeCategory = 'collaboration';
+              shortBadge = '協業・取引連携';
+              provisionalBadge = '協業・関係者';
+            }
 
             return {
               rel,
               partner,
               isIncoming,
+              edgeCategory,
               shortBadge,
+              provisionalBadge,
               partnerSubtitle:
                 partnerBni?.chapter_name ||
                 partnerOrg?.organization_name ||
@@ -135,7 +178,9 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
           rel: (typeof relationships)[number];
           partner: (typeof allPersons)[number];
           isIncoming: boolean;
+          edgeCategory: 'referrer_origin' | 'receive_intro' | 'give_intro' | 'collaboration' | 'ai_synergy';
           shortBadge: string;
+          provisionalBadge: string;
           partnerSubtitle: string;
         }[];
 
@@ -350,17 +395,49 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
 
       {/* 4. 絶対に重ならない「マインドマップ型・階層ネットワーク図（Dark Canvas）」 */}
       <div className="rounded-3xl bg-neutral-950 border border-neutral-800 p-4 sm:p-6 shadow-inner space-y-5">
-        {/* マップ上部ステータスバー */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-400 border-b border-neutral-800/80 pb-3">
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${mode === 'actual' ? 'bg-emerald-400' : 'bg-indigo-400'} animate-pulse`} />
-            <span className="font-bold text-neutral-200">
-              {mode === 'actual' ? '紹介・協業マインドマップ（実関係）' : 'AI事業シナジー・マインドマップ'}
-            </span>
+        {/* マップ上部ステータスバー & 矢印・カラー凡例 */}
+        <div className="space-y-3 border-b border-neutral-800/80 pb-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-400">
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${mode === 'actual' ? 'bg-emerald-400' : 'bg-indigo-400'} animate-pulse`} />
+              <span className="font-bold text-neutral-200">
+                {mode === 'actual' ? '紹介・協業マインドマップ（実関係）' : 'AI事業シナジー・マインドマップ'}
+              </span>
+            </div>
+            <div className="text-[11px] text-neutral-400 font-mono">
+              結線あり: {connectedHubs.length}名 / 関係エッジ: {relationships.length}件
+            </div>
           </div>
-          <div className="text-[11px] text-neutral-400 font-mono">
-            結線あり: {connectedHubs.length}名 / 関係エッジ: {relationships.length}件
-          </div>
+
+          {/* 矢印の向き・カラー凡例バー */}
+          {mode === 'actual' ? (
+            <div className="flex flex-wrap items-center gap-2 text-[10px]">
+              <span className="text-neutral-500 font-semibold">矢印と色の見方:</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/90 border border-amber-500/50 text-amber-300 font-bold">
+                <ArrowLeft className="w-3 h-3" />
+                <span>相手から紹介してもらう（先方→自分）</span>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-950/90 border border-sky-500/50 text-sky-300 font-bold">
+                <ArrowRight className="w-3 h-3" />
+                <span>こちらが紹介・繋ぐ（自分→先方）</span>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-bold">
+                <ArrowLeft className="w-3 h-3" />
+                <span>紹介元（この方を紹介してくれた人）</span>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-950/90 border border-teal-500/50 text-teal-200 font-bold">
+                <ArrowLeftRight className="w-3 h-3" />
+                <span>相互協業・同チャプター・取引連携</span>
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 text-[10px]">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-950/90 border border-indigo-500/50 text-indigo-300 font-bold">
+                <Sparkles className="w-3 h-3" />
+                <span>こちらが双方を紹介・引き合わせできるAI推薦シナジー</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 起点オーナーバッジ（テナントごとのオーナー情報を動的表示） */}
@@ -431,61 +508,88 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                     <ChevronRight className="w-4 h-4 text-neutral-500 group-hover:text-sky-400 shrink-0" />
                   </div>
 
-                  {/* 第2階層：その人物に紐づく紹介元・協業先・AI推薦パートナーの枝リスト */}
+                  {/* 第2階層：その人物に紐づく紹介元・紹介してもらう先・こちらが紹介する先・協業先の枝リスト */}
                   <div className="flex-1 pl-3 sm:pl-4 lg:pl-0 border-l-2 lg:border-l-0 border-emerald-500/30 space-y-2">
-                    {items.map(({ rel, partner, isIncoming, shortBadge, partnerSubtitle }) => (
-                      <div
-                        key={`branch-${rel.id}`}
-                        className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-neutral-950/70 p-2.5 rounded-xl border border-neutral-800/90"
-                      >
-                        {/* 結線バッジ（矢印＋関係種別） */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
-                              mode === 'actual'
-                                ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-300'
-                                : 'bg-indigo-950/90 border-indigo-500/40 text-indigo-300'
-                            }`}
-                          >
-                            {mode === 'actual' ? (
-                              isIncoming ? (
+                    {items.map(({ rel, partner, edgeCategory, shortBadge, provisionalBadge, partnerSubtitle }) => {
+                      const darkBadgeClass =
+                        edgeCategory === 'receive_intro'
+                          ? 'bg-amber-950/90 border-amber-500/50 text-amber-300'
+                          : edgeCategory === 'give_intro'
+                            ? 'bg-sky-950/90 border-sky-500/50 text-sky-300'
+                            : edgeCategory === 'referrer_origin'
+                              ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300'
+                              : edgeCategory === 'ai_synergy'
+                                ? 'bg-indigo-950/90 border-indigo-500/50 text-indigo-300'
+                                : 'bg-teal-950/90 border-teal-500/50 text-teal-200';
+                      const lineClass =
+                        edgeCategory === 'receive_intro'
+                          ? 'bg-amber-500/50'
+                          : edgeCategory === 'give_intro'
+                            ? 'bg-sky-500/50'
+                            : edgeCategory === 'referrer_origin'
+                              ? 'bg-emerald-500/50'
+                              : edgeCategory === 'ai_synergy'
+                                ? 'bg-indigo-500/50'
+                                : 'bg-teal-500/50';
+                      const provTagClass =
+                        edgeCategory === 'give_intro'
+                          ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                          : edgeCategory === 'referrer_origin'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : edgeCategory === 'collaboration'
+                              ? 'bg-teal-500/20 text-teal-200 border-teal-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+
+                      return (
+                        <div
+                          key={`branch-${rel.id}`}
+                          className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-neutral-950/70 p-2.5 rounded-xl border border-neutral-800/90"
+                        >
+                          {/* 結線バッジ（矢印＋関係種別で色分け） */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${darkBadgeClass}`}
+                            >
+                              {edgeCategory === 'ai_synergy' ? (
+                                <Sparkles className="w-3 h-3 shrink-0" />
+                              ) : edgeCategory === 'give_intro' ? (
                                 <ArrowRight className="w-3 h-3 shrink-0" />
+                              ) : edgeCategory === 'receive_intro' || edgeCategory === 'referrer_origin' ? (
+                                <ArrowLeft className="w-3 h-3 shrink-0" />
                               ) : (
                                 <ArrowLeftRight className="w-3 h-3 shrink-0" />
-                              )
-                            ) : (
-                              <Sparkles className="w-3 h-3 shrink-0" />
-                            )}
-                            <span>{shortBadge}</span>
-                          </span>
-                          <span className="hidden sm:inline-block w-4 h-[2px] bg-emerald-500/40" />
-                        </div>
+                              )}
+                              <span>{shortBadge}</span>
+                            </span>
+                            <span className={`hidden sm:inline-block w-4 h-[2px] ${lineClass}`} />
+                          </div>
 
-                        {/* 相手ノード（紹介元・協業先・AI推薦相手） */}
-                        <div
-                          onClick={() => onSelectPerson(partner.id)}
-                          className="cursor-pointer group flex-1 min-w-0 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/70 transition-colors"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <UserAvatar name={partner.display_name} avatarUrl={partner.avatar_url} size="sm" />
-                            <div className="min-w-0">
-                              <div className="text-xs font-bold text-white group-hover:text-emerald-300 flex items-center gap-1.5 flex-wrap">
-                                <span>{partner.display_name}</span>
-                                {partner.status === 'provisional' && (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                    紹介・言及
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-neutral-400 truncate">
-                                {partnerSubtitle} — {rel.relationship_type}
+                          {/* 相手ノード（紹介元・協業先・AI推薦相手） */}
+                          <div
+                            onClick={() => onSelectPerson(partner.id)}
+                            className="cursor-pointer group flex-1 min-w-0 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/70 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <UserAvatar name={partner.display_name} avatarUrl={partner.avatar_url} size="sm" />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-white group-hover:text-emerald-300 flex items-center gap-1.5 flex-wrap">
+                                  <span>{partner.display_name}</span>
+                                  {partner.status === 'provisional' && (
+                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${provTagClass}`}>
+                                      {provisionalBadge}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-neutral-400 truncate">
+                                  {partnerSubtitle} — {rel.relationship_type}
+                                </div>
                               </div>
                             </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-neutral-500 group-hover:text-white shrink-0" />
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-neutral-500 group-hover:text-white shrink-0" />
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -656,71 +760,93 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                   </div>
                 ) : (
                   <div className="space-y-2.5 pl-2 sm:pl-3 border-l-2 border-apple-blue/30 dark:border-apple-blue/40">
-                    {items.map(({ rel, partner, isIncoming, partnerSubtitle }) => (
-                      <div
-                        key={rel.id}
-                        className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/90 border border-neutral-200/80 dark:border-neutral-800 space-y-2"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold leading-snug ${
-                              mode === 'actual'
-                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
-                                : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20'
-                            }`}
-                          >
-                            {mode === 'actual' ? (
-                              isIncoming ? (
-                                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                              ) : (
-                                <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
-                              )
-                            ) : (
-                              <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                            )}
-                            <span>{rel.relationship_type}</span>
-                          </span>
+                    {items.map(({ rel, partner, edgeCategory, shortBadge, provisionalBadge, partnerSubtitle }) => {
+                      const cardBadgeClass =
+                        edgeCategory === 'receive_intro'
+                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                          : edgeCategory === 'give_intro'
+                            ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30'
+                            : edgeCategory === 'referrer_origin'
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                              : edgeCategory === 'ai_synergy'
+                                ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30'
+                                : 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30';
+                      const cardProvClass =
+                        edgeCategory === 'give_intro'
+                          ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30'
+                          : edgeCategory === 'referrer_origin'
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                            : edgeCategory === 'collaboration'
+                              ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30'
+                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRelationship(rel.id)}
-                            className="p-1 rounded-lg text-neutral-400 hover:text-red-500 transition-colors shrink-0"
-                            title="この関係線を削除"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
+                      return (
                         <div
-                          onClick={() => onSelectPerson(partner.id)}
-                          className="cursor-pointer group flex items-center justify-between gap-2 pt-0.5"
+                          key={rel.id}
+                          className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/90 border border-neutral-200/80 dark:border-neutral-800 space-y-2"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <UserAvatar name={partner.display_name} avatarUrl={partner.avatar_url} size="sm" />
-                            <div className="min-w-0">
-                              <div className="text-xs sm:text-sm font-bold text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-apple-blue flex items-center gap-1.5 flex-wrap">
-                                <span>{partner.display_name}</span>
-                                {partner.status === 'provisional' && (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                    紹介・言及
-                                  </span>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold leading-snug ${cardBadgeClass}`}
+                              >
+                                {edgeCategory === 'ai_synergy' ? (
+                                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                                ) : edgeCategory === 'give_intro' ? (
+                                  <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                                ) : edgeCategory === 'receive_intro' || edgeCategory === 'referrer_origin' ? (
+                                  <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+                                ) : (
+                                  <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
                                 )}
-                              </div>
-                              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                                {partnerSubtitle}
-                              </div>
+                                <span>{shortBadge}</span>
+                              </span>
+                              <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+                                {rel.relationship_type}
+                              </span>
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRelationship(rel.id)}
+                              className="p-1 rounded-lg text-neutral-400 hover:text-red-500 transition-colors shrink-0"
+                              title="この関係線を削除"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
 
-                          <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-apple-blue shrink-0" />
-                        </div>
+                          <div
+                            onClick={() => onSelectPerson(partner.id)}
+                            className="cursor-pointer group flex items-center justify-between gap-2 pt-0.5"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <UserAvatar name={partner.display_name} avatarUrl={partner.avatar_url} size="sm" />
+                              <div className="min-w-0">
+                                <div className="text-xs sm:text-sm font-bold text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-apple-blue flex items-center gap-1.5 flex-wrap">
+                                  <span>{partner.display_name}</span>
+                                  {partner.status === 'provisional' && (
+                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${cardProvClass}`}>
+                                      {provisionalBadge}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  {partnerSubtitle}
+                                </div>
+                              </div>
+                            </div>
 
-                        <div className="text-[11px] text-neutral-600 dark:text-neutral-400 bg-white/80 dark:bg-neutral-950/60 px-2.5 py-1.5 rounded-xl border border-neutral-200/60 dark:border-neutral-800/80 leading-relaxed">
-                          <span className="font-semibold text-neutral-500 dark:text-neutral-300">根拠: </span>
-                          {rel.evidence_text}
+                            <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-apple-blue shrink-0" />
+                          </div>
+
+                          <div className="text-[11px] text-neutral-600 dark:text-neutral-400 bg-white/80 dark:bg-neutral-950/60 px-2.5 py-1.5 rounded-xl border border-neutral-200/60 dark:border-neutral-800/80 leading-relaxed">
+                            <span className="font-semibold text-neutral-500 dark:text-neutral-300">根拠: </span>
+                            {rel.evidence_text}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -822,10 +948,12 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
                   onChange={(e) => setRelType(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7]"
                 >
-                  <option value="紹介元 / 紹介先">紹介元 / 紹介先</option>
-                  <option value="共同プロジェクト・協業">共同プロジェクト・協業</option>
-                  <option value="同席面談・取引実績">同席面談・取引実績</option>
-                  <option value="同チャプター・同所属">同チャプター・同所属</option>
+                  <option value="相手から紹介してもらう（先方 → 自分へ紹介予定）">⬅ 相手から紹介してもらう（先方 → 自分へ紹介予定）</option>
+                  <option value="こちらが紹介・繋ぐ（自分 → 先方へ紹介予定）">➡ こちらが紹介・繋ぐ（自分 → 先方へ紹介予定）</option>
+                  <option value="紹介元（この方を自分に紹介してくれた人）">⬅ 紹介元（この方を自分に紹介してくれた人）</option>
+                  <option value="共同プロジェクト・協業">⇄ 共同プロジェクト・協業</option>
+                  <option value="同チャプター・同所属">⇄ 同チャプター・同所属</option>
+                  <option value="同席面談・取引実績">⇄ 同席面談・取引実績</option>
                 </select>
               </div>
 
