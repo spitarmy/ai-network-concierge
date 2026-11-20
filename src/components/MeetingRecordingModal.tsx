@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Mic, Upload, FileText, Sparkles, Link2, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Mic, Upload, FileText, Sparkles, Link2, Loader2, CheckCircle2, Clock, Square } from 'lucide-react';
 import { store } from '../services/store';
 import {
   transcribeAudioWithGemini,
@@ -28,6 +28,10 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
   const [statusMessage, setStatusMessage] = useState('');
   const [processStep, setProcessStep] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [isLiveRecording, setIsLiveRecording] = useState(false);
+  const [liveRecSec, setLiveRecSec] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     if (!isProcessing) {
@@ -40,11 +44,57 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
     return () => clearInterval(timer);
   }, [isProcessing]);
 
+  useEffect(() => {
+    if (!isLiveRecording) {
+      setLiveRecSec(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setLiveRecSec(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isLiveRecording]);
+
   if (!isOpen || !meetingId) return null;
 
   const meeting = store.getMeetings().find(m => m.id === meetingId);
   const firstPid = meeting?.participant_ids[0];
   const participant = firstPid ? store.getPersonById(firstPid) : undefined;
+
+  const handleStartLiveRecording = async () => {
+    if (isLiveRecording || isProcessing) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        if (blob.size > 0) {
+          const file = new File([blob], `live-meeting-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
+          setSelectedFile(file);
+          setFileName(`${file.name} (${Math.round(blob.size / 1024)}KB)`);
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start(1000);
+      setIsLiveRecording(true);
+    } catch {
+      alert('マイクへのアクセスが許可されていません。ブラウザのマイク設定を確認してください。');
+    }
+  };
+
+  const handleStopLiveRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      setIsLiveRecording(false);
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   const handleProcess = async () => {
     if (isProcessing) return;
@@ -97,6 +147,12 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
           // サーバー設定済みマスターAPIキー（またはローカルAPIキー）で実行
           const result = await transcribeAudioWithGemini(selectedFile, apiKey);
           store.applyGeminiAudioResult(meetingId, result);
+          if (result.full_transcript && result.full_transcript.length > 80) {
+            await Promise.race([
+              store.refineMeetingSummaryWithAI(meetingId, result.full_transcript),
+              new Promise(resolve => setTimeout(resolve, 35000)),
+            ]);
+          }
         } catch {
           // オフライン・通信エラー時のフォールバック安全処理
           store.processMeetingRecordingAndAutoRegister(meetingId, `[録音ファイル: ${selectedFile.name} 解析完了]`);
@@ -247,16 +303,45 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
             </div>
           )}
 
-          {/* タブ2: 音声ファイルアップロード */}
+          {/* タブ2: 音声ファイルアップロード & その場録音 */}
           {activeTab === 'file' && (
             <div className="space-y-3">
+              <div className="p-3 rounded-2xl bg-neutral-100/90 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                    相手がZoomルームを用意した面談（その場録音）:
+                  </span>
+                  <span className="text-[10px] text-neutral-500">※録音同意を得て開始</span>
+                </div>
+                {!isLiveRecording ? (
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={handleStartLiveRecording}
+                    className="w-full py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all active:scale-[0.98]"
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                    <span>🔴 この場で直接録音を開始</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStopLiveRecording}
+                    className="w-full py-2.5 px-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md animate-pulse"
+                  >
+                    <Square className="w-3.5 h-3.5 text-red-500 fill-red-500" />
+                    <span>⏹ 録音停止してファイル確定 ({Math.floor(liveRecSec / 60)}:{String(liveRecSec % 60).padStart(2, '0')})</span>
+                  </button>
+                )}
+              </div>
+
               <label className="block text-neutral-600 dark:text-neutral-300 font-semibold mb-1">
-                録音音声ファイル（.m4a, .mp3, .wav等）:
+                または 録音音声ファイル（.m4a, .mp3, .wav等）を選択:
               </label>
               <div className="border-2 border-dashed border-purple-300 dark:border-purple-800/80 rounded-2xl p-4 text-center hover:bg-purple-50/50 dark:hover:bg-purple-950/20 transition-colors cursor-pointer relative bg-purple-50/20 dark:bg-purple-950/10">
                 <input
                   type="file"
-                  accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.mp4"
+                  accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.mp4,.webm"
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
@@ -265,11 +350,11 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
                   {fileName ? `選択済み: ${fileName}` : 'タップして録音音声ファイルを選択'}
                 </p>
                 <p className="text-[10px] text-neutral-400 mt-0.5">
-                  iPhoneのファイルApp、ボイスメモ、Zoom音声に対応
+                  iPhoneのファイルApp、ボイスメモ、Zoom音声に対応（全国の方言も標準語の書き言葉へ自動変換）
                 </p>
               </div>
               <p className="text-[11px] text-neutral-500 leading-relaxed">
-                ※AIが音声を丸ごと聴き取り、一言一句文字起こしした上で、相手の事業・話題・次回約束・お礼状をすべて自動生成します。
+                ※AIが音声を丸ごと聴き取り、一言一句文字起こしした上で、相手の事業・話題・次回約束・相関図・お礼状をすべて自動生成します。
               </p>
             </div>
           )}

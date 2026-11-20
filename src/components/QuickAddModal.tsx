@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus, Clock, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus, Clock, Loader2, Upload, Square } from 'lucide-react';
 import { store } from '../services/store';
 import { MeetingType, MeetingProvider } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
+import { transcribeAudioWithGemini, getStoredGeminiApiKey } from '../services/geminiAudioTranscribe';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -36,6 +37,96 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [isVoiceAnalyzing, setIsVoiceAnalyzing] = useState(false);
   const [voiceStep, setVoiceStep] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [voiceElapsedSec, setVoiceElapsedSec] = useState(0);
+  const [isLiveRecording, setIsLiveRecording] = useState(false);
+  const [liveRecSec, setLiveRecSec] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    if (!isLiveRecording) {
+      setLiveRecSec(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setLiveRecSec(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isLiveRecording]);
+
+  const handleAnalyzeAudioFile = async (audioFile: File) => {
+    if (isVoiceAnalyzing) return;
+    setIsVoiceAnalyzing(true);
+    setVoiceStep(1);
+    try {
+      const apiKey = getStoredGeminiApiKey();
+      const result = await transcribeAudioWithGemini(audioFile, apiKey);
+      setVoiceStep(2);
+      const newMeeting = store.createMeeting({
+        title: result.partner_name ? `${result.partner_name}様と1to1面談` : '録音から自動解析された面談',
+        participant_name: result.partner_name || undefined,
+        meeting_type: '1to1',
+        provider: 'zoom',
+        scheduled_start_at: new Date().toISOString(),
+      });
+      store.applyGeminiAudioResult(newMeeting.id, result);
+      if (result.full_transcript && result.full_transcript.length > 80) {
+        await Promise.race([
+          store.refineMeetingSummaryWithAI(newMeeting.id, result.full_transcript),
+          new Promise(resolve => setTimeout(resolve, 35000)),
+        ]);
+      }
+      setVoiceStep(3);
+      await store.pushStateToCloud().catch(() => {});
+      setVoiceStep(4);
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setIsVoiceAnalyzing(false);
+        setVoiceStep(0);
+        setTranscriptInput('');
+        onRefresh();
+        onClose();
+      }, 700);
+    } catch (e: any) {
+      setIsVoiceAnalyzing(false);
+      setVoiceStep(0);
+      alert('音声AI解析エラー:\n' + (e?.message || String(e)));
+    }
+  };
+
+  const handleStartLiveRecording = async () => {
+    if (isLiveRecording || isVoiceAnalyzing) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        if (blob.size > 0) {
+          const file = new File([blob], `live-meeting-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
+          await handleAnalyzeAudioFile(file);
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start(1000);
+      setIsLiveRecording(true);
+    } catch {
+      alert('マイクへのアクセスが許可されていません。ブラウザのマイク許可をONにするか、音声ファイル・文字起こしを貼り付けてください。');
+    }
+  };
+
+  const handleStopLiveRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      setIsLiveRecording(false);
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   useEffect(() => {
     if (!isVoiceAnalyzing) {
@@ -632,15 +723,64 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           {activeTab === 'voice' && (
             <div className="space-y-4">
               <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs text-purple-900 dark:text-purple-200 leading-relaxed">
-                <strong>🎙️ 事前入力は不要です（事後全自動）:</strong>
+                <strong>🎙️ 自分のZoomルームは全自動 / 相手のルームもワンタップ録音で自動カルテ化:</strong>
                 <p className="mt-1">
-                  面談後にZoomの録音や文字起こし、音声メモを渡すだけで、相手の本名・会社名・BNI所属・事業内容・話題・次回約束をAIがすべて自動抽出してカルテを作成します。
+                  ご自身がホストのZoom面談はWebhookで自動取り込みされます。<strong>お相手がZoomルームを用意してくれた場合</strong>も、下の「この場で直接録音」または「録音ファイル／文字起こし」からワンタップでカルテ・相関図まで自動登録できます（全国の方言もすべて標準語の書き言葉へ自動変換）。
                 </p>
+              </div>
+
+              {/* 相手ホスト面談用：その場ワンタップ録音 & 音声ファイル直接アップロード */}
+              <div className="p-3.5 rounded-2xl bg-neutral-100/90 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
+                    <Mic className="w-3.5 h-3.5 text-red-500" />
+                    <span>相手がZoomルームを用意した面談（音声から直接AI登録）</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-500">※相手方の録音同意を得てご利用ください</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {!isLiveRecording ? (
+                    <button
+                      type="button"
+                      disabled={isVoiceAnalyzing}
+                      onClick={handleStartLiveRecording}
+                      className="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all active:scale-[0.98]"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>🔴 この場で直接録音を開始</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStopLiveRecording}
+                      className="py-2.5 px-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md animate-pulse"
+                    >
+                      <Square className="w-3.5 h-3.5 text-red-500 fill-red-500" />
+                      <span>⏹ 録音停止してAI自動登録 ({Math.floor(liveRecSec / 60)}:{String(liveRecSec % 60).padStart(2, '0')})</span>
+                    </button>
+                  )}
+
+                  <label className="py-2.5 px-3 rounded-xl bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-all">
+                    <Upload className="w-3.5 h-3.5 text-purple-600" />
+                    <span>📁 録音ファイル(.m4a/.mp3)選択</span>
+                    <input
+                      type="file"
+                      accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.mp4,.webm"
+                      disabled={isVoiceAnalyzing || isLiveRecording}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleAnalyzeAudioFile(f);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
               <div>
                 <label className="block text-neutral-500 mb-1 text-xs font-medium">
-                  文字起こしテキスト または 面談メモ
+                  または 文字起こしテキスト・面談メモを貼り付け
                 </label>
                 <textarea
                   value={transcriptInput}
