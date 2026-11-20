@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Calendar, Camera, UserPlus, Mic, AlertCircle, CheckCircle2, Sparkles, Check, Plus, Clock, Loader2 } from 'lucide-react';
 import { store } from '../services/store';
 import { MeetingType, MeetingProvider } from '../types';
 import { formatMeetingSchedule } from '../utils/date';
@@ -34,6 +34,19 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [parsedResult, setParsedResult] = useState<any>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isVoiceAnalyzing, setIsVoiceAnalyzing] = useState(false);
+  const [voiceStep, setVoiceStep] = useState<0 | 1 | 2 | 3 | 4>(0);
+  const [voiceElapsedSec, setVoiceElapsedSec] = useState(0);
+
+  useEffect(() => {
+    if (!isVoiceAnalyzing) {
+      setVoiceElapsedSec(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setVoiceElapsedSec(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isVoiceAnalyzing]);
 
   const setPresetSchedule = (daysOffset: number, hour: number, minute: number = 0) => {
     const d = new Date();
@@ -631,29 +644,107 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 </label>
                 <textarea
                   value={transcriptInput}
+                  disabled={isVoiceAnalyzing}
                   onChange={(e) => setTranscriptInput(e.target.value)}
                   placeholder="Zoomの文字起こしや面談メモを貼り付けてください。下のボタンから自己紹介の実演サンプルを一発挿入できます。"
                   rows={6}
-                  className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-60"
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTranscriptInput(`高橋: はじめまして！本日は面談のお時間ありがとうございます。株式会社タカハシ看板デザイン 代表取締役の高橋誠治です。
+              {!isVoiceAnalyzing && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTranscriptInput(`高橋: はじめまして！本日は面談のお時間ありがとうございます。株式会社タカハシ看板デザイン 代表取締役の高橋誠治です。
 自分: はじめまして、よろしくお願いします！
 高橋: 私はBNI京都南チャプターに所属しておりまして、カテゴリーは屋外広告・看板施工です。最近は新規出店される町家カフェやクリニックのLED電飾看板を多く手掛けています。
 自分: 素晴らしいですね！どんな方をご紹介すると喜ばれますか？
 高橋: これから京都市内で新規開業やリニューアルオープンを控えている飲食店オーナー様がいらっしゃれば是非ご紹介いただきたいです。
 自分: わかりました。来週、心当たりのカフェオーナーの佐藤さんに声をかけてみますね。
 高橋: 本当にありがとうございます！次回までに当社の施工実績カタログと事例集をお送りしますね。`)}
-                  className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline flex items-center space-x-1"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>＋高橋様の自己紹介・看板業・約束サンプル文面を挿入</span>
-                </button>
-              </div>
+                    className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline flex items-center space-x-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>＋高橋様の自己紹介・看板業・約束サンプル文面を挿入</span>
+                  </button>
+                </div>
+              )}
+
+              {isVoiceAnalyzing && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-600/10 via-indigo-600/10 to-blue-600/10 dark:from-purple-950/60 dark:via-indigo-950/60 dark:to-blue-950/60 border-2 border-purple-500/60 dark:border-purple-500/50 space-y-3 shadow-md animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-purple-700 dark:text-purple-200 font-bold text-xs">
+                      <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-300 shrink-0" />
+                      <span>Gemini AI が面談全文を高精度解析中...</span>
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-600/15 text-purple-700 dark:text-purple-200">
+                      {voiceElapsedSec}秒経過（目安5〜10秒）
+                    </span>
+                  </div>
+
+                  {/* アニメーション進捗バー */}
+                  <div className="w-full h-2 rounded-full bg-purple-200/70 dark:bg-purple-900/60 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-blue-500 transition-all duration-700 ease-out rounded-full"
+                      style={{
+                        width:
+                          voiceStep === 1
+                            ? '30%'
+                            : voiceStep === 2
+                              ? '65%'
+                              : voiceStep === 3
+                                ? '88%'
+                                : voiceStep === 4
+                                  ? '100%'
+                                  : '15%',
+                      }}
+                    />
+                  </div>
+
+                  {/* 4ステップリアルタイム進捗チェックリスト */}
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex items-center space-x-2 text-emerald-700 dark:text-emerald-300 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                      <span>1. 話者特定・お相手氏名・BNI公式チャプター照合完了</span>
+                    </div>
+                    <div
+                      className={`flex items-center space-x-2 ${
+                        voiceStep >= 3
+                          ? 'text-emerald-700 dark:text-emerald-300 font-medium'
+                          : 'text-purple-800 dark:text-purple-200 font-bold'
+                      }`}
+                    >
+                      {voiceStep >= 3 ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                      ) : (
+                        <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin text-purple-600" />
+                      )}
+                      <span>2. 会話全文を客観的な「書き言葉」で構造化要約・ToDo抽出中...</span>
+                    </div>
+                    <div
+                      className={`flex items-center space-x-2 ${
+                        voiceStep >= 3
+                          ? 'text-purple-800 dark:text-purple-200 font-bold'
+                          : 'text-neutral-400 dark:text-neutral-500'
+                      }`}
+                    >
+                      {voiceStep >= 4 ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                      ) : voiceStep === 3 ? (
+                        <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin text-purple-600" />
+                      ) : (
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span>3. 人脈相関図への自動結線・クラウドDB同期中...</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-purple-700/80 dark:text-purple-300/80 font-medium">
+                    ※ボタンは1回押すだけでOKです。完了すると自動で画面が切り替わります。
+                  </p>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -661,29 +752,48 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 onClick={async () => {
                   if (!transcriptInput.trim() || isVoiceAnalyzing) return;
                   setIsVoiceAnalyzing(true);
+                  setVoiceStep(1);
                   try {
                     const res = store.autoRegisterFromPostMeetingTranscript(transcriptInput);
+                    setVoiceStep(2);
                     await Promise.race([
                       store.refineMeetingSummaryWithAI(res.meeting.id, transcriptInput.trim()),
                       new Promise(resolve => setTimeout(resolve, 35000)),
                     ]);
+                    setVoiceStep(3);
                     await store.pushStateToCloud().catch(() => {});
+                    setVoiceStep(4);
                     setIsSuccess(true);
                     setTimeout(() => {
                       setIsSuccess(false);
                       setIsVoiceAnalyzing(false);
+                      setVoiceStep(0);
                       setTranscriptInput('');
                       onRefresh();
                       onClose();
-                    }, 600);
+                    }, 700);
                   } catch {
                     setIsVoiceAnalyzing(false);
+                    setVoiceStep(0);
                   }
                 }}
-                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 active:scale-[0.98]"
+                className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-2 active:scale-[0.98] ${
+                  isVoiceAnalyzing
+                    ? 'bg-purple-800 text-white cursor-wait ring-2 ring-purple-400/50'
+                    : 'bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white'
+                }`}
               >
-                <Sparkles className={`w-4 h-4 ${isVoiceAnalyzing ? 'animate-spin' : ''}`} />
-                <span>{isVoiceAnalyzing ? 'Gemini AIが高精度要約・カルテ・相関図を生成中...' : 'AIで面談と相手カルテを一括自動生成'}</span>
+                {isVoiceAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>AI高精度解析を実行中...（そのままお待ちください）</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>AIで面談と相手カルテを一括自動生成</span>
+                  </>
+                )}
               </button>
             </div>
           )}
