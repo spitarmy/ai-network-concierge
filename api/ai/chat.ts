@@ -67,35 +67,46 @@ export default async function handler(req: any, res: any) {
         compactLines.push(lastSpeaker ? `${lastSpeaker}: ${line}` : line);
       }
       const joinedCompact = compactLines.join('\n');
-      const transcriptText = joinedCompact.length > 16000
-        ? `${joinedCompact.slice(0, 7000)}\n...(中略)...\n${joinedCompact.slice(Math.floor(joinedCompact.length / 2) - 2000, Math.floor(joinedCompact.length / 2) + 2000)}\n...(中略)...\n${joinedCompact.slice(-5000)}`
+      const transcriptText = joinedCompact.length > 60000
+        ? `${joinedCompact.slice(0, 25000)}\n...(中略)...\n${joinedCompact.slice(Math.floor(joinedCompact.length / 2) - 10000, Math.floor(joinedCompact.length / 2) + 10000)}\n...(中略)...\n${joinedCompact.slice(-15000)}`
         : joinedCompact;
       const hintName: string = (parsed.participantHint || '').trim();
-      const summarizePrompt = `あなたは株式会社ZENNOBATE（代表：勝賀野 太郎様 / 事業：残置物撤去・遺品整理、桂の総合リサイクルショップRoute Z、祇園のバーRoute Z、AI古物査定ツール「カンテノ」、ラファエル提携ライバー事務所、オーダーメイド腕時計アステラ、若手経営者交流会）専属のAI議事録・人脈カルテ要約エンジンです。
-以下の1to1面談の文字起こし全文を読み、口語や相槌（「えー」「あ、」「はい」等の話し言葉の断片）を一切そのまま抜き出すのではなく、第三者視点でプロフェッショナルに構造化・要約したJSONのみを出力してください。
+      const summarizePrompt = `あなたは株式会社ZENNOBATE（代表：勝賀野 太郎様 / 事業：残置物撤去・遺品整理、桂の総合リサイクルショップRoute Z、祇園のバーRoute Z、AI古物査定ツール「カンテノ」、ラファエル提携ライバー事務所、オーダーメイド腕時計アステラ、若手経営者交流会）専属の最高精度AI議事録・人脈カルテ・相関図要約エンジンです。
+以下の1to1面談の文字起こし全文を精読し、口語や相槌（「えー」「あ、」「はい」等の話し言葉の断片）を一切そのまま抜き出すのではなく、第三者視点でプロフェッショナルに構造化・要約したJSONのみを出力してください。
 
 【絶対厳守ルール】
-1. 議事録の生の発言文（「〜ですね」「〜ますね」「〜かなと」「〜じゃないですか」「〜ですよ」「〜って言われた」「〜んすか」「えー」「僕はえっと」等）をそのままコピーして貼り付けることは厳禁です。必ず客観的な「書き言葉（議事録調・体言止め、または簡潔なビジネス文書体）」で要約してください。疑問符「？」や関西弁・話し言葉の語尾は1文字たりとも含めないでください。
-2. 勝賀野 太郎様（4/勝賀野 太郎/残置物撤去・株式会社ゼノベイト・だんじりチャプター所属）自身のプロフィールとお相手のプロフィールを絶対に混同しないでください。主役はお相手（${hintName || '面談相手'}）です。
-3. 文字起こしにない事実や、会話中に登場する第三者（紹介者・知人など）の所属チャプター・会社・役職など、文脈上で100%確定していない推測情報を勝手に断定して書かないでください（紹介者などの所属が明言されていない場合は「〇〇様よりご紹介」とのみ記載し、未確定の所属チャプター等を推測で付与することは厳禁です）。
-4. 出力は以下のJSON形式のみとしてください:
+1. 議事録の生の発言文（「〜ですね」「〜ますね」「〜かなと」「〜じゃないですか」「〜ですよ」「〜やし」「〜やな」「えー」「僕はえっと」等）をそのままコピーして貼り付けることは厳禁です。必ず客観的な「書き言葉（議事録調・体言止め、または簡潔なビジネス文書体）」で要約してください。疑問符「？」や関西弁・話し言葉の語尾は1文字たりとも含めないでください。
+2. 勝賀野 太郎様（4/勝賀野 太郎/残置物撤去・株式会社ゼノベイト・だんじりチャプター所属）自身のプロフィールとお相手のプロフィールを絶対に混同しないでください。主役はお相手（${hintName || '面談相手'}）です。敬称はすべて「〜様」に統一してください。
+3. お相手の具体的なサービス内容・料金体系・強み・顧客比率・実績数値・所属コミュニティ・紹介してほしいターゲット層・双方で合意した具体的な紹介対象者名（フルネームや特徴）を漏れなく正確に構造化してください。
+4. BNIチャプター名は公式表記（例：「Magicalチャプター」「インヴィクタスチャプター」「ナインダーツチャプター」「シャングリラチャプター」「だんじりチャプター」「Beyondチャプター」「Forwardチャプター」「REvoチャプター」「Soulfulチャプター」）で記載してください。
+5. 文字起こしにない事実や、会話中に登場する第三者（紹介者・知人など）の所属チャプター・会社・役職など、文脈上で確定していない推測情報を勝手に断定して書かないでください。
+6. 出力は以下のJSON形式のみとしてください:
 {
   "realName": "お相手の氏名（姓 名の間に半角スペース）",
-  "phoneticName": "フリガナ（分かる場合のみ、不明なら空文字）",
-  "companyName": "お相手の会社名・屋号・法人名（複数あれば併記）",
+  "phoneticName": "フリガナ（分かる場合のみカタカナ、不明なら空文字）",
+  "companyName": "お相手の会社名・屋号・法人名（複数あれば併記、不明なら空文字）",
   "title": "役職（代表取締役、代表理事、代表など）",
-  "bniRegion": "BNIリージョン名（例：大阪セントラルリージョン）",
-  "bniChapter": "BNIチャプター名（例：シャングリラチャプター）",
-  "bniCategory": "BNIカテゴリー・専門分野",
-  "overview": "面談全体の3〜4文のプロフェッショナルな書き言葉要約（誰と、どのような事業強み・実績を共有し、どんな協業・紹介に合意したか）",
-  "topic": "盛り上がった話題・お相手の本業と強み・実績・紹介してほしいターゲット（必ず書き言葉・体言止めまたは簡潔な議事録調で記述）",
+  "bniRegion": "BNIリージョン名（例：京都シティセントラルリージョン）",
+  "bniChapter": "BNIチャプター名（例：Magicalチャプター）",
+  "bniCategory": "BNIカテゴリー・専門分野（例：求人広告代理店（採用応募対応代行・求人原稿作成・添削支援））",
+  "overview": "面談全体の3〜5文のプロフェッショナルな書き言葉要約（お相手の所属・専門分野、具体的なサービス強み・料金・実績、勝賀野様の事業とのシナジー、合意した次回アクションを網羅）",
+  "topic": "お相手の本業・独自サービス強み・実績・料金体系・紹介してほしいターゲット層の構造化要約（必ず書き言葉・体言止めまたは簡潔な議事録調で記述）",
   "promises": [
-    "具体的な次回ToDo・約束事項1（誰が誰に何を紹介・連絡・検討するか、書き言葉で記述）",
+    "具体的な次回ToDo・約束事項1（誰様から誰様へ、誰・何を紹介・送付・セッティングするか、書き言葉で明記）",
     "具体的な次回ToDo・約束事項2"
   ],
-  "serviceTitle": "お相手の主力サービス名（30文字以内・体言止め）",
+  "serviceTitle": "お相手の主力サービス名（40文字以内・体言止め）",
+  "specialties": "具体的な取扱商品・提供サービス・強み・実績の詳細（書き言葉）",
   "targetClients": "お相手が紹介してほしいターゲット層（体言止め）",
-  "personalNotes": "年齢・出身・居住地・家族構成・趣味・共通の知人など、次回1to1で役立つパーソナル情報（書き言葉）"
+  "personalNotes": "出身・居住地・家族構成・ペット・趣味・所属団体（守成クラブ等）・共通の知人など、次回1to1で役立つパーソナル情報（書き言葉）",
+  "relationships": [
+    {
+      "personName": "面談内で言及された紹介元・紹介予定先・協業キーパーソンの氏名（例：杉本 愛）",
+      "subtitle": "その人物の専門分野・所属・特徴（例：就労継続支援B型・福祉連携）",
+      "relationshipType": "お相手とその人物の関係・紹介種別（例：紹介予定（就労継続支援B型・福祉ネットワーク））",
+      "evidence": "面談内での具体的な言及・合意内容（書き言葉1文）"
+    }
+  ]
 }`;
 
       const enforceWrittenStyle = (val?: string): string => {
@@ -143,10 +154,21 @@ export default async function handler(req: any, res: any) {
             resultJson.overview = enforceWrittenStyle(resultJson.overview);
             resultJson.topic = enforceWrittenStyle(resultJson.topic);
             resultJson.serviceTitle = enforceWrittenStyle(resultJson.serviceTitle);
+            resultJson.specialties = enforceWrittenStyle(resultJson.specialties);
             resultJson.targetClients = enforceWrittenStyle(resultJson.targetClients);
             resultJson.personalNotes = enforceWrittenStyle(resultJson.personalNotes);
             if (Array.isArray(resultJson.promises)) {
               resultJson.promises = resultJson.promises.map((p: string) => enforceWrittenStyle(p)).filter(Boolean);
+            }
+            if (Array.isArray(resultJson.relationships)) {
+              resultJson.relationships = resultJson.relationships
+                .map((r: any) => ({
+                  personName: enforceWrittenStyle(r?.personName),
+                  subtitle: enforceWrittenStyle(r?.subtitle),
+                  relationshipType: enforceWrittenStyle(r?.relationshipType),
+                  evidence: enforceWrittenStyle(r?.evidence),
+                }))
+                .filter((r: any) => r.personName && r.personName.length >= 2 && !/勝賀野|ゼノベイト|ZENNOBATE/i.test(r.personName));
             }
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');

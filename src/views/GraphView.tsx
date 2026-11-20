@@ -42,8 +42,28 @@ export const GraphView: React.FC<GraphViewProps> = ({ onSelectPerson }) => {
   const [evidenceText, setEvidenceText] = useState('');
 
   const allPersons = store.getPersons();
-  const realPersons = allPersons.filter(p => p.status !== 'provisional');
-  const provisionalPersons = allPersons.filter(p => p.status === 'provisional');
+  const realPersons = useMemo(() => {
+    const seen = new Set<string>();
+    return allPersons.filter(p => {
+      if (p.status === 'provisional') return false;
+      const norm = (p.display_name || '').replace(/（.*?）|\(.*?\)/g, '').replace(/[\s　様さん氏]+/g, '');
+      if (!norm || seen.has(norm)) return false;
+      seen.add(norm);
+      return true;
+    });
+  }, [allPersons]);
+  const provisionalPersons = useMemo(() => {
+    const seen = new Set<string>(
+      realPersons.map(p => (p.display_name || '').replace(/（.*?）|\(.*?\)/g, '').replace(/[\s　様さん氏]+/g, ''))
+    );
+    return allPersons.filter(p => {
+      if (p.status !== 'provisional') return false;
+      const norm = (p.display_name || '').replace(/（.*?）|\(.*?\)/g, '').replace(/[\s　様さん氏]+/g, '');
+      if (!norm || seen.has(norm)) return false;
+      seen.add(norm);
+      return true;
+    });
+  }, [allPersons, realPersons]);
 
   const filterRelationships = (targetMode: 'actual' | 'ai_suggested') => {
     const raw = store.getRelationships(targetMode);

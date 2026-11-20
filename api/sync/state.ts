@@ -8,6 +8,16 @@ const SAMPLE_IDS = new Set([
   'p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov', 'p-tenant2-secret',
   'm-yamada-upcoming', 'm-yamada-past1', 'm-yamada-past2', 'm-zoom-89527504054',
   'cs-yamada', 'rq-1', 'ref-1',
+  // 重複クリックで一時生成された中川様の重複カルテ・重複会議・旧口語データIDをサーバー側でも永久遮断
+  'p-1795144176332-6zpdd', 'p-1795144181464-j1acc',
+  'm-1795144176336-doyxx', 'm-1795144181470-t0mdy',
+  'tr-m-1795144176336-doyxx', 'tr-m-1795144181470-t0mdy',
+  'bnim-1795144176350', 'bnim-1795144181485', 'bnim-1795144172318',
+  'chap-custom-1795144189449', 'chap-custom-1795144193270', 'chap-custom-1795144183847',
+  'bo-1795144172318-001c6', 'bo-ai-1795144189454', 'bo-ai-1795144193276',
+  'fact-top-m-1795144172303-ve1be-1795144172328', 'fact-prom-m-1795144172303-ve1be-1795144172328',
+  'fact-top-m-1795144176336-doyxx-ai', 'fact-prom-m-1795144176336-doyxx-ai',
+  'fact-top-m-1795144181470-t0mdy-ai', 'fact-prom-m-1795144181470-t0mdy-ai',
 ]);
 
 declare global {
@@ -95,13 +105,18 @@ function getItemTime(item: any): number {
   return isNaN(t) ? 0 : t;
 }
 
+function isColloquialOrPlaceholder(item: any): boolean {
+  const txt = `${item?.notes || ''} ${item?.summary || ''} ${item?.service_title || ''} ${item?.fact_value || ''}`;
+  return /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな/.test(txt);
+}
+
 function mergeArrayById(serverArr: any[] = [], clientArr: any[] = [], deletedSet: Set<string>): any[] {
   const map = new Map<string, any>();
 
   const upsert = (item: any) => {
     if (!item || !item.id) return;
     if (deletedSet.has(item.id) || SAMPLE_IDS.has(item.id)) return;
-    if (item.person_id === 'p-zoom-participant') return;
+    if (item.person_id === 'p-zoom-participant' || SAMPLE_IDS.has(item.person_id) || SAMPLE_IDS.has(item.meeting_id) || SAMPLE_IDS.has(item.source_id)) return;
 
     const existing = map.get(item.id);
     if (!existing) {
@@ -109,10 +124,18 @@ function mergeArrayById(serverArr: any[] = [], clientArr: any[] = [], deletedSet
       return;
     }
 
+    // 口語・プレースホルダーが残っている古いキャッシュは、クリーンな要約レコードを上書きできないようにする
+    const itemIsColloquial = isColloquialOrPlaceholder(item);
+    const existingIsColloquial = isColloquialOrPlaceholder(existing);
+    if (itemIsColloquial && !existingIsColloquial) {
+      return;
+    }
+
     // 完了済み面談や本登録(active)ステータスは後退させない
     const itemTime = getItemTime(item);
     const existingTime = getItemTime(existing);
     const preferItem =
+      (!itemIsColloquial && existingIsColloquial) ||
       (item.status === 'completed' && existing.status !== 'completed') ||
       (item.recording_status === 'completed' && existing.recording_status !== 'completed') ||
       (item.status === 'active' && existing.status === 'provisional') ||

@@ -147,7 +147,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   )}
                   {upcomingParticipant && (
                     <span className="text-xs text-neutral-400">
-                      • 通算{upcomingParticipant.meeting_count}回目の面談
+                      • 通算{Math.max(1, upcomingParticipant.meeting_count || 1)}回目の面談
                     </span>
                   )}
                 </div>

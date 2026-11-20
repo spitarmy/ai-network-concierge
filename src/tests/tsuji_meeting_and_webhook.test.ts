@@ -549,4 +549,35 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(bniMems[0].region_name).toBe('京都シティセントラルリージョン (Kyoto City Central)');
     expect(bniMems[0].category).toContain('遺品整理');
   });
+
+  it('中川丈太郎様の重複人物・重複会議が1名・1会議に完全統合され、会話口調が一切残らず相関図にも紹介エッジが結線されていること', () => {
+    store.setTenantId('tenant-001');
+    store.seedNakagawaMeeting();
+    store.reconcileLegacyAndDuplicateData();
+
+    const nakagawas = store.getPersons().filter(p => p.display_name.replace(/\s+/g, '') === '中川丈太郎');
+    expect(nakagawas.length).toBe(1);
+    const nakagawa = nakagawas[0];
+    expect(nakagawa.id).toBe('p-1795144172299-93er5');
+    expect(nakagawa.meeting_count).toBeGreaterThanOrEqual(1);
+    expect(nakagawa.notes).not.toContain('もうバーも大好きやし');
+    expect(nakagawa.notes).not.toContain('LINEでZoom URLのみ受領');
+
+    const bniMems = store.getBNIMembershipsForPerson(nakagawa.id);
+    expect(bniMems.length).toBe(1);
+    expect(bniMems[0].chapter_name).toBe('Magicalチャプター');
+    expect(bniMems[0].region_name).toBe('京都シティセントラルリージョン (Kyoto City Central)');
+
+    const nakagawaMeetings = store.getMeetingsForPerson(nakagawa.id);
+    expect(nakagawaMeetings.length).toBe(1);
+    const tr = store.getTranscriptForMeeting(nakagawaMeetings[0].id);
+    expect(tr?.summary).toContain('Magicalチャプター');
+    expect(tr?.summary).not.toContain('もうバーも大好きやし');
+    expect(tr?.summary).not.toContain('サッカーボール蹴るなんて');
+
+    const actualRels = store.getRelationships('actual');
+    expect(actualRels.some(r => r.id === 'rel-nakagawa-sugimoto-ai')).toBe(true);
+    expect(actualRels.some(r => r.id === 'rel-takada-nakagawa')).toBe(true);
+    expect(actualRels.some(r => r.id === 'rel-takada-mori')).toBe(true);
+  });
 });

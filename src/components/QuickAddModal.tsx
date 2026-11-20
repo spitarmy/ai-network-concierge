@@ -33,6 +33,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [meetingUrl, setMeetingUrl] = useState('');
   const [parsedResult, setParsedResult] = useState<any>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isVoiceAnalyzing, setIsVoiceAnalyzing] = useState(false);
 
   const setPresetSchedule = (daysOffset: number, hour: number, minute: number = 0) => {
     const d = new Date();
@@ -656,26 +657,33 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
               <button
                 type="button"
+                disabled={isVoiceAnalyzing || !transcriptInput.trim()}
                 onClick={async () => {
-                  if (!transcriptInput.trim()) return;
-                  const res = store.autoRegisterFromPostMeetingTranscript(transcriptInput);
-                  await Promise.race([
-                    store.refineMeetingSummaryWithAI(res.meeting.id, transcriptInput.trim()),
-                    new Promise(resolve => setTimeout(resolve, 35000)),
-                  ]);
-                  await store.pushStateToCloud().catch(() => {});
-                  setIsSuccess(true);
-                  setTimeout(() => {
-                    setIsSuccess(false);
-                    setTranscriptInput('');
-                    onRefresh();
-                    onClose();
-                  }, 600);
+                  if (!transcriptInput.trim() || isVoiceAnalyzing) return;
+                  setIsVoiceAnalyzing(true);
+                  try {
+                    const res = store.autoRegisterFromPostMeetingTranscript(transcriptInput);
+                    await Promise.race([
+                      store.refineMeetingSummaryWithAI(res.meeting.id, transcriptInput.trim()),
+                      new Promise(resolve => setTimeout(resolve, 35000)),
+                    ]);
+                    await store.pushStateToCloud().catch(() => {});
+                    setIsSuccess(true);
+                    setTimeout(() => {
+                      setIsSuccess(false);
+                      setIsVoiceAnalyzing(false);
+                      setTranscriptInput('');
+                      onRefresh();
+                      onClose();
+                    }, 600);
+                  } catch {
+                    setIsVoiceAnalyzing(false);
+                  }
                 }}
-                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 active:scale-[0.98]"
+                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 active:scale-[0.98]"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>AIで面談と相手カルテを一括自動生成</span>
+                <Sparkles className={`w-4 h-4 ${isVoiceAnalyzing ? 'animate-spin' : ''}`} />
+                <span>{isVoiceAnalyzing ? 'Gemini AIが高精度要約・カルテ・相関図を生成中...' : 'AIで面談と相手カルテを一括自動生成'}</span>
               </button>
             </div>
           )}
