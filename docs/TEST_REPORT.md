@@ -10,11 +10,11 @@
 
 | テストスイート | 実行コマンド | テスト件数 | 合否結果 | 実行日時 |
 |---|---|---|---|---|
-| **TypeScript 型チェック** | `npm run typecheck` (`tsc --noEmit`) | 全モジュール (`src/` + `api/`) | **PASS (0 errors)** | 2026-11-10 21:15 |
-| **受け入れ・結合自動テスト** | `npm test` (`vitest run`) | 59項目 | **PASS (59/59)** | 2026-11-10 21:15 |
-| **Zoom Cloud API 実接続検証** | `/api/zoom/sync` 実OAuth + AI要約先行取得 + VTT取得 | 実セッション3件 + 今後のZoom終了後即時反映検証 | **PASS (200 OK)** | 2026-11-10 21:15 |
-| **PC⇄スマホ同期 & 紹介ハブ・AI秘書検証** | `/api/sync/state` + `ingestZoomSessions` + `queryAI` | 予定・カルテ統合、紹介マッチング3件、自然言語検索検証 | **PASS (200 OK)** | 2026-11-10 21:15 |
-| **本番ビルド・Vercel配信** | `npm run build` + Vercel Production Deploy | Production URL | **PASS (200 OK)** | 2026-11-10 21:15 |
+| **TypeScript 型チェック** | `npm run typecheck` (`tsc --noEmit`) | 全モジュール (`src/` + `api/`) | **PASS (0 errors)** | 2026-11-20 23:49 |
+| **受け入れ・結合自動テスト** | `npm test` (`vitest run`) | 70項目 | **PASS (70/70)** | 2026-11-20 23:49 |
+| **Zoom Cloud API 実接続検証** | `/api/zoom/sync` 実OAuth + AI要約先行取得 + VTT取得 | 実セッション3件 + 今後のZoom終了後即時反映検証 | **PASS (200 OK)** | 2026-11-20 23:49 |
+| **PC⇄スマホ同期 & Vercel Blob暗号化永続化** | `/api/sync/state` + AES-256-GCM Vercel Blob (`hnd1`) + `tenant-endo` 分離検証 | 遠藤様専用アカウント完全分離・重複排除・永続保存 | **PASS (200 OK)** | 2026-11-20 23:49 |
+| **本番ビルド・Vercel配信** | `npm run build` + Vercel Production Deploy | Production URL | **PASS (200 OK)** | 2026-11-20 23:49 |
 
 ---
 

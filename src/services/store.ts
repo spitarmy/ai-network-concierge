@@ -606,6 +606,26 @@ const EMPTY_PRODUCTION_STATE: DatabaseState = {
       created_at: new Date().toISOString(),
     },
     {
+      id: 'tenant-endo',
+      name: '遠藤様（販売・ブランディングパートナー専用アカウント）',
+      plan_tier: 'premium',
+      monthly_budget_jpy: 1000,
+      current_spend_jpy: 0,
+      is_budget_throttled: false,
+      created_at: '2026-11-20T14:30:00.000Z',
+      owner_profile: {
+        owner_name: '遠藤',
+        owner_phonetic: 'えんどう',
+        company_name: '',
+        title: '代表',
+        bni_region_name: '',
+        bni_chapter_name: '',
+        bni_category: 'ブランディング・販売戦略パートナー',
+        specialty_summary: '',
+        is_onboarded: false,
+      },
+    },
+    {
       id: 'tenant-002',
       name: '別テナント（テスト検証用）',
       plan_tier: 'standard',
@@ -637,6 +657,7 @@ const EMPTY_PRODUCTION_STATE: DatabaseState = {
 
 const OAUTH_STORAGE_KEY = 'ai_network_concierge_oauth_config';
 const DELETED_IDS_STORAGE_KEY = 'ai_network_concierge_deleted_ids';
+const BOUND_TENANT_STORAGE_KEY = 'ai_concierge_bound_tenant_id';
 
 const DEFAULT_OAUTH_CONFIG: OAuthIntegrationConfig = {
   zoom: {
@@ -701,14 +722,84 @@ class DataStore {
   public lastSyncedAt: string | null = null;
   public zoomApiConnected = false;
 
+  private getActiveStorageKey(): string {
+    return this.lockedTenantId && this.lockedTenantId !== 'tenant-001'
+      ? `${STORAGE_KEY}__${this.lockedTenantId}`
+      : STORAGE_KEY;
+  }
+
+  private getActiveDeletedKey(): string {
+    return this.lockedTenantId && this.lockedTenantId !== 'tenant-001'
+      ? `${DELETED_IDS_STORAGE_KEY}__${this.lockedTenantId}`
+      : DELETED_IDS_STORAGE_KEY;
+  }
+
+  public ensurePartnerTenants(): void {
+    if (!Array.isArray(this.state.tenants)) {
+      this.state.tenants = [];
+    }
+    if (!this.state.tenants.some(t => t.id === 'tenant-endo')) {
+      this.state.tenants.push({
+        id: 'tenant-endo',
+        name: '遠藤様（販売・ブランディングパートナー専用アカウント）',
+        plan_tier: 'premium',
+        monthly_budget_jpy: 1000,
+        current_spend_jpy: 0,
+        is_budget_throttled: false,
+        created_at: '2026-11-20T14:30:00.000Z',
+        owner_profile: {
+          owner_name: '遠藤',
+          owner_phonetic: 'えんどう',
+          company_name: '',
+          title: '代表',
+          bni_region_name: '',
+          bni_chapter_name: '',
+          bni_category: 'ブランディング・販売戦略パートナー',
+          specialty_summary: '',
+          is_onboarded: false,
+        },
+      });
+    }
+  }
+
   constructor() {
-    const rawDeleted = getStorageItem(DELETED_IDS_STORAGE_KEY);
+    // 1. まず起動直後にURLパラメータ (?tenant=tenant-xxx) またはPWAホーム画面バインドを確認し、テナント専用ストレージ空間を確定
+    if (typeof window !== 'undefined' && window.location) {
+      try {
+        const sp = new URLSearchParams(window.location.search || '');
+        const urlTenant = (sp.get('tenant') || '').trim();
+        if (urlTenant === 'tenant-001') {
+          this.lockedTenantId = null;
+          if (window.localStorage) window.localStorage.removeItem(BOUND_TENANT_STORAGE_KEY);
+        } else if (urlTenant) {
+          this.lockedTenantId = urlTenant;
+          // オーナー端末以外の専用端末（遠藤様のスマホ/PC等）ではPWA起動時にもテナントが外れないよう記憶
+          const hasMainOwnerCache = Boolean(getStorageItem(STORAGE_KEY));
+          if (!hasMainOwnerCache) {
+            setStorageItem(BOUND_TENANT_STORAGE_KEY, urlTenant);
+          }
+        } else {
+          const boundTenant = (getStorageItem(BOUND_TENANT_STORAGE_KEY) || '').trim();
+          const hasMainOwnerCache = Boolean(getStorageItem(STORAGE_KEY));
+          if (boundTenant && boundTenant !== 'tenant-001' && !hasMainOwnerCache) {
+            this.lockedTenantId = boundTenant;
+          }
+        }
+      } catch {
+        // ignore URL parse error
+      }
+    }
+
+    const activeStorageKey = this.getActiveStorageKey();
+    const activeDeletedKey = this.getActiveDeletedKey();
+
+    const rawDeleted = getStorageItem(activeDeletedKey);
     try {
       this.deletedIds = new Set<string>(rawDeleted ? JSON.parse(rawDeleted) : []);
     } catch {
       this.deletedIds = new Set<string>();
     }
-    const raw = getStorageItem(STORAGE_KEY);
+    const raw = getStorageItem(activeStorageKey);
 
     if (raw) {
       try {
@@ -718,8 +809,9 @@ class DataStore {
       }
     } else {
       this.state = JSON.parse(JSON.stringify(EMPTY_PRODUCTION_STATE));
-      this.persist();
     }
+
+    this.ensurePartnerTenants();
 
     // 安全防御: 万が一 state 内にサンプルの山田・田中・佐藤が残っていた場合のみサンプルIDだけを安全に排除
     if (this.state.persons && this.state.persons.some(p => ['p-yamada', 'p-tanaka', 'p-sato', 'p-nakamura-prov'].includes(p.id))) {
@@ -750,35 +842,24 @@ class DataStore {
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様・三島 宏幸様・森 雄平様・中川 丈太郎様の1to1面談実績を自動登録
-    this.seedTsujiMeeting();
-    this.seedKimuraMeeting();
-    this.seedTanakaMeeting();
-    this.seedIwaneMeeting();
-    this.seedKobiMeeting();
-    this.seedMishimaMeeting();
-    this.seedMoriMeeting();
-    this.seedNakagawaMeeting();
-
-    // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
-    this.reconcileLegacyAndDuplicateData();
-
-    // URLパラメータ (?tenant=tenant-xxx) が指定されている場合は起動直後から該当会員テナントへ即座に切り替え、顧客専用ロックモードを有効化
-    if (typeof window !== 'undefined' && window.location && window.location.search) {
-      try {
-        const sp = new URLSearchParams(window.location.search);
-        const urlTenant = sp.get('tenant');
-        if (urlTenant && urlTenant.trim()) {
-          const cleanId = urlTenant.trim();
-          if (cleanId !== 'tenant-001') {
-            this.lockedTenantId = cleanId;
-          }
-          this.setTenantId(cleanId);
-        }
-      } catch {
-        // ignore URL parse error
-      }
+    if (this.lockedTenantId && this.lockedTenantId !== 'tenant-001') {
+      // 遠藤様等の専用ロックアカウント起動時：勝賀野様のシードデータは一切混入させず、当該テナント専用空間で起動
+      this.setTenantId(this.lockedTenantId);
+      this.reconcileLegacyAndDuplicateData();
+    } else {
+      // 勝賀野様（オーナーアカウント）起動時
+      this.state.currentTenantId = 'tenant-001';
+      this.seedTsujiMeeting();
+      this.seedKimuraMeeting();
+      this.seedTanakaMeeting();
+      this.seedIwaneMeeting();
+      this.seedKobiMeeting();
+      this.seedMishimaMeeting();
+      this.seedMoriMeeting();
+      this.seedNakagawaMeeting();
+      this.reconcileLegacyAndDuplicateData();
     }
+    this.persist(true);
   }
 
   public purgeBogusDemoData(): void {
@@ -4082,19 +4163,21 @@ class DataStore {
     }
 
     // 5.5 会話中の第三者言及から誤抽出された会社名（「株式会社みやびっていう」等）、重複した「〜様の専門事業」オファリング、および「うち以外のチャプター」等の会話文BNI誤登録の完全排除
-    if (
-      !(this.state.businessOfferings || []).some(b => b.id === 'bo-tsuji-1') ||
-      (this.state.businessOfferings || []).filter(b => b.person_id === 'p-tsuji-akinori').length > 1
-    ) {
-      this.seedTsujiMeeting();
-      changed = true;
-    }
-    if (
-      !(this.state.businessOfferings || []).some(b => b.id === 'bo-kimura-1') ||
-      (this.state.businessOfferings || []).filter(b => b.person_id === 'p-kimura-naofumi').length > 1
-    ) {
-      this.seedKimuraMeeting();
-      changed = true;
+    if (tid === 'tenant-001') {
+      if (
+        !(this.state.businessOfferings || []).some(b => b.id === 'bo-tsuji-1') ||
+        (this.state.businessOfferings || []).filter(b => b.person_id === 'p-tsuji-akinori').length > 1
+      ) {
+        this.seedTsujiMeeting();
+        changed = true;
+      }
+      if (
+        !(this.state.businessOfferings || []).some(b => b.id === 'bo-kimura-1') ||
+        (this.state.businessOfferings || []).filter(b => b.person_id === 'p-kimura-naofumi').length > 1
+      ) {
+        this.seedKimuraMeeting();
+        changed = true;
+      }
     }
 
     if (Array.isArray(this.state.organizationMemberships)) {
@@ -4165,69 +4248,75 @@ class DataStore {
     // 6. BNI全国公式マスターデータ（53リージョン・401チャプター）への自動アップグレード＆旧サンプルチャプター排除
     const isSampleTestMode = (this.state.persons || []).some(p => p.id === 'p-yamada');
     if (!isSampleTestMode) {
-      const bogusChapterIds = ['chap-kyoto-e', 'chap-kyoto-n', 'chap-osaka-bay', 'chap-tokyo-ginza', 'ch-1794481861967'];
-      const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
-      const hasColloquialMishima =
-        !(this.state.facts || []).some(f => f.id === 'fact-mishima-1') ||
-        !(this.state.facts || []).some(f => f.id === 'fact-mori-1') ||
-        !(this.state.facts || []).some(f => f.id === 'fact-nakagawa-1') ||
-        !(this.state.persons || []).some(p => p.id === 'p-hori-miyabi') ||
-        !(this.state.relationships || []).some(r => r.id === 'rel-nakagawa-sugimoto-ai') ||
-        (this.state.persons || []).some(p => p.id === 'p-1795144176332-6zpdd' || p.id === 'p-1795144181464-j1acc') ||
-        (this.state.meetings || []).some(m => m.id === 'm-1795144176336-doyxx' || m.id === 'm-1795144181470-t0mdy') ||
-        (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ|もうバーも大好きやし|さんであの奈良かに行ってみたいな/.test(f.fact_value || '')) ||
-        (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル|もうバーも大好きやし/.test(b.service_title || ''));
-      const hasBogus =
-        (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
-        (this.state.bniChapters || []).length < 100 ||
-        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1') ||
-        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-mori-1') ||
-        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-nakagawa-1') ||
-        hasColloquialMishima;
-      if (hasBogus) {
-        for (const id of [
-          ...bogusChapterIds,
-          ...bogusRegionIds,
-          'bnim-1794481861967',
-          'p-1794813034743-0rmii',
-          'om-1794805667075',
-          'bo-1794804591389-jv0hp',
-          'bnim-1795057589204-vyzn',
-          'chap-custom-1795057589204',
-          'bo-1795144172318-001c6',
-          'fact-top-m-1795144172303-ve1be-1795144172328',
-          'fact-prom-m-1795144172303-ve1be-1795144172328',
-          'bnim-1795144172318',
-          'chap-custom-1795144183847',
-          'p-1795144176332-6zpdd',
-          'p-1795144181464-j1acc',
-          'm-1795144176336-doyxx',
-          'm-1795144181470-t0mdy',
-          'tr-m-1795144176336-doyxx',
-          'tr-m-1795144181470-t0mdy',
-          'bnim-1795144176350',
-          'bnim-1795144181485',
-          'chap-custom-1795144189449',
-          'chap-custom-1795144193270',
-          'bo-ai-1795144189454',
-          'bo-ai-1795144193276',
-          'fact-top-m-1795144176336-doyxx-ai',
-          'fact-prom-m-1795144176336-doyxx-ai',
-          'fact-top-m-1795144181470-t0mdy-ai',
-          'fact-prom-m-1795144181470-t0mdy-ai',
-        ]) {
-          this.deletedIds.add(id);
-        }
+      if ((this.state.bniChapters || []).length < 100) {
         this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
         this.state.bniChapters = JSON.parse(JSON.stringify(OFFICIAL_BNI_CHAPTERS));
-        this.state.bniMemberships = (this.state.bniMemberships || []).filter(
-          bm => !['bnim-1794481861967', 'bnim-1795057589204-vyzn', 'bnim-1795144172318', 'bnim-1795144176350', 'bnim-1795144181485'].includes(bm.id)
-        );
         changed = true;
+      }
+      if (tid === 'tenant-001') {
+        const bogusChapterIds = ['chap-kyoto-e', 'chap-kyoto-n', 'chap-osaka-bay', 'chap-tokyo-ginza', 'ch-1794481861967'];
+        const bogusRegionIds = ['reg-osaka-s', 'reg-tokyo-c'];
+        const hasColloquialMishima =
+          !(this.state.facts || []).some(f => f.id === 'fact-mishima-1') ||
+          !(this.state.facts || []).some(f => f.id === 'fact-mori-1') ||
+          !(this.state.facts || []).some(f => f.id === 'fact-nakagawa-1') ||
+          !(this.state.persons || []).some(p => p.id === 'p-hori-miyabi') ||
+          !(this.state.relationships || []).some(r => r.id === 'rel-nakagawa-sugimoto-ai') ||
+          (this.state.persons || []).some(p => p.id === 'p-1795144176332-6zpdd' || p.id === 'p-1795144181464-j1acc') ||
+          (this.state.meetings || []).some(m => m.id === 'm-1795144176336-doyxx' || m.id === 'm-1795144181470-t0mdy') ||
+          (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ|もうバーも大好きやし|さんであの奈良かに行ってみたいな/.test(f.fact_value || '')) ||
+          (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル|もうバーも大好きやし/.test(b.service_title || ''));
+        const hasBogus =
+          (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
+          !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1') ||
+          !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-mori-1') ||
+          !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-nakagawa-1') ||
+          hasColloquialMishima;
+        if (hasBogus) {
+          for (const id of [
+            ...bogusChapterIds,
+            ...bogusRegionIds,
+            'bnim-1794481861967',
+            'p-1794813034743-0rmii',
+            'om-1794805667075',
+            'bo-1794804591389-jv0hp',
+            'bnim-1795057589204-vyzn',
+            'chap-custom-1795057589204',
+            'bo-1795144172318-001c6',
+            'fact-top-m-1795144172303-ve1be-1795144172328',
+            'fact-prom-m-1795144172303-ve1be-1795144172328',
+            'bnim-1795144172318',
+            'chap-custom-1795144183847',
+            'p-1795144176332-6zpdd',
+            'p-1795144181464-j1acc',
+            'm-1795144176336-doyxx',
+            'm-1795144181470-t0mdy',
+            'tr-m-1795144176336-doyxx',
+            'tr-m-1795144181470-t0mdy',
+            'bnim-1795144176350',
+            'bnim-1795144181485',
+            'chap-custom-1795144189449',
+            'chap-custom-1795144193270',
+            'bo-ai-1795144189454',
+            'bo-ai-1795144193276',
+            'fact-top-m-1795144176336-doyxx-ai',
+            'fact-prom-m-1795144176336-doyxx-ai',
+            'fact-top-m-1795144181470-t0mdy-ai',
+            'fact-prom-m-1795144181470-t0mdy-ai',
+          ]) {
+            this.deletedIds.add(id);
+          }
+          this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
+          this.state.bniChapters = JSON.parse(JSON.stringify(OFFICIAL_BNI_CHAPTERS));
+          this.state.bniMemberships = (this.state.bniMemberships || []).filter(
+            bm => !['bnim-1794481861967', 'bnim-1795057589204-vyzn', 'bnim-1795144172318', 'bnim-1795144176350', 'bnim-1795144181485'].includes(bm.id)
+          );
+          changed = true;
+        }
       }
     }
 
-    // 7. 汎用・同名人物カルテおよび同日同一人物の重複完了面談の自動名寄せ・統合（相関図や直近面談での重複発生を100%防止）
+    // 7. 汎用・同名人物カルテおよび同日同一人物の重複完了面談の自動名寄せ・統合（全テナント共通・相関図や直近面談での重複発生を100%防止）
     const canonicalSeedPersonIds = new Set([
       'p-1795144172299-93er5',
       'p-1795057464160-kxovb',
@@ -4332,12 +4421,14 @@ class DataStore {
     }
 
     if (changed) {
-      this.seedTanakaMeeting();
-      this.seedIwaneMeeting();
-      this.seedKobiMeeting();
-      this.seedMishimaMeeting();
-      this.seedMoriMeeting();
-      this.seedNakagawaMeeting();
+      if (tid === 'tenant-001') {
+        this.seedTanakaMeeting();
+        this.seedIwaneMeeting();
+        this.seedKobiMeeting();
+        this.seedMishimaMeeting();
+        this.seedMoriMeeting();
+        this.seedNakagawaMeeting();
+      }
       this.saveDeletedIds();
       this.persist();
     }
@@ -4841,7 +4932,7 @@ class DataStore {
   }
 
   private saveDeletedIds() {
-    setStorageItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(Array.from(this.deletedIds).slice(-500)));
+    setStorageItem(this.getActiveDeletedKey(), JSON.stringify(Array.from(this.deletedIds).slice(-500)));
   }
 
   private isBrowserSyncEnabled(): boolean {
@@ -4890,7 +4981,7 @@ class DataStore {
   }
 
   private persist(skipCloudPush = false) {
-    setStorageItem(STORAGE_KEY, JSON.stringify(this.state));
+    setStorageItem(this.getActiveStorageKey(), JSON.stringify(this.state));
     if (!skipCloudPush && this.isBrowserSyncEnabled()) {
       if (this.syncTimer) clearTimeout(this.syncTimer);
       this.syncTimer = setTimeout(() => {
@@ -5013,6 +5104,7 @@ class DataStore {
           referrals: this.mergeCollectionById(data.state.referrals, localBackup.referrals),
           relationships: this.mergeCollectionById(data.state.relationships, localBackup.relationships),
         };
+        this.ensurePartnerTenants();
         if (activeTenantId === 'tenant-001') {
           this.seedTsujiMeeting();
           this.seedKimuraMeeting();
@@ -5022,8 +5114,8 @@ class DataStore {
           this.seedMishimaMeeting();
           this.seedMoriMeeting();
           this.seedNakagawaMeeting();
-          this.reconcileLegacyAndDuplicateData();
         }
+        this.reconcileLegacyAndDuplicateData();
         const nextJson = snapshot();
         this.persist(true);
         this.lastSyncedAt = new Date().toISOString();
@@ -5106,6 +5198,7 @@ class DataStore {
 
   public setTenantId(tenantId: string) {
     if (!tenantId) return;
+    this.ensurePartnerTenants();
     if (!this.state.tenants.some(t => t.id === tenantId)) {
       this.state.tenants.push({
         id: tenantId,
@@ -5118,6 +5211,7 @@ class DataStore {
       });
     }
     this.state.currentTenantId = tenantId;
+    this.reconcileLegacyAndDuplicateData();
     this.persist();
   }
 
@@ -5148,7 +5242,7 @@ class DataStore {
   }
 
   public deleteTenant(tenantId: string): boolean {
-    if (tenantId === 'tenant-001') return false; // オーナーテナントは保護
+    if (tenantId === 'tenant-001' || tenantId === 'tenant-endo') return false; // オーナーおよび公式パートナーテナントは保護
     const idx = this.state.tenants.findIndex(t => t.id === tenantId);
     if (idx < 0) return false;
     this.state.tenants.splice(idx, 1);
@@ -6369,12 +6463,13 @@ class DataStore {
     const rawInput = (transcriptText || '').trim();
     const isRealInput = rawInput.length > 0;
 
-    // 田中義博様（夢叶開発）の文字起こし・要約が入力された場合、または田中様の予定に対して実行された場合は確定カルテへ完全統合
+    // 田中義博様（夢叶開発）の文字起こし・要約が入力された場合、または田中様の予定に対して実行された場合は確定カルテへ完全統合（勝賀野様テナントのみ）
     const isTanakaContext =
-      meeting.id === 'm-tanaka-20261110' ||
-      /夢叶開発|無党開発|武藤開発|田中\s*義博/.test(meeting.title) ||
-      /田中義博|夢叶開発|無党開発|西友寺/.test(rawInput) ||
-      (/田中/.test(meeting.title) && /マンション|買取|不動産|三浦|ランチ/.test(rawInput));
+      tid === 'tenant-001' &&
+      (meeting.id === 'm-tanaka-20261110' ||
+        /夢叶開発|無党開発|武藤開発|田中\s*義博/.test(meeting.title) ||
+        /田中義博|夢叶開発|無党開発|西友寺/.test(rawInput) ||
+        (/田中/.test(meeting.title) && /マンション|買取|不動産|三浦|ランチ/.test(rawInput)));
 
     if (isTanakaContext) {
       this.seedTanakaMeeting();
@@ -6405,11 +6500,12 @@ class DataStore {
       };
     }
 
-    // 岩根義行様（株式会社岩根工業 / 一般社団法人ディスカイステージ / シャングリラチャプター）の文字起こし・要約が入力された場合は確定カルテへ完全統合
+    // 岩根義行様（株式会社岩根工業 / 一般社団法人ディスカイステージ / シャングリラチャプター）の文字起こし・要約が入力された場合は確定カルテへ完全統合（勝賀野様テナントのみ）
     const isIwaneContext =
-      meeting.id === 'm-iwane-20261112' ||
-      /岩根|ディスカイステージ/.test(meeting.title) ||
-      /岩根工業|ディスカイステージ|岩根\s*義行/.test(rawInput);
+      tid === 'tenant-001' &&
+      (meeting.id === 'm-iwane-20261112' ||
+        /岩根|ディスカイステージ/.test(meeting.title) ||
+        /岩根工業|ディスカイステージ|岩根\s*義行/.test(rawInput));
 
     if (isIwaneContext) {
       this.seedIwaneMeeting();
@@ -6440,11 +6536,12 @@ class DataStore {
       };
     }
 
-    // 三島宏幸様（だんじりチャプター / 北新地バー・飲食店経営・高級スイーツOEM）の文字起こし・要約が入力された場合は確定カルテへ完全統合
+    // 三島宏幸様（だんじりチャプター / 北新地バー・飲食店経営・高級スイーツOEM）の文字起こし・要約が入力された場合は確定カルテへ完全統合（勝賀野様テナントのみ）
     const isMishimaContext =
-      meeting.id === 'm-1794813034745-2e1gm' ||
-      /三島\s*宏幸|宏幸\s*三島/.test(meeting.title) ||
-      /三島\s*宏幸|宏幸\s*三島|フォアグラプリン/.test(rawInput);
+      tid === 'tenant-001' &&
+      (meeting.id === 'm-1794813034745-2e1gm' ||
+        /三島\s*宏幸|宏幸\s*三島/.test(meeting.title) ||
+        /三島\s*宏幸|宏幸\s*三島|フォアグラプリン/.test(rawInput));
 
     if (isMishimaContext) {
       this.seedMishimaMeeting();
@@ -6479,11 +6576,12 @@ class DataStore {
       };
     }
 
-    // 中川丈太郎様（京都シティセントラルリージョン・Magicalチャプター / 求人広告代理店・採用応募対応代行・赤ペン添削）の文字起こしが入力された場合は確定カルテへ完全統合
+    // 中川丈太郎様（京都シティセントラルリージョン・Magicalチャプター / 求人広告代理店・採用応募対応代行・赤ペン添削）の文字起こしが入力された場合は確定カルテへ完全統合（勝賀野様テナントのみ）
     const isNakagawaContext =
-      meeting.id === 'm-1795144172303-ve1be' ||
-      /中川\s*丈太郎|丈太郎\s*中川/.test(meeting.title) ||
-      /中川\s*丈太郎|丈太郎\s*中川|赤ペン添削|タマトラ会/.test(rawInput);
+      tid === 'tenant-001' &&
+      (meeting.id === 'm-1795144172303-ve1be' ||
+        /中川\s*丈太郎|丈太郎\s*中川/.test(meeting.title) ||
+        /中川\s*丈太郎|丈太郎\s*中川|赤ペン添削|タマトラ会/.test(rawInput));
 
     if (isNakagawaContext) {
       this.seedNakagawaMeeting();
@@ -6949,6 +7047,7 @@ class DataStore {
         const apiKey = typeof window !== 'undefined' && window.localStorage
           ? (window.localStorage.getItem('GEMINI_API_KEY') || '').trim()
           : '';
+        const ownerProf = this.getCurrentOwnerProfile();
         const res = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -6956,6 +7055,8 @@ class DataStore {
             mode: 'summarize_meeting',
             transcriptText: rawTranscript,
             participantHint: person.display_name,
+            tenantId: tid,
+            ownerProfile: ownerProf,
             apiKey,
           }),
         });
@@ -6965,11 +7066,13 @@ class DataStore {
 
         const s = data.summary;
         const nowIso = new Date().toISOString();
-        if (s.realName && s.realName.length >= 2 && !s.realName.includes('勝賀野')) {
+        const ownerNameKey = (ownerProf.owner_name || '勝賀野').replace(/\s+/g, '');
+        if (s.realName && s.realName.length >= 2 && !s.realName.replace(/\s+/g, '').includes(ownerNameKey)) {
           person.display_name = s.realName;
         }
         if (s.phoneticName) person.phonetic_name = s.phoneticName;
-        if (s.companyName && !/ゼノベイト|ZENNOBATE/i.test(s.companyName)) {
+        const ownerCompKey = (ownerProf.company_name || 'ゼノベイト').slice(0, 4);
+        if (s.companyName && !/ゼノベイト|ZENNOBATE/i.test(s.companyName) && (!ownerCompKey || !s.companyName.includes(ownerCompKey))) {
           for (const oldOm of this.state.organizationMemberships) {
             if (oldOm.person_id === person.id) this.deletedIds.add(oldOm.id);
           }

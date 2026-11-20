@@ -580,4 +580,38 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(actualRels.some(r => r.id === 'rel-takada-nakagawa')).toBe(true);
     expect(actualRels.some(r => r.id === 'rel-takada-mori')).toBe(true);
   });
+
+  it('遠藤様（販売・ブランディングパートナー専用アカウント tenant-endo）が常設保護され、勝賀野様データと完全分離・重複ゼロ・削除保護されていること', () => {
+    store.setTenantId('tenant-001');
+    const shoganoPersonsCount = store.getPersons().length;
+    expect(shoganoPersonsCount).toBeGreaterThan(5);
+
+    // 遠藤様テナントが存在し、誤削除されないこと
+    const tenants = store.getTenants();
+    const endoTenant = tenants.find(t => t.id === 'tenant-endo');
+    expect(endoTenant).toBeDefined();
+    expect(endoTenant?.name).toContain('遠藤様');
+    expect(store.deleteTenant('tenant-endo')).toBe(false);
+
+    // 遠藤様テナントに切り替えた際、勝賀野様の人脈・会議が1件も混入しないこと
+    store.setTenantId('tenant-endo');
+    expect(store.getTenantId()).toBe('tenant-endo');
+    expect(store.getCurrentOwnerProfile().owner_name).toBe('遠藤');
+    expect(store.getPersons().length).toBe(0);
+    expect(store.getMeetings().length).toBe(0);
+
+    // 遠藤様テナント内で同一人物が複数回登録されても、reconcileLegacyAndDuplicateDataで重複排除（1名に統合）されること
+    const p1 = store.createPerson({ display_name: 'ブランディング 健太', notes: 'ブランディング相談' });
+    const p2 = store.createPerson({ display_name: 'ブランディング  健太', notes: '2回目商談メモ' });
+    expect(p1.id).not.toBe(p2.id);
+    store.reconcileLegacyAndDuplicateData();
+    const endoPersons = store.getPersons();
+    expect(endoPersons.length).toBe(1);
+    expect(endoPersons[0].display_name).toContain('ブランディング');
+
+    // 勝賀野様テナントへ戻した際、勝賀野様のデータが一切消えず、遠藤様のデータも混入しないこと
+    store.setTenantId('tenant-001');
+    expect(store.getPersons().length).toBe(shoganoPersonsCount);
+    expect(store.getPersons().some(p => p.display_name.includes('ブランディング'))).toBe(false);
+  });
 });

@@ -1,5 +1,7 @@
 import type { IncomingMessage } from 'http';
 import fs from 'fs';
+import crypto from 'crypto';
+import { put, list } from '@vercel/blob';
 
 const TMP_STATE_PATH = '/tmp/ai_concierge_cloud_state.json';
 const KV_KEY = 'ai_network_concierge:cloud_state:v1';
@@ -23,6 +25,62 @@ const SAMPLE_IDS = new Set([
 declare global {
   // eslint-disable-next-line no-var
   var __AI_CONCIERGE_CLOUD_STATE__: { state: any; deletedIds: string[]; updatedAt: string } | undefined;
+}
+
+function getBlobVaultConfig(): { key: Buffer; pathname: string } | null {
+  const token = (process.env.BLOB_READ_WRITE_TOKEN || '').trim();
+  if (!token) return null;
+  const key = crypto.createHash('sha256').update(`ai-concierge-aes256:${token}`).digest();
+  const pathHash = crypto.createHmac('sha256', token).update('ai-concierge-state-vault-v1').digest('hex').slice(0, 32);
+  return { key, pathname: `vault/state_${pathHash}.enc` };
+}
+
+async function readFromBlob(): Promise<{ state: any; deletedIds: string[]; updatedAt: string } | null> {
+  const cfg = getBlobVaultConfig();
+  if (!cfg) return null;
+  try {
+    const { blobs } = await list({ prefix: cfg.pathname, limit: 1 });
+    if (!blobs || blobs.length === 0) return null;
+    const targetUrl = blobs[0].downloadUrl || blobs[0].url;
+    const res = await fetch(`${targetUrl}${targetUrl.includes('?') ? '&' : '?'}t=${Date.now()}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const arrayBuf = await res.arrayBuffer();
+    const buf = Buffer.from(arrayBuf);
+    if (buf.length < 28) return null;
+    const iv = buf.subarray(0, 12);
+    const authTag = buf.subarray(12, 28);
+    const encrypted = buf.subarray(28);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', cfg.key, iv);
+    decipher.setAuthTag(authTag);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+    return JSON.parse(decrypted);
+  } catch {
+    return null;
+  }
+}
+
+async function writeToBlob(payload: { state: any; deletedIds: string[]; updatedAt: string }): Promise<void> {
+  const cfg = getBlobVaultConfig();
+  if (!cfg) return;
+  try {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', cfg.key, iv);
+    const plaintext = Buffer.from(JSON.stringify(payload), 'utf8');
+    const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    const packed = Buffer.concat([iv, authTag, encrypted]);
+    await put(cfg.pathname, packed, {
+      access: 'public',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: 'application/octet-stream',
+      cacheControlMaxAge: 0,
+    });
+  } catch {
+    // ignore blob write errors
+  }
 }
 
 async function readFromKV(): Promise<{ state: any; deletedIds: string[]; updatedAt: string } | null> {
@@ -63,6 +121,12 @@ async function writeToKV(payload: { state: any; deletedIds: string[]; updatedAt:
 }
 
 async function loadCloudEnvelope(): Promise<{ state: any | null; deletedIds: string[]; updatedAt: string }> {
+  const blobData = await readFromBlob();
+  if (blobData && blobData.state) {
+    global.__AI_CONCIERGE_CLOUD_STATE__ = blobData;
+    return blobData;
+  }
+
   const kvData = await readFromKV();
   if (kvData && kvData.state) {
     global.__AI_CONCIERGE_CLOUD_STATE__ = kvData;
@@ -95,7 +159,7 @@ async function saveCloudEnvelope(envelope: { state: any; deletedIds: string[]; u
   } catch {
     // ignore
   }
-  await writeToKV(envelope);
+  await Promise.all([writeToBlob(envelope), writeToKV(envelope)]);
 }
 
 function getItemTime(item: any): number {
@@ -110,13 +174,36 @@ function isColloquialOrPlaceholder(item: any): boolean {
   return /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな/.test(txt);
 }
 
-function mergeArrayById(serverArr: any[] = [], clientArr: any[] = [], deletedSet: Set<string>): any[] {
+function mergeArrayById(
+  serverArr: any[] = [],
+  clientArr: any[] = [],
+  serverDeletedSet: Set<string>,
+  clientDeletedSet: Set<string>,
+  lockedTenantId?: string
+): any[] {
   const map = new Map<string, any>();
 
+  const isDeletedForItem = (item: any): boolean => {
+    if (!item || !item.id) return true;
+    if (SAMPLE_IDS.has(item.id) || serverDeletedSet.has(item.id)) return true;
+    if (item.person_id === 'p-zoom-participant' || SAMPLE_IDS.has(item.person_id) || SAMPLE_IDS.has(item.meeting_id) || SAMPLE_IDS.has(item.source_id)) return true;
+    if (clientDeletedSet.has(item.id)) {
+      // ロック済みテナント（例: tenant-endo）からの削除IDは、そのテナント自身のレコードに対してのみ適用し、他テナント（勝賀野様 tenant-001 等）のデータは絶対に消さない
+      if (lockedTenantId && lockedTenantId !== 'tenant-001') {
+        if (item.tenant_id && item.tenant_id !== lockedTenantId) {
+          return false;
+        }
+        if (!item.tenant_id && item.id === 'tenant-001') {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  };
+
   const upsert = (item: any) => {
-    if (!item || !item.id) return;
-    if (deletedSet.has(item.id) || SAMPLE_IDS.has(item.id)) return;
-    if (item.person_id === 'p-zoom-participant' || SAMPLE_IDS.has(item.person_id) || SAMPLE_IDS.has(item.meeting_id) || SAMPLE_IDS.has(item.source_id)) return;
+    if (isDeletedForItem(item)) return;
 
     const existing = map.get(item.id);
     if (!existing) {
@@ -146,7 +233,6 @@ function mergeArrayById(serverArr: any[] = [], clientArr: any[] = [], deletedSet
       map.set(item.id, {
         ...existing,
         ...item,
-        // 画像URLが片方で退避されていた場合は残っている方を保持
         image_url: item.image_url || existing.image_url,
         avatar_url: item.avatar_url || existing.avatar_url,
       });
@@ -166,9 +252,116 @@ function mergeArrayById(serverArr: any[] = [], clientArr: any[] = [], deletedSet
   return Array.from(map.values());
 }
 
-function mergeStates(serverState: any | null, clientState: any, deletedSet: Set<string>): any {
-  if (!serverState) return clientState;
-  if (!clientState) return serverState;
+function ensureCoreTenantsAndDeduplicate(state: any): any {
+  if (!state || typeof state !== 'object') return state;
+
+  if (!Array.isArray(state.tenants)) {
+    state.tenants = [];
+  }
+  if (!state.tenants.some((t: any) => t?.id === 'tenant-001')) {
+    state.tenants.unshift({
+      id: 'tenant-001',
+      name: 'メインアカウント（オーナー）',
+      plan_tier: 'standard',
+      monthly_budget_jpy: 1000,
+      current_spend_jpy: 0,
+      is_budget_throttled: false,
+      created_at: '2026-11-01T00:00:00.000Z',
+    });
+  }
+  if (!state.tenants.some((t: any) => t?.id === 'tenant-endo')) {
+    state.tenants.push({
+      id: 'tenant-endo',
+      name: '遠藤様（販売・ブランディングパートナー専用アカウント）',
+      plan_tier: 'premium',
+      monthly_budget_jpy: 1000,
+      current_spend_jpy: 0,
+      is_budget_throttled: false,
+      created_at: '2026-11-20T14:30:00.000Z',
+      owner_profile: {
+        owner_name: '遠藤',
+        owner_phonetic: 'えんどう',
+        company_name: '',
+        title: '代表',
+        bni_region_name: '',
+        bni_chapter_name: '',
+        bni_category: 'ブランディング・販売戦略パートナー',
+        specialty_summary: '',
+        is_onboarded: false,
+      },
+    });
+  }
+
+  // テナントごとの同名人物重複・同日同一人物面談重複をサーバー側でも自動名寄せ（データ重複ゼロ保証）
+  if (Array.isArray(state.persons) && state.persons.length > 1) {
+    const groups = new Map<string, any[]>();
+    for (const p of state.persons) {
+      if (!p || p.status === 'deleted') continue;
+      const norm = String(p.display_name || '').replace(/（.*?）|\(.*?\)/g, '').replace(/[\s　様さん氏]+/g, '');
+      if (!norm || /^(相手未特定|面談のお相手|面談予定|名称未設定|参加者)/.test(norm)) continue;
+      const key = `${p.tenant_id || 'tenant-001'}::${norm}`;
+      const arr = groups.get(key) || [];
+      arr.push(p);
+      groups.set(key, arr);
+    }
+
+    const redirectMap = new Map<string, string>();
+    for (const [, group] of groups.entries()) {
+      if (group.length <= 1) continue;
+      group.sort((a, b) => {
+        const score = (x: any) =>
+          (x.status === 'active' ? 1000 : 0) +
+          (!isColloquialOrPlaceholder(x) ? 500 : 0) +
+          (x.meeting_count || 0) * 50 +
+          String(x.notes || '').length;
+        return score(b) - score(a);
+      });
+      const keep = group[0];
+      for (let i = 1; i < group.length; i++) {
+        redirectMap.set(group[i].id, keep.id);
+      }
+    }
+
+    if (redirectMap.size > 0) {
+      state.persons = state.persons.filter((p: any) => !redirectMap.has(p.id));
+      if (Array.isArray(state.meetings)) {
+        for (const m of state.meetings) {
+          if (Array.isArray(m.participant_ids)) {
+            m.participant_ids = Array.from(new Set(m.participant_ids.map((id: string) => redirectMap.get(id) || id)));
+          }
+        }
+      }
+      for (const col of ['facts', 'bniMemberships', 'businessOfferings', 'organizationMemberships', 'consents']) {
+        if (Array.isArray(state[col])) {
+          for (const item of state[col]) {
+            if (item?.person_id && redirectMap.has(item.person_id)) {
+              item.person_id = redirectMap.get(item.person_id);
+            }
+          }
+        }
+      }
+      if (Array.isArray(state.relationships)) {
+        for (const r of state.relationships) {
+          if (r?.from_person_id && redirectMap.has(r.from_person_id)) r.from_person_id = redirectMap.get(r.from_person_id);
+          if (r?.to_person_id && redirectMap.has(r.to_person_id)) r.to_person_id = redirectMap.get(r.to_person_id);
+        }
+        state.relationships = state.relationships.filter((r: any) => r.from_person_id !== r.to_person_id);
+      }
+    }
+  }
+
+  return state;
+}
+
+function mergeStates(
+  serverState: any | null,
+  clientState: any,
+  serverDeletedSet: Set<string>,
+  clientDeletedSet: Set<string>,
+  lockedTenantId?: string
+): any {
+  if (!serverState) return ensureCoreTenantsAndDeduplicate(clientState);
+  if (!clientState) return ensureCoreTenantsAndDeduplicate(serverState);
 
   const collections = [
     'tenants',
@@ -195,12 +388,18 @@ function mergeStates(serverState: any | null, clientState: any, deletedSet: Set<
   const merged: any = {
     ...serverState,
     ...clientState,
-    currentTenantId: clientState.currentTenantId || serverState.currentTenantId || 'tenant-001',
+    currentTenantId: 'tenant-001',
   };
 
   for (const key of collections) {
     if (Array.isArray(serverState[key]) || Array.isArray(clientState[key])) {
-      merged[key] = mergeArrayById(serverState[key] || [], clientState[key] || [], deletedSet);
+      merged[key] = mergeArrayById(
+        serverState[key] || [],
+        clientState[key] || [],
+        serverDeletedSet,
+        clientDeletedSet,
+        lockedTenantId
+      );
     }
   }
 
@@ -218,7 +417,7 @@ function mergeStates(serverState: any | null, clientState: any, deletedSet: Set<
     merged.auditLogs = merged.auditLogs.slice(0, 200);
   }
 
-  return merged;
+  return ensureCoreTenantsAndDeduplicate(merged);
 }
 
 const TENANT_SCOPED_COLLECTIONS = [
@@ -321,16 +520,18 @@ export default async function handler(req: any, res: any) {
       ? filterStateForTenant(rawClientState, lockedTenantId)
       : rawClientState;
     const clientDeletedIds: string[] = Array.isArray(payload.deletedIds) ? payload.deletedIds : [];
+    const serverDeletedSet = new Set<string>(envelope.deletedIds || []);
+    const clientDeletedSet = new Set<string>(clientDeletedIds);
 
     const mergedDeletedSet = new Set<string>([
-      ...(envelope.deletedIds || []),
+      ...serverDeletedSet,
       ...clientDeletedIds,
     ]);
     const mergedDeletedIds = Array.from(mergedDeletedSet).slice(-500);
 
     const mergedState = clientState
-      ? mergeStates(envelope.state, clientState, mergedDeletedSet)
-      : envelope.state;
+      ? mergeStates(envelope.state, clientState, serverDeletedSet, clientDeletedSet, lockedTenantId)
+      : ensureCoreTenantsAndDeduplicate(envelope.state);
 
     const updatedAt = new Date().toISOString();
     await saveCloudEnvelope({

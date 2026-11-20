@@ -71,7 +71,20 @@ export default async function handler(req: any, res: any) {
         ? `${joinedCompact.slice(0, 25000)}\n...(中略)...\n${joinedCompact.slice(Math.floor(joinedCompact.length / 2) - 10000, Math.floor(joinedCompact.length / 2) + 10000)}\n...(中略)...\n${joinedCompact.slice(-15000)}`
         : joinedCompact;
       const hintName: string = (parsed.participantHint || '').trim();
-      const summarizePrompt = `あなたは株式会社ZENNOBATE（代表：勝賀野 太郎様 / 事業：残置物撤去・遺品整理、桂の総合リサイクルショップRoute Z、祇園のバーRoute Z、AI古物査定ツール「カンテノ」、ラファエル提携ライバー事務所、オーダーメイド腕時計アステラ、若手経営者交流会）専属の最高精度AI議事録・人脈カルテ・相関図要約エンジンです。
+      const reqTenantId: string = (parsed.tenantId || 'tenant-001').trim();
+      const reqOwner = parsed.ownerProfile || {};
+      const isMainOwner = reqTenantId === 'tenant-001';
+      const ownerDisplayName = isMainOwner
+        ? '勝賀野 太郎'
+        : (reqOwner.owner_name || (reqTenantId === 'tenant-endo' ? '遠藤' : 'オーナー'));
+      const ownerContextDesc = isMainOwner
+        ? '株式会社ZENNOBATE（代表：勝賀野 太郎様 / 事業：残置物撤去・遺品整理、桂の総合リサイクルショップRoute Z、祇園のバーRoute Z、AI古物査定ツール「カンテノ」、ラファエル提携ライバー事務所、オーダーメイド腕時計アステラ、若手経営者交流会）'
+        : `${ownerDisplayName}様${reqOwner.company_name ? `（${reqOwner.company_name}` : ''}${reqOwner.bni_chapter_name ? `・${reqOwner.bni_chapter_name}` : ''}${reqOwner.specialty_summary ? ` / 専門：${reqOwner.specialty_summary}` : ''}${reqOwner.company_name ? '）' : ''}`;
+      const ownerExclusionDesc = isMainOwner
+        ? '勝賀野 太郎様（4/勝賀野 太郎/残置物撤去・株式会社ゼノベイト・だんじりチャプター所属）'
+        : `${ownerDisplayName}様（ホスト本人${reqOwner.company_name ? `・${reqOwner.company_name}` : ''}${reqOwner.bni_chapter_name ? `・${reqOwner.bni_chapter_name}所属` : ''}）`;
+
+      const summarizePrompt = `あなたは${ownerContextDesc}専属の最高精度AI議事録・人脈カルテ・相関図要約エンジンです。
 以下の1to1面談の文字起こし全文を精読し、口語や相槌（「えー」「あ、」「はい」等の話し言葉の断片）を一切そのまま抜き出すのではなく、第三者視点でプロフェッショナルに構造化・要約したJSONのみを出力してください。
 
 【絶対厳守ルール】
@@ -82,7 +95,7 @@ export default async function handler(req: any, res: any) {
    - 名古屋・東海・三河方言（〜だがや、〜だもんで、〜やもんで、〜じゃんね、〜だら、〜してみえる、〜やっとる 等）
    - 東北・北海道・北陸・沖縄方言（〜だべ、〜っしょ、〜だちゃ、〜やちゃ、〜ながや、〜まっし、〜だすけ、〜わけさ 等）
    これらの全国方言・話し言葉・相槌・疑問符「？」は1文字たりとも残さず、100%「標準語の客観的な書き言葉（議事録調・体言止め・ビジネス文書体）」へ翻訳・構造化してください。
-2. 勝賀野 太郎様（4/勝賀野 太郎/残置物撤去・株式会社ゼノベイト・だんじりチャプター所属）自身のプロフィールとお相手のプロフィールを絶対に混同しないでください。主役はお相手（${hintName || '面談相手'}）です。敬称はすべて「〜様」に統一してください。
+2. ${ownerExclusionDesc}自身のプロフィールとお相手のプロフィールを絶対に混同しないでください。主役はお相手（${hintName || '面談相手'}）です。敬称はすべて「〜様」に統一してください。
 3. お相手の具体的なサービス内容・料金体系・強み・顧客比率・実績数値・所属コミュニティ・紹介してほしいターゲット層・双方で合意した具体的な紹介対象者名（フルネームや特徴）を漏れなく正確に構造化してください。
 4. BNIチャプター名は公式表記（例：「Magicalチャプター」「インヴィクタスチャプター」「ナインダーツチャプター」「シャングリラチャプター」「だんじりチャプター」「Beyondチャプター」「Forwardチャプター」「REvoチャプター」「Soulfulチャプター」）で記載してください。
 5. 文字起こしにない事実や、会話中に登場する第三者（紹介者・知人など）の所属チャプター・会社・役職など、文脈上で確定していない推測情報を勝手に断定して書かないでください。
@@ -95,7 +108,7 @@ export default async function handler(req: any, res: any) {
   "bniRegion": "BNIリージョン名（例：京都シティセントラルリージョン）",
   "bniChapter": "BNIチャプター名（例：Magicalチャプター）",
   "bniCategory": "BNIカテゴリー・専門分野（例：求人広告代理店（採用応募対応代行・求人原稿作成・添削支援））",
-  "overview": "面談全体の3〜5文のプロフェッショナルな書き言葉要約（お相手の所属・専門分野、具体的なサービス強み・料金・実績、勝賀野様の事業とのシナジー、合意した次回アクションを網羅）",
+  "overview": "面談全体の3〜5文のプロフェッショナルな書き言葉要約（お相手の所属・専門分野、具体的なサービス強み・料金・実績、${ownerDisplayName}様の事業とのシナジー、合意した次回アクションを網羅）",
   "topic": "お相手の本業・独自サービス強み・実績・料金体系・紹介してほしいターゲット層の構造化要約（必ず書き言葉・体言止めまたは簡潔な議事録調で記述）",
   "promises": [
     "具体的な次回ToDo・約束事項1（誰様から誰様へ、誰・何を紹介・送付・セッティングするか、書き言葉で明記）",
