@@ -750,7 +750,7 @@ class DataStore {
     // デモ時の架空データ（タカハシ看板、LED看板、施工実績、京都南チャプター等）を即時一掃
     this.purgeBogusDemoData();
 
-    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様・三島 宏幸様・森 雄平様の1to1面談実績を自動登録
+    // 勝賀野様と辻 晃典様・木村 尚史様・田中 義博様・岩根 義行様・小比 直人様・三島 宏幸様・森 雄平様・中川 丈太郎様の1to1面談実績を自動登録
     this.seedTsujiMeeting();
     this.seedKimuraMeeting();
     this.seedTanakaMeeting();
@@ -758,6 +758,7 @@ class DataStore {
     this.seedKobiMeeting();
     this.seedMishimaMeeting();
     this.seedMoriMeeting();
+    this.seedNakagawaMeeting();
 
     // 旧キャッシュの誤表記(夢叶開発→夢叶開発)や重複仮予定の自動統合
     this.reconcileLegacyAndDuplicateData();
@@ -3127,6 +3128,235 @@ class DataStore {
     }
   }
 
+  public seedNakagawaMeeting(): void {
+    const tid = 'tenant-001';
+
+    // 1. 中川 丈太郎 様（BNI 京都シティセントラルリージョン・Magicalチャプター / 求人広告代理店・採用応募対応代行・求人原稿作成支援）
+    let nakagawa = this.state.persons.find(
+      p => p.id === 'p-1795144172299-93er5' || p.id === 'p-nakagawa-jotaro' || p.display_name.replace(/\s+/g, '') === '中川丈太郎'
+    );
+    const nakagawaNotes =
+      'BNI 京都シティセントラルリージョン（Kyoto City Central）「Magicalチャプター」所属（カテゴリー：求人広告代理店）。バイトル・doda・マイナビ・Airワーク・Indeed等の求人広告取扱および独自3大サービス（①BNIメンバー無料の求人原稿「赤ペン添削」PDF返却、②応募受付メール・電話連絡・面接日程調整・前日/雨天ドタキャン防止リマインドまで丸ごと引き受ける「採用応募対応代行」、③プロライターによる求人原稿作成代行）を展開。クライアントの約8割が飲食店（だんじりチャプターでも河崎様ご紹介で2社バイトル契約実績あり）。守成クラブ（京都みやび昼会場）、ニーズマッチ大阪支部、および奈良ゆかりのBNIメンバー約20名が集まる月1懇親会「BNI奈良会」も主催・所属。大阪出身・奈良県在住、奥様とうさぎを飼育、阪神タイガースファン（毎年2月沖縄キャンプ「タマトラ会」5年連続参加）、献血64回の実績。';
+
+    if (!nakagawa) {
+      nakagawa = {
+        id: 'p-1795144172299-93er5',
+        tenant_id: tid,
+        display_name: '中川 丈太郎',
+        phonetic_name: 'ナカガワ ジョウタロウ',
+        status: 'active',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事'],
+        service_areas: ['京都府（京都市・全域）', '大阪府', '奈良県', '全国対応'],
+        office_address: '奈良県（京都・大阪・関西全域対応）',
+        notes: nakagawaNotes,
+        last_interacted_at: '2026-11-20T03:09:32.299Z',
+        meeting_count: 1,
+        created_at: '2026-11-20T03:09:32.299Z',
+        updated_at: '2026-11-20T03:15:00.000Z',
+      };
+      this.state.persons.unshift(nakagawa);
+    } else {
+      nakagawa.display_name = '中川 丈太郎';
+      nakagawa.phonetic_name = nakagawa.phonetic_name || 'ナカガワ ジョウタロウ';
+      nakagawa.status = 'active';
+      nakagawa.is_name_verified = true;
+      nakagawa.category_tags = Array.from(new Set([...(nakagawa.category_tags || []), 'BNI', '仕事']));
+      nakagawa.service_areas = ['京都府（京都市・全域）', '大阪府', '奈良県', '全国対応'];
+      nakagawa.office_address = nakagawa.office_address || '奈良県（京都・大阪・関西全域対応）';
+      nakagawa.meeting_count = Math.max(nakagawa.meeting_count || 1, 1);
+      nakagawa.last_interacted_at = '2026-11-20T03:09:32.299Z';
+      if (
+        !nakagawa.notes ||
+        /LINEでZoom URLのみ受領|もうバーも大好きやし|サッカーボール蹴るなんて/.test(nakagawa.notes)
+      ) {
+        nakagawa.notes = nakagawaNotes;
+        nakagawa.updated_at = new Date().toISOString();
+      }
+    }
+    const nakagawaId = nakagawa.id;
+
+    // 2. BNI所属（京都シティセントラルリージョン・Magicalチャプター: chap-bni-121）
+    for (const bm of this.state.bniMemberships) {
+      if (bm.person_id === nakagawaId && bm.id !== 'bnim-nakagawa-1') {
+        this.deletedIds.add(bm.id);
+      }
+    }
+    this.state.bniMemberships = this.state.bniMemberships.filter(
+      bm => !(bm.person_id === nakagawaId && bm.id !== 'bnim-nakagawa-1')
+    );
+    if (!this.state.bniMemberships.some(bm => bm.id === 'bnim-nakagawa-1')) {
+      this.state.bniMemberships.unshift({
+        id: 'bnim-nakagawa-1',
+        tenant_id: tid,
+        person_id: nakagawaId,
+        chapter_id: 'chap-bni-121',
+        chapter_name: 'Magicalチャプター',
+        region_name: '京都シティセントラルリージョン (Kyoto City Central)',
+        category: '求人広告代理店（採用応募対応代行・求人原稿作成・添削支援）',
+        status: 'active',
+        joined_on: '2021-04-01',
+      });
+    } else {
+      const bm = this.state.bniMemberships.find(b => b.id === 'bnim-nakagawa-1')!;
+      bm.person_id = nakagawaId;
+      bm.chapter_id = 'chap-bni-121';
+      bm.chapter_name = 'Magicalチャプター';
+      bm.region_name = '京都シティセントラルリージョン (Kyoto City Central)';
+      bm.category = '求人広告代理店（採用応募対応代行・求人原稿作成・添削支援）';
+      bm.status = 'active';
+    }
+
+    // 3. 事業オファリング（話し言葉で誤抽出された「もうバーも大好きやし...」を完全削除し、正式オファリング1件に統一）
+    for (const b of this.state.businessOfferings) {
+      if (
+        (b.person_id === nakagawaId && b.id !== 'bo-nakagawa-1') ||
+        /もうバーも大好きやし/.test(b.service_title || '')
+      ) {
+        this.deletedIds.add(b.id);
+      }
+    }
+    this.state.businessOfferings = this.state.businessOfferings.filter(
+      b => !(b.person_id === nakagawaId && b.id !== 'bo-nakagawa-1') && !/もうバーも大好きやし/.test(b.service_title || '')
+    );
+    if (!this.state.businessOfferings.some(b => b.id === 'bo-nakagawa-1')) {
+      this.state.businessOfferings.unshift({
+        id: 'bo-nakagawa-1',
+        tenant_id: tid,
+        person_id: nakagawaId,
+        service_title: '求人原稿作成・赤ペン添削および採用応募受付・面接日程調整代行サービス',
+        specialties: '求人媒体（バイトル・doda・マイナビ・Airワーク・Indeed）取扱、BNI無料の求人原稿赤ペン添削、応募連絡〜面接調整・ドタキャン防止リマインド丸ごと代行（25名まで月5万円／士業・建設業5名まで1万円）、プロライター原稿作成代行',
+        target_clients: '飲食店オーナー様、採用応募対応や面接ドタキャンに悩む店舗・中小企業経営者様、税理士・建設業者様、就労継続支援B型事業所関係者様',
+        service_area: '京都府・大阪府・奈良県・全国対応',
+        is_active: true,
+      });
+    }
+
+    // 4. 面談レコード & 要約・確定Facts（m-1795144172303-ve1be）
+    const nakagawaMeetingId = 'm-1795144172303-ve1be';
+    let meeting =
+      this.state.meetings.find(m => m.id === nakagawaMeetingId) ||
+      this.state.meetings.find(m => m.participant_ids.includes(nakagawaId));
+    const nakagawaTitle = '中川 丈太郎様と1to1（京都・Magicalチャプター / 求人原稿作成・採用応募対応代行×バーRoute Z求人・腕時計アステラ・福祉連携）';
+    if (!meeting) {
+      meeting = {
+        id: nakagawaMeetingId,
+        tenant_id: tid,
+        title: nakagawaTitle,
+        meeting_type: '1to1',
+        provider: 'zoom',
+        scheduled_start_at: '2026-11-20T03:09:32.299Z',
+        host_type: 'self',
+        recording_status: 'completed',
+        status: 'completed',
+        participant_ids: [nakagawaId],
+        created_at: '2026-11-20T03:09:32.303Z',
+        updated_at: '2026-11-20T03:15:00.000Z',
+      };
+      this.state.meetings.unshift(meeting);
+    } else {
+      meeting.title = nakagawaTitle;
+      meeting.status = 'completed';
+      meeting.recording_status = 'completed';
+      meeting.participant_ids = [nakagawaId];
+    }
+
+    const nakagawaSummary =
+      'BNI 京都シティセントラルリージョン「Magicalチャプター」所属の中川 丈太郎様（求人広告代理店・採用応募対応代行）との1to1面談。中川様はクライアントの約8割を飲食店が占め、バイトル・doda・マイナビ等の取扱に加え、①BNIメンバー無料の求人原稿「赤ペン添削」PDF返却、②応募者への電話・面接日程調整・前日/雨天時のドタキャン防止リマインドまで丸ごと引き受ける「採用応募対応代行（25名まで月5万円／士業・建設業は5名まで1万円）」、③プロライターによるAirワーク・Indeed向け求人原稿作成代行を展開。勝賀野様のAI古物査定ツール「カンテノ」、カスタム腕時計「アステラ」、祇園バー「Route Z」での女性アルバイト採用、および福祉（就労継続支援B型）ネットワーク連携で深く合意。【次回アクション】①中川様から就労継続支援B型（福祉）に強い杉本愛様・福祉チャプター立ち上げ中の竹本千秋様・オーダースーツの杉本博司様の3名を勝賀野様へお繋ぎし、BNIフットサルグループへ招待する、②勝賀野様から祇園バー「Route Z」マスターの高田様（インヴィクタスチャプター）と中川様の1to1をセッティングし、オーダーメイド腕時計「アステラ」のWebカタログ完成後に中川様へ送付する。';
+
+    const existingTr = this.state.transcripts.find(t => t.meeting_id === meeting!.id);
+    if (!existingTr) {
+      this.state.transcripts.unshift({
+        id: `tr-${meeting.id}`,
+        tenant_id: tid,
+        meeting_id: meeting.id,
+        language: 'ja',
+        full_text: nakagawaSummary,
+        summary: nakagawaSummary,
+        utterances: [],
+        created_at: '2026-11-20T03:09:32.328Z',
+      });
+    } else {
+      existingTr.summary = nakagawaSummary;
+    }
+
+    // 話し言葉で抽出された旧Fact（「もうバーも大好きやし...」「さんであの奈良かに行ってみたいな...」）を完全削除し、確定Factへ置換
+    for (const f of this.state.facts) {
+      if (
+        (f.person_id === nakagawaId && !f.id.startsWith('fact-nakagawa-')) ||
+        /もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな/.test(f.fact_value || '')
+      ) {
+        this.deletedIds.add(f.id);
+      }
+    }
+    this.state.facts = this.state.facts.filter(
+      f =>
+        !(f.person_id === nakagawaId && !f.id.startsWith('fact-nakagawa-')) &&
+        !/もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな/.test(f.fact_value || '')
+    );
+
+    const nakagawaCoreFacts: Fact[] = [
+      {
+        id: 'fact-nakagawa-1',
+        tenant_id: tid,
+        person_id: nakagawaId,
+        fact_category: 'topic',
+        fact_key: '盛り上がった話題・本業と強み',
+        fact_value: 'BNI 京都シティセントラルリージョン「Magicalチャプター」所属（求人広告代理店）。クライアントの約8割が飲食店（だんじりチャプターでも河崎様ご紹介で2社契約実績あり）。①BNIメンバー無料の求人原稿「赤ペン添削」、②応募受付から電話面接調整・前日/雨天ドタキャン防止リマインドまで丸ごと引き受ける「採用応募対応代行」、③プロライターによるAirワーク・Indeed向け求人原稿作成代行の独自3大サービスが強み',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Gemini 3.5 Flash AI議事録要約',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-20T03:09:43.853Z',
+        created_at: '2026-11-20T03:09:43.853Z',
+      },
+      {
+        id: 'fact-nakagawa-2',
+        tenant_id: tid,
+        person_id: nakagawaId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（中川様→勝賀野様）',
+        fact_value: '中川様から就労継続支援B型（福祉）に精通する杉本愛様、福祉特化チャプター立ち上げ中の竹本千秋様、およびオーダースーツの杉本博司様（腕時計「アステラ」協業候補）の3名を勝賀野様へご紹介・お繋ぎし、BNIフットサルグループへ勝賀野様を招待する',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Gemini 3.5 Flash AI議事録要約',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-20T03:09:43.853Z',
+        created_at: '2026-11-20T03:09:43.853Z',
+      },
+      {
+        id: 'fact-nakagawa-3',
+        tenant_id: tid,
+        person_id: nakagawaId,
+        fact_category: 'promise',
+        fact_key: '保留中の約束・ToDo（勝賀野様→中川様）',
+        fact_value: '勝賀野様が運営する祇園バー「Route Z」の女性アルバイト採用に向け、マスターの高田様（インヴィクタスチャプター）と中川様の1to1をセッティングして求人原稿作成を相談し、オーダーメイド腕時計「アステラ」のWebカタログ完成後に中川様へデータを送付する',
+        source_type: 'meeting_speech',
+        source_id: meeting.id,
+        source_evidence: 'Gemini 3.5 Flash AI議事録要約',
+        confidence: 0.99,
+        verification_status: 'verified',
+        visibility: 'referral_eligible',
+        valid_from: '2026-11-20T03:09:43.853Z',
+        created_at: '2026-11-20T03:09:43.853Z',
+      },
+    ];
+    for (let i = nakagawaCoreFacts.length - 1; i >= 0; i--) {
+      const cf = nakagawaCoreFacts[i];
+      const existingIdx = this.state.facts.findIndex(f => f.id === cf.id);
+      if (existingIdx >= 0) {
+        const prevStatus = this.state.facts[existingIdx].verification_status;
+        this.state.facts[existingIdx] = { ...cf, verification_status: prevStatus || cf.verification_status };
+      } else {
+        this.state.facts.unshift(cf);
+      }
+    }
+  }
+
     public promotePerson(personId: string, updates?: Partial<Person>): void {
     const p = this.getPersonById(personId);
     if (p) {
@@ -3646,22 +3876,24 @@ class DataStore {
       const hasColloquialMishima =
         !(this.state.facts || []).some(f => f.id === 'fact-mishima-1') ||
         !(this.state.facts || []).some(f => f.id === 'fact-mori-1') ||
+        !(this.state.facts || []).some(f => f.id === 'fact-nakagawa-1') ||
         !(this.state.persons || []).some(p => p.id === 'p-hori-miyabi') ||
-        (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ/.test(f.fact_value || '')) ||
-        (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル/.test(b.service_title || ''));
+        (this.state.facts || []).some(f => /だってそんなにみんなリサイクル|パスパスタ|もうバーも大好きやし|さんであの奈良かに行ってみたいな/.test(f.fact_value || '')) ||
+        (this.state.businessOfferings || []).some(b => /だってそんなにみんなリサイクル|もうバーも大好きやし/.test(b.service_title || ''));
       const hasBogus =
         (this.state.bniChapters || []).some(c => bogusChapterIds.includes(c.id)) ||
         (this.state.bniChapters || []).length < 100 ||
         !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-kobi-1') ||
         !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-mori-1') ||
+        !(this.state.bniMemberships || []).some(bm => bm.id === 'bnim-nakagawa-1') ||
         hasColloquialMishima;
       if (hasBogus) {
-        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii', 'om-1794805667075', 'bo-1794804591389-jv0hp', 'bnim-1795057589204-vyzn', 'chap-custom-1795057589204']) {
+        for (const id of [...bogusChapterIds, ...bogusRegionIds, 'bnim-1794481861967', 'p-1794813034743-0rmii', 'om-1794805667075', 'bo-1794804591389-jv0hp', 'bnim-1795057589204-vyzn', 'chap-custom-1795057589204', 'bo-1795144172318-001c6', 'fact-top-m-1795144172303-ve1be-1795144172328', 'fact-prom-m-1795144172303-ve1be-1795144172328', 'bnim-1795144172318', 'chap-custom-1795144183847']) {
           this.deletedIds.add(id);
         }
         this.state.bniRegions = JSON.parse(JSON.stringify(OFFICIAL_BNI_REGIONS));
         this.state.bniChapters = JSON.parse(JSON.stringify(OFFICIAL_BNI_CHAPTERS));
-        this.state.bniMemberships = (this.state.bniMemberships || []).filter(bm => bm.id !== 'bnim-1794481861967' && bm.id !== 'bnim-1795057589204-vyzn');
+        this.state.bniMemberships = (this.state.bniMemberships || []).filter(bm => bm.id !== 'bnim-1794481861967' && bm.id !== 'bnim-1795057589204-vyzn' && bm.id !== 'bnim-1795144172318');
         changed = true;
       }
     }
@@ -3672,6 +3904,7 @@ class DataStore {
       this.seedKobiMeeting();
       this.seedMishimaMeeting();
       this.seedMoriMeeting();
+      this.seedNakagawaMeeting();
       this.saveDeletedIds();
       this.persist();
     }
@@ -4346,6 +4579,7 @@ class DataStore {
           this.seedKobiMeeting();
           this.seedMishimaMeeting();
           this.seedMoriMeeting();
+          this.seedNakagawaMeeting();
           this.reconcileLegacyAndDuplicateData();
         }
         const nextJson = snapshot();
@@ -4690,7 +4924,12 @@ class DataStore {
     const normalizedRaw = chapterKeywordOrId
       .replace(/^BNI\s*/i, '')
       .replace(/シャングリア/g, 'シャングリラ')
-      .replace(/インビクタス/g, 'インヴィクタス')
+      .replace(/インビクタス|イミクタス/g, 'インヴィクタス')
+      .replace(/マジカル/g, 'Magical')
+      .replace(/フォワード/g, 'Forward')
+      .replace(/ビヨンド/g, 'Beyond')
+      .replace(/ソウルフル/g, 'Soulful')
+      .replace(/満腹/g, '満福')
       .replace(/ラインダース|マインダーズ|ライナッツ|ナインダーズ/g, 'ナインダーツ')
       .replace(/ダンジリ|ダンジェリ/g, 'だんじり')
       .trim();
@@ -5536,14 +5775,20 @@ class DataStore {
       });
       meeting.participant_ids.push(person.id);
     } else {
-      // 既存の仮人物カルテを正式カルテへ昇格
+      // 既存の仮人物カルテを正式カルテへ昇格（予定仮メモ「LINEでZoom URLのみ受領...」や古い[Zoom特定メモ]は上書き置換し、重複連結しない）
+      const cleanedPrevNotes = (person.notes || '')
+        .replace(/LINEでZoom URLのみ受領[。.\s]*Zoom面談中に本名・会社名を特定予定[。.\s]*/g, '')
+        .replace(/\[Zoom特定メモ\][\s\S]*$/g, '')
+        .replace(/\[面談要約\][\s\S]*$/g, '')
+        .trim();
+      const nextNotes = info.notes
+        ? (cleanedPrevNotes ? `${cleanedPrevNotes}\n${info.notes}` : info.notes)
+        : (cleanedPrevNotes || person.notes);
       this.updatePerson(person.id, {
         display_name: info.realName,
         phonetic_name: info.phoneticName || person.phonetic_name,
         status: 'active',
-        notes: info.notes
-          ? (person.notes ? `${person.notes}\n[Zoom特定メモ] ${info.notes}` : info.notes)
-          : person.notes,
+        notes: nextNotes,
       });
     }
 
@@ -5552,30 +5797,16 @@ class DataStore {
       this.addOrganizationMembership(person.id, info.companyName.trim(), info.title?.trim() || '代表');
     }
 
-    // BNIチャプター所属の紐付け
+    // BNIチャプター所属の紐付け（全国401公式BNIチャプター照合済みの setPersonBNIMembership を使用）
     if (info.bniChapter?.trim()) {
-      const chName = info.bniChapter.trim();
-      const existingCh = this.state.bniChapters.find(
-        c => c.chapter_name.includes(chName) || chName.includes(c.chapter_name)
-      );
-      const newMembership: BNIMembership = {
-        id: `bnim-${Date.now()}`,
-        tenant_id: tid,
-        person_id: person.id,
-        chapter_id: existingCh ? existingCh.id : `ch-${Date.now()}`,
-        chapter_name: existingCh ? existingCh.chapter_name : chName,
-        region_name: existingCh
-          ? (this.state.bniRegions.find(r => r.id === existingCh.region_id)?.region_name || '所属リージョン')
-          : '日本リージョン',
-        category: info.bniCategory || '専門職',
-        status: 'active',
-        joined_on: new Date().toISOString().split('T')[0],
-      };
-      this.state.bniMemberships.push(newMembership);
+      this.setPersonBNIMembership(person.id, info.bniChapter.trim(), info.bniCategory || '専門職');
     }
 
-    // 事業内容・オファリング
-    if (info.serviceDescription?.trim()) {
+    // 事業内容・オファリング（話し言葉断片が含まれる場合は登録しない）
+    if (
+      info.serviceDescription?.trim() &&
+      !/大好きやし|やなと|思ってた|言い続けた|嬉えい|今から動きます/.test(info.serviceDescription)
+    ) {
       this.addBusinessOffering({
         person_id: person.id,
         service_title: info.serviceDescription.trim(),
@@ -5926,7 +6157,7 @@ class DataStore {
 
       // 話し言葉・口語断片の厳格判定（疑問文や関西弁・くだけた口語断片がそのまま要約・お礼文に混入するのを100%遮断）
       const isColloquialFragment = (txt: string): boolean => {
-        return /[？?]|じゃないですか|んすか|っすか|っすね|っすよ|やめてください|言われたんですよ|ちゃうん|やったら|ま多分|パスパスタ|おもろい|ウザイ|しゃーない|やんけ|ほんまに|すげえ|めっちゃ|あかん|ちゃう|やろ|ねん|食う|食いに|俺が|俺も|あんま|ちょこちょ|若い若い|^だって|^いや|^え、|^あ、/.test(
+        return /[？?]|じゃないですか|んすか|っすか|っすね|っすよ|やめてください|言われた|ちゃうん|やったら|ま多分|パスパスタ|おもろい|ウザイ|しゃーない|やんけ|ほんま|すげえ|めっちゃ|あかん|ちゃう|やろ|ねん|やし|やな|やね|やから|やけど|思ってた|言い続けた|ていう|っていう|という人|嬉えい|嬉しい|今から動きます|金の卵|大好き|サッカーボール|僕|俺|私|自分|ちょっと|なんか|えーっと|あのー|あの|まあ|やっぱり|やっぱ|はいはい|そうそう|いただけたら|思うんですけど|なんですけど|なんですけれども|食う|食いに|あんま|ちょこちょ|若い若い|^だって|^いや|^え、|^あ、|^さんで/.test(
           txt
         );
       };
@@ -6165,7 +6396,7 @@ class DataStore {
       if (!person) return false;
 
       // 既に確定シード済みの主要メンバーは専用確定カルテを保護
-      if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori', 'p-mishima-danjiri'].includes(person.id)) {
+      if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori', 'p-mishima-danjiri', 'p-1795057464160-kxovb', 'p-1795144172299-93er5'].includes(person.id)) {
         return true;
       }
 
@@ -6188,11 +6419,15 @@ class DataStore {
         if (!data.ok || !data.summary) return false;
 
         const s = data.summary;
+        const nowIso = new Date().toISOString();
         if (s.realName && s.realName.length >= 2 && !s.realName.includes('勝賀野')) {
           person.display_name = s.realName;
         }
         if (s.phoneticName) person.phonetic_name = s.phoneticName;
         if (s.companyName && !/ゼノベイト|ZENNOBATE/i.test(s.companyName)) {
+          for (const oldOm of this.state.organizationMemberships) {
+            if (oldOm.person_id === person.id) this.deletedIds.add(oldOm.id);
+          }
           this.state.organizationMemberships = this.state.organizationMemberships.filter(m => m.person_id !== person.id);
           this.addOrganizationMembership(person.id, s.companyName, s.title || '代表');
         }
@@ -6200,6 +6435,11 @@ class DataStore {
           this.setPersonBNIMembership(person.id, s.bniChapter, s.bniCategory, s.bniRegion);
         } else {
           // ローカル正規表現が誤って一時作成した未検証チャプター(ch-...)があればクリア
+          for (const bm of this.state.bniMemberships) {
+            if (bm.person_id === person.id && bm.chapter_id.startsWith('ch-')) {
+              this.deletedIds.add(bm.id);
+            }
+          }
           this.state.bniMemberships = this.state.bniMemberships.filter(
             bm => !(bm.person_id === person.id && bm.chapter_id.startsWith('ch-'))
           );
@@ -6208,7 +6448,12 @@ class DataStore {
           person.notes = [s.overview, s.personalNotes].filter(Boolean).join(' / ');
         }
         if (s.serviceTitle) {
-          // 暫定のローカルオファリングを除去し、AI要約による正式オファリングを先頭(index 0)に配置
+          // 暫定のローカルオファリングをdeletedIdsに追加して完全除去し、クラウドマージで復活しないようにする
+          for (const oldBo of this.state.businessOfferings) {
+            if (oldBo.person_id === person.id) {
+              this.deletedIds.add(oldBo.id);
+            }
+          }
           this.state.businessOfferings = this.state.businessOfferings.filter(b => b.person_id !== person.id);
           this.state.businessOfferings.unshift({
             id: `bo-ai-${Date.now()}`,
@@ -6227,6 +6472,12 @@ class DataStore {
         const cleanTopic = s.topic || s.overview || '';
 
         if (cleanTopic) {
+          // 暫定のローカルFactをdeletedIdsに追加して完全除去し、クラウドマージで復活しないようにする
+          for (const oldF of this.state.facts) {
+            if (oldF.person_id === person.id && oldF.source_id === meeting.id) {
+              this.deletedIds.add(oldF.id);
+            }
+          }
           this.state.facts = this.state.facts.filter(
             f => !(f.person_id === person.id && f.source_id === meeting.id)
           );
@@ -6244,8 +6495,8 @@ class DataStore {
               confidence: 0.99,
               verification_status: 'verified',
               visibility: 'referral_eligible',
-              valid_from: new Date().toISOString(),
-              created_at: new Date().toISOString(),
+              valid_from: nowIso,
+              created_at: nowIso,
             },
             {
               id: `fact-prom-${meeting.id}-ai`,
@@ -6260,8 +6511,8 @@ class DataStore {
               confidence: 0.99,
               verification_status: 'verified',
               visibility: 'referral_eligible',
-              valid_from: new Date().toISOString(),
-              created_at: new Date().toISOString(),
+              valid_from: nowIso,
+              created_at: nowIso,
             }
           );
         }
@@ -6269,8 +6520,12 @@ class DataStore {
         const tr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
         if (tr) {
           tr.summary = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
+          (tr as any).updated_at = nowIso;
         }
 
+        person.updated_at = nowIso;
+        meeting.updated_at = nowIso;
+        this.saveDeletedIds();
         this.persist();
         return true;
       } catch {
