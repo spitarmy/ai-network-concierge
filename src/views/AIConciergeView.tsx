@@ -175,12 +175,20 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
     ]);
   };
 
+  const latestActivePerson = store.getPersons().find(p => p.status !== 'provisional');
+  const firstChipLabel = latestActivePerson
+    ? `💡 ${latestActivePerson.display_name}様との話題・約束`
+    : '💡 直近の面談相手との話題・約束';
+  const firstChipPrompt = latestActivePerson
+    ? `${latestActivePerson.display_name}さんと前回何を話した？約束はあった？`
+    : '直近の面談で決まった約束・ToDoを教えて';
+
   const handleVoiceToggle = () => {
     setIsVoiceActive(prev => !prev);
     if (!isVoiceActive) {
       setTimeout(() => {
         setIsVoiceActive(false);
-        handleSend('田中さんと前回どんな話題で盛り上がった？');
+        handleSend(firstChipPrompt);
       }, 1500);
     }
   };
@@ -305,25 +313,25 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
         ))}
       </div>
 
-      {/* 提案プロンプトチップス */}
+      {/* 提案プロンプトチップス（テナントごとの実登録データに応じて動的生成） */}
       <div className="flex space-x-2 overflow-x-auto pb-1 text-xs">
         <button
-          onClick={() => handleSend('田中さんと前回何を話した？約束はあった？')}
+          onClick={() => handleSend(firstChipPrompt)}
           className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-300 hover:border-apple-blue/50 whitespace-nowrap shrink-0"
         >
-          💡 田中さん（夢叶開発）との話題・約束
+          {firstChipLabel}
         </button>
         <button
-          onClick={() => handleSend('不動産やマンション買取に強い人いる？')}
+          onClick={() => handleSend('飲食店やブランディング・集客に強い人いる？')}
           className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-300 hover:border-apple-blue/50 whitespace-nowrap shrink-0"
         >
-          💡 不動産・マンション買取の協業候補
+          💡 飲食店・ブランディング・集客の協業候補
         </button>
         <button
-          onClick={() => handleSend('不用品回収や残置物撤去で協業できる人は？')}
+          onClick={() => handleSend('不動産や建築・専門職で協業できる人は？')}
           className="px-3 py-1.5 rounded-full bg-white dark:bg-[#1C1C1E] border border-apple-border dark:border-apple-darkBorder text-neutral-600 dark:text-neutral-300 hover:border-apple-blue/50 whitespace-nowrap shrink-0"
         >
-          💡 不用品回収・残置物撤去の協業先
+          💡 不動産・建築・専門職の協業先
         </button>
         <button
           onClick={() => handleSend('アメリカの宇宙工学に詳しい人いる？')}

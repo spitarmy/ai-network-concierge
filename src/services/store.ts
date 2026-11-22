@@ -5219,6 +5219,30 @@ class DataStore {
             changed = true;
           }
         }
+
+        // 今後の新規Zoom面談が自動同期された際、Zoom標準要約の粗さ（イニシャル表記・雑談混入・BNIチャプター誤字等）をGemini 3.5 Flashで自動的に高精度アップグレード
+        const trForAi = this.state.transcripts.find(t => t.meeting_id === targetMeeting!.id);
+        if (
+          this.isBrowserSyncEnabled() &&
+          targetMeeting.id !== 'm-zoom-nUUblUGRdOUzkSVNFeAKA' &&
+          !(trForAi as any)?.ai_refined
+        ) {
+          const zoomSourceForGemini = [
+            `【Zoom参加者一覧】: ${(session.attendees || []).join('、')}`,
+            session.transcript_text ? `【Zoom文字起こし全文】:\n${session.transcript_text}` : '',
+            cleanOverview ? `【Zoom全体概要】:\n${cleanOverview}` : '',
+            cleanDetails.length > 0
+              ? `【Zoomセクション詳細】:\n${cleanDetails.map(d => `・${d.label}: ${d.summary}`).join('\n')}`
+              : '',
+            cleanNextSteps.length > 0 ? `【Zoomネクストステップ】:\n${cleanNextSteps.join('\n')}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+          if (zoomSourceForGemini.length >= 60) {
+            if (trForAi) (trForAi as any).ai_refined = true;
+            this.refineMeetingSummaryWithAI(targetMeeting.id, zoomSourceForGemini).catch(() => {});
+          }
+        }
       }
     }
 
@@ -7375,7 +7399,7 @@ class DataStore {
       if (!person) return false;
 
       // 既に確定シード済みの主要メンバーは専用確定カルテを保護
-      if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori', 'p-mishima-danjiri', 'p-1795057464160-kxovb', 'p-1795144172299-93er5'].includes(person.id)) {
+      if (['p-tanaka-yoshihiro', 'p-iwane-yoshiyuki', 'p-kimura-naofumi', 'p-tsuji-akinori', 'p-mishima-danjiri', 'p-1795057464160-kxovb', 'p-1795144172299-93er5', 'p-1795358370152-pkdc1', 'p-kawasaki-kei'].includes(person.id)) {
         return true;
       }
 
@@ -7552,6 +7576,7 @@ class DataStore {
         const tr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
         if (tr) {
           tr.summary = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
+          (tr as any).ai_refined = true;
           (tr as any).updated_at = nowIso;
         }
 

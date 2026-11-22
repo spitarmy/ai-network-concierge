@@ -252,7 +252,7 @@ export const App: React.FC = () => {
           <div className="bg-gradient-to-r from-apple-blue to-indigo-600 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-between shadow-md z-20 shrink-0 animate-in fade-in slide-in-from-top duration-300">
             <div className="flex items-center space-x-2 min-w-0 mr-2">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-300 animate-ping shrink-0" />
-              <span className="truncate">最新版が届いています（PC/スマホ自動同期・Zoom全自動要約・夢叶開発カルテ反映）</span>
+              <span className="truncate">新しいバージョンが利用可能です（AI要約エンジン・相関図・クラウド同期の最新アップデート）</span>
             </div>
             <button
               onClick={() => forceReloadApp()}

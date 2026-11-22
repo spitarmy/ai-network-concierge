@@ -700,28 +700,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Sparkles className="w-4 h-4 text-apple-indigo" />
               <span>控えめな先回り提案（紹介の可能性）</span>
             </div>
-            {referrals.length > 0 ? (
-              <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-2 text-xs">
-                <div className="flex items-center justify-between font-medium">
-                  <span className="text-neutral-700 dark:text-neutral-300">
-                    木村 尚史 様 ⇄ ZENNOBATE（勝賀野様）
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-indigo/10 text-apple-indigo font-semibold">
-                    合致度高
-                  </span>
+            {referrals.length > 0 ? (() => {
+              const topRef = referrals[0];
+              const refPerson = store.getPersonById(topRef.referrer_person_id);
+              const candPerson = store.getPersonById(topRef.candidate_person_id);
+              return (
+                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-apple-border dark:border-apple-darkBorder space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-medium">
+                    <span className="text-neutral-700 dark:text-neutral-300">
+                      {refPerson ? `${refPerson.display_name} 様` : '紹介元'} ⇄ {candPerson ? `${candPerson.display_name} 様` : `${ownerProfile.owner_name}様`}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-indigo/10 text-apple-indigo font-semibold">
+                      合致度高
+                    </span>
+                  </div>
+                  <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    {topRef.recommendation_reason}
+                  </p>
+                  <button
+                    onClick={() => onNavigate('referrals')}
+                    className="inline-flex items-center space-x-1 text-apple-blue dark:text-apple-darkBlue hover:underline pt-1 text-[11px] font-medium"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    <span>紹介文下書きを確認する</span>
+                  </button>
                 </div>
-                <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                  木村様の「不用品回収」と、勝賀野様の「残置物撤去・リサイクルショップ」で、現場から出る回収品のリユース循環・相互送客の親和性が極めて高いです。
-                </p>
-                <button
-                  onClick={() => onNavigate('referrals')}
-                  className="inline-flex items-center space-x-1 text-apple-blue dark:text-apple-darkBlue hover:underline pt-1 text-[11px] font-medium"
-                >
-                  <Share2 className="w-3 h-3" />
-                  <span>紹介文下書きを確認する</span>
-                </button>
-              </div>
-            ) : (
+              );
+            })() : (
               <p className="text-xs text-neutral-500">現在、新しい紹介候補はありません。</p>
             )}
           </div>
