@@ -615,8 +615,10 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(store.getPersons().some(p => p.display_name.includes('ブランディング'))).toBe(false);
   });
 
-  it('高野陽行様・川崎景様のZoom会議にて、「K」が「川崎景」、「ラズベリー」が「ジャズベリー」へ正確に補正され、両名が参加者・人物カルテとして紐付くこと', () => {
+  it('高野陽行様・川崎景様のZoom会議にて、「K」が「川崎景」、「ラズベリー」が「ジャズベリー」へ正確に補正され、インフルエンザ等の雑談・カテゴリー文字化けが除去され、川崎景様のオーダースーツ事業・腕時計アステラ連携が登録されること', () => {
     store.setTenantId('tenant-001');
+    store.addCategory('ä»•äº‹');
+    store.addCategory('ãƒ‘ãƒ¼ãƒˆãƒŠãƒ¼');
     store.ingestZoomSessions([
       {
         uuid: 'nUU+blUGRdOUzkSVNFeAKA==',
@@ -625,7 +627,7 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
         start_time: '2026-11-22T12:58:56Z',
         duration: 100,
         attendees: ['4/勝賀野 太郎/残置物撤去', '高野陽行', 'K Kawasaki'],
-        summary_overview: 'Kは、自身のテーブルではビジネス的な会話が深まった一方で、全体としては仕組みによって結果が出る形にする必要があると指摘した。',
+        summary_overview: 'この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。冒頭では4/勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。Kは、自身のテーブルではビジネス的な会話が深まった一方で、全体としては仕組みによって結果が出る形にする必要があると指摘した。',
         summary_details: [
           {
             label: 'ビジネスコミュニティ交流会改善提案',
@@ -639,11 +641,26 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     ]);
     store.reconcileLegacyAndDuplicateData();
 
+    // カテゴリー文字化けが除去されていること
+    const cats = store.getCategories();
+    expect(cats.some(c => /[ãäåæç]/.test(c))).toBe(false);
+
     const takano = store.getPersons().find(p => p.display_name === '高野 陽行');
     const kawasaki = store.getPersons().find(p => p.display_name === '川崎 景');
     expect(takano).toBeDefined();
     expect(kawasaki).toBeDefined();
     expect(kawasaki?.phonetic_name).toBe('カワサキ ケイ');
+    expect(kawasaki?.notes).toContain('オーダースーツ事業');
+    expect(kawasaki?.notes).toContain('アステラ');
+    expect(kawasaki?.notes).not.toContain('インフルエンザ');
+    expect(takano?.notes).not.toContain('インフルエンザ');
+
+    const kawasakiOrgs = store.getOrgMembershipsForPerson(kawasaki!.id);
+    expect(kawasakiOrgs.some(o => o.organization_name.includes('オーダースーツ'))).toBe(true);
+    const kawasakiOfferings = store.getBusinessOfferingsForPerson(kawasaki!.id);
+    expect(kawasakiOfferings.some(b => b.service_title.includes('オーダースーツ') && b.service_title.includes('アステラ'))).toBe(true);
+    const kawasakiFacts = store.getFactsForPerson(kawasaki!.id);
+    expect(kawasakiFacts.some(f => f.fact_value.includes('オーダースーツ') && f.fact_value.includes('アステラ'))).toBe(true);
 
     const m = store.getMeetings().find(mt => mt.id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA');
     expect(m).toBeDefined();
@@ -654,6 +671,8 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     const tr = store.getTranscriptForMeeting('m-zoom-nUUblUGRdOUzkSVNFeAKA');
     expect(tr?.summary).toContain('川崎景は、自身のテーブルでは');
     expect(tr?.summary).toContain('ジャズベリーでの交流会');
+    expect(tr?.summary).toContain('オーダーメイド腕時計「アステラ（ASTERA）」');
+    expect(tr?.summary).not.toContain('インフルエンザ');
     expect(tr?.summary).not.toContain('ラズベリー');
     expect(tr?.summary).not.toContain('正勝賀野');
 

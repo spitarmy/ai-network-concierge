@@ -458,6 +458,8 @@ export default async function handler(req: any, res: any) {
 
     const fixZoomAiText = (txt?: string): string =>
       (txt || '')
+        .replace(/この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。?\s*/g, '')
+        .replace(/冒頭では(?:[0-9０-９]+\s*[/／]\s*)?勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。?\s*/g, '')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
         .replace(/正勝賀野/g, '勝賀野')

@@ -3877,10 +3877,28 @@ class DataStore {
       }
     }
 
-    // 1. 旧キャッシュの誤表記「武藤開発」「無党開発」→「夢叶開発」、Zoom AIの「K」→「川崎景」、「ラズベリー」→「ジャズベリー」、「正勝賀野」→「勝賀野」へ自動修正
+    // 1. 旧キャッシュの誤表記「武藤開発」「無党開発」→「夢叶開発」、Zoom AIの「K」→「川崎景」、「ラズベリー」→「ジャズベリー」、「正勝賀野」→「勝賀野」、冒頭雑談（インフルエンザ等）除去、カテゴリー文字化け完全除去
+    const isMojibake = (str?: string) => !!str && /[ãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\uFFFD\x80-\x9F]/.test(str);
+    if (this.state.customCategories && typeof this.state.customCategories === 'object') {
+      for (const k of Object.keys(this.state.customCategories)) {
+        const list = this.state.customCategories[k];
+        if (Array.isArray(list)) {
+          const cleaned = Array.from(new Set(list.filter(c => c && !isMojibake(c))));
+          if (cleaned.length !== list.length) {
+            this.state.customCategories[k] = cleaned.length > 0
+              ? cleaned
+              : ['BNI', '仕事', 'パートナー', 'クライアント', '友人', '知人'];
+            changed = true;
+          }
+        }
+      }
+    }
+
     const fixMuto = (s?: string) => {
       if (!s) return s;
       return s
+        .replace(/この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。?\s*/g, '')
+        .replace(/冒頭では(?:[0-9０-９]+\s*[/／]\s*)?勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。?\s*/g, '')
         .replace(/武藤開発|無党開発/g, '夢叶開発')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
@@ -3888,7 +3906,8 @@ class DataStore {
         .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
         .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
         .replace(/ラズベリー/g, 'ジャズベリー')
-        .replace(/免费/g, '無料');
+        .replace(/免费/g, '無料')
+        .trim();
     };
     for (const org of this.state.organizations || []) {
       const next = fixMuto(org.name);
@@ -3903,6 +3922,13 @@ class DataStore {
         p.display_name = '川崎 景';
         p.phonetic_name = p.phonetic_name || 'カワサキ ケイ';
         changed = true;
+      }
+      if (Array.isArray(p.category_tags)) {
+        const cleanTags = p.category_tags.filter(t => t && !isMojibake(t));
+        if (cleanTags.length !== p.category_tags.length) {
+          p.category_tags = cleanTags;
+          changed = true;
+        }
       }
       const next = fixMuto(p.notes);
       if (next !== p.notes) { p.notes = next; changed = true; }
@@ -3926,23 +3952,51 @@ class DataStore {
       if (nextF !== tr.full_text) { tr.full_text = nextF!; changed = true; }
     }
 
-    // 1.5 高野陽行様・川崎景様との3名Zoom会議（m-zoom-nUUblUGRdOUzkSVNFeAKA）に川崎景様の人物カルテ・参加者紐付け・相関図エッジを保証
+    // 1.5 高野陽行様・川崎景様との3名Zoom会議（m-zoom-nUUblUGRdOUzkSVNFeAKA）に川崎景様（オーダースーツ事業）の人物カルテ・腕時計アステラ連携・参加者紐付け・相関図エッジを保証
     if (tid === 'tenant-001') {
       const takanoMeeting = (this.state.meetings || []).find(
         m => (m.id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA' || m.zoom_uuid === 'nUU+blUGRdOUzkSVNFeAKA==') && m.tenant_id === 'tenant-001'
       );
       if (takanoMeeting) {
+        const meetingDateIso = takanoMeeting.scheduled_end_at || takanoMeeting.scheduled_start_at || '2026-11-22T14:38:56.000Z';
+        const takanoNotesClean =
+          'ビーンズ（Beans）およびジャズベリーでのビジネスコミュニティ・交流会企画運営・ブランディング支援を展開。会員制カリキュラム（ブランディング・パーソナリティ診断・自己理解強化）の構築や、飲食店との相互送客関係を含めた交流会アジェンダ改善、公式LINE・QRアンケートを活用したフォローアップ体制の整備を主導。面談終盤では川崎景様（オーダースーツ事業）と共に勝賀野様のカスタムオーダーメイド腕時計「アステラ（ASTERA）」の展開・ブランディング戦略についても意見交換。';
+        const kawasakiNotesClean =
+          'オーダースーツ事業（スーツ仕立て・経営者向けスタイリング）を展開。勝賀野様のカスタムオーダーメイド腕時計「アステラ（ASTERA）」との親和性が高く、オーダースーツ顧客層とオーダー腕時計の相互紹介・クロスセルやブランディング連携について協議。また、ビーンズ（Beans）・ジャズベリー交流会の共同運営において、プライベート3分発表の成功モデルのビジネスセッションへの応用、飲食店が集客・人脈拡大に役立つモデルケース化、ホームページを活用した事前一括登録・プロフィール入力仕組みの構築を提案。';
+        const watchSummaryBullet =
+          '・オーダースーツ×オーダーメイド腕時計「アステラ」連携: 面談終盤では、オーダースーツ事業を展開する川崎景および高野陽行と、勝賀野が手掛けるカスタムオーダーメイド腕時計「アステラ（ASTERA）」の展開・価格・ブランディング戦略について意見交換が行われ、オーダースーツ顧客層との高い親和性を活かした相互紹介・クロスセル連携について話し合われた。';
+
         const takanoPerson = (this.state.persons || []).find(
           p => p.tenant_id === 'tenant-001' && (p.id === 'p-1795358370152-pkdc1' || /高野\s*陽行/.test(p.display_name || ''))
         );
-        if (takanoPerson && !takanoPerson.phonetic_name) {
-          takanoPerson.phonetic_name = 'タカノ ハルユキ';
-          changed = true;
+        if (takanoPerson) {
+          if (!takanoPerson.phonetic_name) {
+            takanoPerson.phonetic_name = 'タカノ ハルユキ';
+            changed = true;
+          }
+          if (!takanoPerson.last_interacted_at) {
+            takanoPerson.last_interacted_at = meetingDateIso;
+            changed = true;
+          }
+          if (!takanoPerson.notes || /インフルエンザ|寝起き|この会議は/.test(takanoPerson.notes) || !takanoPerson.notes.includes('アステラ')) {
+            takanoPerson.notes = takanoNotesClean;
+            changed = true;
+          }
         }
         let kawasakiPerson = (this.state.persons || []).find(
           p => p.tenant_id === 'tenant-001' && p.status !== 'deleted' && /川崎\s*景|河崎\s*景/.test(p.display_name || '')
         );
-        const takanoTr = (this.state.transcripts || []).find(t => t.meeting_id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA');
+        const takanoTr = (this.state.transcripts || []).find(t => t.meeting_id === takanoMeeting.id);
+        if (takanoTr) {
+          if (takanoTr.summary && !takanoTr.summary.includes('オーダーメイド腕時計')) {
+            takanoTr.summary = `${fixMuto(takanoTr.summary)}\n${watchSummaryBullet}`;
+            changed = true;
+          }
+          if (takanoTr.full_text && !takanoTr.full_text.includes('オーダーメイド腕時計')) {
+            takanoTr.full_text = `${fixMuto(takanoTr.full_text)}\n${watchSummaryBullet}`;
+            changed = true;
+          }
+        }
         if (!kawasakiPerson) {
           kawasakiPerson = {
             id: 'p-kawasaki-kei',
@@ -3954,19 +4008,138 @@ class DataStore {
             category_tags: ['BNI', '仕事'],
             service_areas: ['大阪府', '京都府'],
             meeting_count: 1,
-            notes: takanoTr?.summary?.split('\n')[0] || 'ビーンズ交流会・ジャズベリー関連の運営戦略および飲食店集客・人脈拡大モデル構築について高野陽行様・勝賀野様と協議。',
+            last_interacted_at: meetingDateIso,
+            notes: kawasakiNotesClean,
             created_at: takanoMeeting.created_at || new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
           this.state.persons.push(kawasakiPerson);
           changed = true;
-        } else if (kawasakiPerson.display_name !== '川崎 景' || kawasakiPerson.status !== 'active' || !kawasakiPerson.phonetic_name) {
+        } else if (
+          kawasakiPerson.display_name !== '川崎 景' ||
+          kawasakiPerson.status !== 'active' ||
+          !kawasakiPerson.phonetic_name ||
+          !kawasakiPerson.last_interacted_at ||
+          !kawasakiPerson.notes ||
+          /インフルエンザ|寝起き|この会議は/.test(kawasakiPerson.notes) ||
+          !kawasakiPerson.notes.includes('オーダースーツ')
+        ) {
           kawasakiPerson.display_name = '川崎 景';
           kawasakiPerson.phonetic_name = kawasakiPerson.phonetic_name || 'カワサキ ケイ';
           kawasakiPerson.status = 'active';
+          kawasakiPerson.is_name_verified = true;
           kawasakiPerson.meeting_count = Math.max(1, kawasakiPerson.meeting_count || 1);
+          kawasakiPerson.last_interacted_at = meetingDateIso;
+          kawasakiPerson.notes = kawasakiNotesClean;
           changed = true;
         }
+
+        // 川崎景様の会社・事業（オーダースーツ事業）および事実・出典（オーダースーツ×オーダーメイド腕時計アステラ連携）を保証
+        if (!(this.state.organizations || []).some(o => o.id === 'org-kawasaki-suit')) {
+          this.state.organizations.push({
+            id: 'org-kawasaki-suit',
+            tenant_id: 'tenant-001',
+            name: 'オーダースーツ事業（川崎景様）',
+          });
+          changed = true;
+        }
+        if (!(this.state.organizationMemberships || []).some(om => om.person_id === kawasakiPerson!.id)) {
+          this.state.organizationMemberships.push({
+            id: 'om-kawasaki-1',
+            tenant_id: 'tenant-001',
+            person_id: kawasakiPerson.id,
+            organization_id: 'org-kawasaki-suit',
+            organization_name: 'オーダースーツ事業',
+            title: '代表（オーダースーツ仕立て・スタイリング）',
+            is_current: true,
+            started_on: '2026-11-22',
+          });
+          changed = true;
+        }
+        if (!(this.state.businessOfferings || []).some(bo => bo.person_id === kawasakiPerson!.id)) {
+          this.state.businessOfferings.push({
+            id: 'bo-kawasaki-1',
+            tenant_id: 'tenant-001',
+            person_id: kawasakiPerson.id,
+            service_title: 'オーダースーツ仕立て・経営者向けスタイリング / カスタム腕時計「アステラ」クロスセル連携',
+            specialties: 'オーダースーツ製作・フィッティング、経営者・ビジネス層向け装いブランディング、勝賀野様のカスタムオーダーメイド腕時計「アステラ（ASTERA）」とのクロスセル・相互紹介連携、体験型ビジネス交流会設計',
+            target_clients: 'オーダースーツを仕立てたい経営者・ビジネスパーソン、オーダーメイド腕時計「アステラ」に関心のある顧客層、集客・人脈拡大を目指す飲食店オーナー',
+            service_area: '大阪府・京都府・関西一円',
+            is_active: true,
+          });
+          changed = true;
+        }
+        if (takanoPerson && !(this.state.businessOfferings || []).some(bo => bo.person_id === takanoPerson.id)) {
+          this.state.businessOfferings.push({
+            id: 'bo-takano-1',
+            tenant_id: 'tenant-001',
+            person_id: takanoPerson.id,
+            service_title: 'ビジネスコミュニティ「ビーンズ」・ジャズベリー交流会企画運営 / ブランディング・パーソナリティ診断',
+            specialties: '体験型ビジネス交流会設計、会員向けブランディング・自己理解・パーソナリティ診断カリキュラム提供、飲食店との相互送客モデル構築',
+            target_clients: '人脈拡大と実践的ブランディングを求める経営者・個人事業主、集客連携を希望する飲食店オーナー',
+            service_area: '大阪府・京都府・関西一円',
+            is_active: true,
+          });
+          changed = true;
+        }
+
+        const kawasakiFacts: Fact[] = [
+          {
+            id: 'fact-kawasaki-topic-1',
+            tenant_id: 'tenant-001',
+            person_id: kawasakiPerson.id,
+            fact_category: 'topic',
+            fact_key: '本業（オーダースーツ事業）×オーダーメイド腕時計「アステラ」連携',
+            fact_value: 'オーダースーツ事業（スーツ仕立て・経営者向けスタイリング）を展開。面談終盤にて勝賀野様が手掛けるカスタムオーダーメイド腕時計「アステラ（ASTERA）」の展開・ブランディング戦略について意見交換し、オーダースーツ顧客層との高い親和性を活かした相互紹介・クロスセル連携を協議',
+            source_type: 'meeting_speech',
+            source_id: takanoMeeting.id,
+            source_evidence: '2026/11/22 Zoom面談（高野陽行様・川崎景様・勝賀野様）',
+            confidence: 0.99,
+            verification_status: 'verified',
+            visibility: 'referral_eligible',
+            valid_from: meetingDateIso,
+            created_at: meetingDateIso,
+          },
+          {
+            id: 'fact-kawasaki-topic-2',
+            tenant_id: 'tenant-001',
+            person_id: kawasakiPerson.id,
+            fact_category: 'topic',
+            fact_key: 'ビーンズ・ジャズベリー交流会改善提案',
+            fact_value: 'ビーンズ・ジャズベリー交流会の改善として、①プライベート3分発表の成功モデルを応用した体験型ビジネス交流の仕組み化、②飲食店が集客・人脈拡大に役立つモデルケースとしての位置づけ、③ホームページを用いた事前一括登録・自己紹介入力システムの導入を提案',
+            source_type: 'meeting_speech',
+            source_id: takanoMeeting.id,
+            source_evidence: '2026/11/22 Zoom面談（高野陽行様・川崎景様・勝賀野様）',
+            confidence: 0.98,
+            verification_status: 'verified',
+            visibility: 'referral_eligible',
+            valid_from: meetingDateIso,
+            created_at: meetingDateIso,
+          },
+          {
+            id: 'fact-kawasaki-promise-1',
+            tenant_id: 'tenant-001',
+            person_id: kawasakiPerson.id,
+            fact_category: 'promise',
+            fact_key: '次回アクション・約束ToDo',
+            fact_value: '勝賀野様から次回京都開催の交流会の日程が決まり次第、川崎景様へ早期に共有し、オーダーメイド腕時計「アステラ」×オーダースーツ事業の連携および交流会運営改善を進める',
+            source_type: 'meeting_speech',
+            source_id: takanoMeeting.id,
+            source_evidence: '2026/11/22 Zoom面談 Next Steps',
+            confidence: 0.98,
+            verification_status: 'verified',
+            visibility: 'referral_eligible',
+            valid_from: meetingDateIso,
+            created_at: meetingDateIso,
+          },
+        ];
+        for (const kf of kawasakiFacts) {
+          if (!(this.state.facts || []).some(f => f.id === kf.id)) {
+            this.state.facts.unshift(kf);
+            changed = true;
+          }
+        }
+
         if (takanoPerson && !takanoMeeting.participant_ids.includes(takanoPerson.id)) {
           takanoMeeting.participant_ids.unshift(takanoPerson.id);
           changed = true;
@@ -3975,30 +4148,34 @@ class DataStore {
           takanoMeeting.participant_ids.push(kawasakiPerson.id);
           changed = true;
         }
-        const expectedTitle = '高野 陽行様・川崎 景様と面談（ビーンズ・ジャズベリー交流会運営戦略）';
+        const expectedTitle = '高野 陽行様・川崎 景様と面談（ビーンズ・ジャズベリー交流会運営戦略×オーダースーツ・腕時計アステラ連携）';
         if (takanoMeeting.title !== expectedTitle) {
           takanoMeeting.title = expectedTitle;
           changed = true;
         }
         if (takanoPerson && kawasakiPerson) {
-          const hasRel = (this.state.relationships || []).some(
+          const existingRel = (this.state.relationships || []).find(
             r =>
               r.tenant_id === 'tenant-001' &&
               ((r.from_person_id === takanoPerson.id && r.to_person_id === kawasakiPerson!.id) ||
                 (r.from_person_id === kawasakiPerson!.id && r.to_person_id === takanoPerson.id))
           );
-          if (!hasRel) {
+          if (!existingRel) {
             this.state.relationships.push({
               id: 'rel-takano-kawasaki',
               tenant_id: 'tenant-001',
               from_person_id: takanoPerson.id,
               to_person_id: kawasakiPerson.id,
-              relationship_type: '共同運営・協業連携（ビーンズ・ジャズベリー交流会企画）',
+              relationship_type: '共同運営・協業連携（ビーンズ・ジャズベリー交流会 / オーダースーツ×腕時計アステラ）',
               is_ai_inferred: false,
               confidence: 0.99,
-              evidence_text: '2026/11/22 Zoom会議にて高野陽行様・川崎景様・勝賀野様の3名でビーンズおよびジャズベリー交流会の運営改善・ブランディング戦略を協議',
+              evidence_text: '2026/11/22 Zoom会議にて高野陽行様・川崎景様（オーダースーツ事業）・勝賀野様の3名でビーンズおよびジャズベリー交流会の運営改善とオーダーメイド腕時計「アステラ」連携を協議',
               source_meeting_id: 'm-zoom-nUUblUGRdOUzkSVNFeAKA',
             });
+            changed = true;
+          } else if (!existingRel.relationship_type.includes('オーダースーツ')) {
+            existingRel.relationship_type = '共同運営・協業連携（ビーンズ・ジャズベリー交流会 / オーダースーツ×腕時計アステラ）';
+            existingRel.evidence_text = '2026/11/22 Zoom会議にて高野陽行様・川崎景様（オーダースーツ事業）・勝賀野様の3名でビーンズおよびジャズベリー交流会の運営改善とオーダーメイド腕時計「アステラ」連携を協議';
             changed = true;
           }
         }
@@ -4661,6 +4838,8 @@ class DataStore {
 
       const cleanZoomText = (txt?: string) =>
         (txt || '')
+          .replace(/この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。?\s*/g, '')
+          .replace(/冒頭では(?:[0-9０-９]+\s*[/／]\s*)?勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。?\s*/g, '')
           .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
           .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
           .replace(/正勝賀野/g, '勝賀野')
@@ -5088,8 +5267,9 @@ class DataStore {
     if (!obj) return false;
     const txt = `${obj.notes || ''} ${obj.summary || ''} ${obj.service_title || ''} ${obj.fact_value || ''}`;
     return (
-      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野/.test(txt) ||
-      /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt)
+      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している/.test(txt) ||
+      /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt) ||
+      /[ãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\uFFFD\x80-\x9F]/.test(txt)
     );
   }
 
@@ -5451,6 +5631,18 @@ class DataStore {
     const tid = this.state.currentTenantId;
     if (!this.state.customCategories) {
       this.state.customCategories = {};
+    }
+    const existing = this.state.customCategories[tid];
+    if (Array.isArray(existing) && existing.length > 0) {
+      const cleaned = Array.from(
+        new Set(existing.filter(c => c && !/[ãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\uFFFD\x80-\x9F]/.test(c)))
+      );
+      if (cleaned.length !== existing.length) {
+        this.state.customCategories[tid] = cleaned.length > 0
+          ? cleaned
+          : ['BNI', '仕事', 'パートナー', 'クライアント', '友人', '知人'];
+        this.persist();
+      }
     }
     if (!this.state.customCategories[tid] || this.state.customCategories[tid].length === 0) {
       this.state.customCategories[tid] = [
