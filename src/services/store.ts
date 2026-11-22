@@ -3830,6 +3830,9 @@ class DataStore {
       .replace(/\(.*?\)|（.*?）/g, '')
       .replace(/(?:様|さん|氏|代表|社長)$/, '')
       .trim();
+    if (/^K\s*Kawasaki$|^Kawasaki\s*K$/i.test(cleaned)) {
+      return '川崎 景';
+    }
     if (/^[一-龯]{4}$/.test(cleaned)) {
       cleaned = `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
     }
@@ -3874,8 +3877,19 @@ class DataStore {
       }
     }
 
-    // 1. 旧キャッシュの誤表記「武藤開発」「無党開発」→正式社名「夢叶開発」へ自動修正
-    const fixMuto = (s?: string) => (s && /武藤開発|無党開発/.test(s) ? s.replace(/武藤開発|無党開発/g, '夢叶開発') : s);
+    // 1. 旧キャッシュの誤表記「武藤開発」「無党開発」→「夢叶開発」、Zoom AIの「K」→「川崎景」、「ラズベリー」→「ジャズベリー」、「正勝賀野」→「勝賀野」へ自動修正
+    const fixMuto = (s?: string) => {
+      if (!s) return s;
+      return s
+        .replace(/武藤開発|無党開発/g, '夢叶開発')
+        .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
+        .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
+        .replace(/正勝賀野/g, '勝賀野')
+        .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
+        .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+        .replace(/ラズベリー/g, 'ジャズベリー')
+        .replace(/免费/g, '無料');
+    };
     for (const org of this.state.organizations || []) {
       const next = fixMuto(org.name);
       if (next !== org.name) { org.name = next!; changed = true; }
@@ -3885,6 +3899,11 @@ class DataStore {
       if (next !== om.organization_name) { om.organization_name = next!; changed = true; }
     }
     for (const p of this.state.persons || []) {
+      if (/^K\s*Kawasaki$|^Kawasaki\s*K$|^K$/i.test((p.display_name || '').trim())) {
+        p.display_name = '川崎 景';
+        p.phonetic_name = p.phonetic_name || 'カワサキ ケイ';
+        changed = true;
+      }
       const next = fixMuto(p.notes);
       if (next !== p.notes) { p.notes = next; changed = true; }
     }
@@ -3895,7 +3914,9 @@ class DataStore {
       if (nextR !== m.raw_invite_text) { m.raw_invite_text = nextR; changed = true; }
     }
     for (const f of this.state.facts || []) {
+      const nextK = fixMuto(f.fact_key);
       const next = fixMuto(f.fact_value);
+      if (nextK !== f.fact_key) { f.fact_key = nextK!; changed = true; }
       if (next !== f.fact_value) { f.fact_value = next!; changed = true; }
     }
     for (const tr of this.state.transcripts || []) {
@@ -3903,6 +3924,85 @@ class DataStore {
       const nextF = fixMuto(tr.full_text);
       if (nextS !== tr.summary) { tr.summary = nextS!; changed = true; }
       if (nextF !== tr.full_text) { tr.full_text = nextF!; changed = true; }
+    }
+
+    // 1.5 高野陽行様・川崎景様との3名Zoom会議（m-zoom-nUUblUGRdOUzkSVNFeAKA）に川崎景様の人物カルテ・参加者紐付け・相関図エッジを保証
+    if (tid === 'tenant-001') {
+      const takanoMeeting = (this.state.meetings || []).find(
+        m => (m.id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA' || m.zoom_uuid === 'nUU+blUGRdOUzkSVNFeAKA==') && m.tenant_id === 'tenant-001'
+      );
+      if (takanoMeeting) {
+        const takanoPerson = (this.state.persons || []).find(
+          p => p.tenant_id === 'tenant-001' && (p.id === 'p-1795358370152-pkdc1' || /高野\s*陽行/.test(p.display_name || ''))
+        );
+        if (takanoPerson && !takanoPerson.phonetic_name) {
+          takanoPerson.phonetic_name = 'タカノ ハルユキ';
+          changed = true;
+        }
+        let kawasakiPerson = (this.state.persons || []).find(
+          p => p.tenant_id === 'tenant-001' && p.status !== 'deleted' && /川崎\s*景|河崎\s*景/.test(p.display_name || '')
+        );
+        const takanoTr = (this.state.transcripts || []).find(t => t.meeting_id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA');
+        if (!kawasakiPerson) {
+          kawasakiPerson = {
+            id: 'p-kawasaki-kei',
+            tenant_id: 'tenant-001',
+            display_name: '川崎 景',
+            phonetic_name: 'カワサキ ケイ',
+            status: 'active',
+            is_name_verified: true,
+            category_tags: ['BNI', '仕事'],
+            service_areas: ['大阪府', '京都府'],
+            meeting_count: 1,
+            notes: takanoTr?.summary?.split('\n')[0] || 'ビーンズ交流会・ジャズベリー関連の運営戦略および飲食店集客・人脈拡大モデル構築について高野陽行様・勝賀野様と協議。',
+            created_at: takanoMeeting.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          this.state.persons.push(kawasakiPerson);
+          changed = true;
+        } else if (kawasakiPerson.display_name !== '川崎 景' || kawasakiPerson.status !== 'active' || !kawasakiPerson.phonetic_name) {
+          kawasakiPerson.display_name = '川崎 景';
+          kawasakiPerson.phonetic_name = kawasakiPerson.phonetic_name || 'カワサキ ケイ';
+          kawasakiPerson.status = 'active';
+          kawasakiPerson.meeting_count = Math.max(1, kawasakiPerson.meeting_count || 1);
+          changed = true;
+        }
+        if (takanoPerson && !takanoMeeting.participant_ids.includes(takanoPerson.id)) {
+          takanoMeeting.participant_ids.unshift(takanoPerson.id);
+          changed = true;
+        }
+        if (kawasakiPerson && !takanoMeeting.participant_ids.includes(kawasakiPerson.id)) {
+          takanoMeeting.participant_ids.push(kawasakiPerson.id);
+          changed = true;
+        }
+        const expectedTitle = '高野 陽行様・川崎 景様と面談（ビーンズ・ジャズベリー交流会運営戦略）';
+        if (takanoMeeting.title !== expectedTitle) {
+          takanoMeeting.title = expectedTitle;
+          changed = true;
+        }
+        if (takanoPerson && kawasakiPerson) {
+          const hasRel = (this.state.relationships || []).some(
+            r =>
+              r.tenant_id === 'tenant-001' &&
+              ((r.from_person_id === takanoPerson.id && r.to_person_id === kawasakiPerson!.id) ||
+                (r.from_person_id === kawasakiPerson!.id && r.to_person_id === takanoPerson.id))
+          );
+          if (!hasRel) {
+            this.state.relationships.push({
+              id: 'rel-takano-kawasaki',
+              tenant_id: 'tenant-001',
+              from_person_id: takanoPerson.id,
+              to_person_id: kawasakiPerson.id,
+              relationship_type: '共同運営・協業連携（ビーンズ・ジャズベリー交流会企画）',
+              is_ai_inferred: false,
+              confidence: 0.99,
+              evidence_text: '2026/11/22 Zoom会議にて高野陽行様・川崎景様・勝賀野様の3名でビーンズおよびジャズベリー交流会の運営改善・ブランディング戦略を協議',
+              source_meeting_id: 'm-zoom-nUUblUGRdOUzkSVNFeAKA',
+            });
+            changed = true;
+          }
+        }
+      }
     }
 
     // 2. 旧 syncZoomInbox が作った参加者なしの空枠 m-zoom-89527504054 や孤児Factを除去
@@ -4524,7 +4624,8 @@ class DataStore {
           if (m.zoom_uuid && uuid && m.zoom_uuid !== uuid) return false;
           const diffHrs = Math.abs(new Date(m.scheduled_start_at).getTime() - sessionStartMs) / 3600000;
           const sameDay = m.scheduled_start_at.slice(0, 10) === startIso.slice(0, 10);
-          if (m.status !== 'completed' && diffHrs <= 4) return true;
+          const isGenericPending = /相手未特定|面談予定|ZENNOBATE|オンライン面談|Zoom予定/.test(m.title);
+          if (m.status !== 'completed' && diffHrs <= 4 && (!partnerSurname || isGenericPending || m.title.includes(partnerSurname))) return true;
           if (sameDay && partnerSurname && m.title.includes(partnerSurname)) return true;
           return false;
         });
@@ -4562,7 +4663,12 @@ class DataStore {
         (txt || '')
           .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
           .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
+          .replace(/正勝賀野/g, '勝賀野')
+          .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
+          .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+          .replace(/ラズベリー/g, 'ジャズベリー')
           .replace(/無党開発|武藤開発/g, '夢叶開発')
+          .replace(/免费/g, '無料')
           .trim();
 
       const cleanOverview = cleanZoomText(session.summary_overview);
@@ -4700,9 +4806,42 @@ class DataStore {
         }
       }
 
+      // 2人以上の相手が出席しているZoom会議の場合、2人目以降の出席者（例: 川崎 景様）も人物カルテとして自動作成・紐付け
+      const extraParticipantPersons: Person[] = [];
+      for (const extraName of externalNames.slice(1)) {
+        const extraSurname = extraName.split(/\s+/)[0] || '';
+        let ep = this.getPersons().find(p =>
+          p.display_name === extraName ||
+          p.display_name.replace(/\s+/g, '') === extraName.replace(/\s+/g, '') ||
+          (extraSurname.length >= 2 && p.display_name === extraSurname)
+        );
+        if (!ep) {
+          ep = this.createPerson({
+            display_name: extraName,
+            status: 'active',
+            category_tags: ['仕事'],
+            meeting_count: 1,
+            last_interacted_at: endIso,
+            notes: cleanOverview || 'Zoom面談より自動登録',
+          });
+          changed = true;
+        } else if (ep.status === 'provisional') {
+          ep.status = 'active';
+          ep.meeting_count = Math.max(1, ep.meeting_count || 1);
+          changed = true;
+        }
+        extraParticipantPersons.push(ep);
+      }
+
+      const allParticipantPersons = [
+        ...(partnerPerson ? [partnerPerson] : []),
+        ...extraParticipantPersons.filter(ep => ep.id !== partnerPerson?.id),
+      ];
+      const allParticipantIds = allParticipantPersons.map(p => p.id);
+
       // 面談レコードの作成または完了更新
-      const defaultTitle = partnerPerson
-        ? `${partnerPerson.display_name}様と1to1面談${preScheduledCompany ? `（${preScheduledCompany}）` : ''}`
+      const defaultTitle = allParticipantPersons.length > 0
+        ? `${allParticipantPersons.map(p => `${p.display_name}様`).join('・')}と${allParticipantPersons.length > 1 ? '面談' : '1to1面談'}${preScheduledCompany ? `（${preScheduledCompany}）` : ''}`
         : (session.summary_title && !session.summary_title.includes('Meeting Summary for')
             ? session.summary_title
             : (session.topic && session.topic !== 'ZENNOBATE Meeting Room' ? session.topic : 'Zoom 1to1面談'));
@@ -4722,7 +4861,7 @@ class DataStore {
           host_type: 'self',
           recording_status: 'completed',
           status: 'completed',
-          participant_ids: partnerPerson ? [partnerPerson.id] : [],
+          participant_ids: allParticipantIds,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -4742,9 +4881,11 @@ class DataStore {
           targetMeeting.meeting_url = session.share_url;
           changed = true;
         }
-        if (partnerPerson && !targetMeeting.participant_ids.includes(partnerPerson.id)) {
-          targetMeeting.participant_ids = [partnerPerson.id, ...targetMeeting.participant_ids];
-          changed = true;
+        for (const pid of allParticipantIds) {
+          if (!targetMeeting.participant_ids.includes(pid)) {
+            targetMeeting.participant_ids.push(pid);
+            changed = true;
+          }
         }
         if (
           partnerPerson &&
@@ -4946,7 +5087,10 @@ class DataStore {
   private isColloquialOrPlaceholderRecord(obj: any): boolean {
     if (!obj) return false;
     const txt = `${obj.notes || ''} ${obj.summary || ''} ${obj.service_title || ''} ${obj.fact_value || ''}`;
-    return /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな/.test(txt);
+    return (
+      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野/.test(txt) ||
+      /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt)
+    );
   }
 
   private mergeCollectionById<T extends { id: string; updated_at?: string; created_at?: string }>(

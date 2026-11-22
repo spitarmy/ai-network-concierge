@@ -171,7 +171,23 @@ function getItemTime(item: any): number {
 
 function isColloquialOrPlaceholder(item: any): boolean {
   const txt = `${item?.notes || ''} ${item?.summary || ''} ${item?.service_title || ''} ${item?.fact_value || ''}`;
-  return /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな/.test(txt);
+  return (
+    /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野/.test(txt) ||
+    /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt)
+  );
+}
+
+function fixKnownZoomMisrecognitions(txt?: string): string {
+  if (!txt || typeof txt !== 'string') return txt || '';
+  return txt
+    .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
+    .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
+    .replace(/正勝賀野/g, '勝賀野')
+    .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
+    .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+    .replace(/ラズベリー/g, 'ジャズベリー')
+    .replace(/無党開発|武藤開発/g, '夢叶開発')
+    .replace(/免费/g, '無料');
 }
 
 function mergeArrayById(
@@ -290,6 +306,108 @@ function ensureCoreTenantsAndDeduplicate(state: any): any {
         is_onboarded: false,
       },
     });
+  }
+
+  // Zoom AI Companion の表記ゆれ・誤認識（「K」→「川崎景」、「ラズベリー」→「ジャズベリー」、「正勝賀野」→「勝賀野」等）をサーバー側でも全レコード一括補正
+  if (Array.isArray(state.persons)) {
+    for (const p of state.persons) {
+      if (!p) continue;
+      if (/^K\s*Kawasaki$|^Kawasaki\s*K$|^K$/i.test(String(p.display_name || '').trim())) {
+        p.display_name = '川崎 景';
+        p.phonetic_name = p.phonetic_name || 'カワサキ ケイ';
+      }
+      if (p.notes) p.notes = fixKnownZoomMisrecognitions(p.notes);
+    }
+  }
+  if (Array.isArray(state.transcripts)) {
+    for (const tr of state.transcripts) {
+      if (!tr) continue;
+      if (tr.summary) tr.summary = fixKnownZoomMisrecognitions(tr.summary);
+      if (tr.full_text) tr.full_text = fixKnownZoomMisrecognitions(tr.full_text);
+    }
+  }
+  if (Array.isArray(state.facts)) {
+    for (const f of state.facts) {
+      if (!f) continue;
+      if (f.fact_key) f.fact_key = fixKnownZoomMisrecognitions(f.fact_key);
+      if (f.fact_value) f.fact_value = fixKnownZoomMisrecognitions(f.fact_value);
+    }
+  }
+  if (Array.isArray(state.meetings)) {
+    for (const m of state.meetings) {
+      if (!m) continue;
+      if (m.title) m.title = fixKnownZoomMisrecognitions(m.title);
+    }
+  }
+
+  // 高野陽行様・川崎景様との3名Zoom会議（m-zoom-nUUblUGRdOUzkSVNFeAKA）に川崎景様の人物カルテ・参加者紐付け・相関図エッジを保証
+  const takanoMeeting = Array.isArray(state.meetings)
+    ? state.meetings.find((m: any) => m?.id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA' && m?.tenant_id === 'tenant-001')
+    : undefined;
+  if (takanoMeeting && Array.isArray(state.persons)) {
+    const takanoPerson = state.persons.find(
+      (p: any) => p?.tenant_id === 'tenant-001' && (p?.id === 'p-1795358370152-pkdc1' || /高野\s*陽行/.test(p?.display_name || ''))
+    );
+    if (takanoPerson && !takanoPerson.phonetic_name) {
+      takanoPerson.phonetic_name = 'タカノ ハルユキ';
+    }
+    let kawasakiPerson = state.persons.find(
+      (p: any) => p?.tenant_id === 'tenant-001' && p?.status !== 'deleted' && /川崎\s*景|河崎\s*景/.test(p?.display_name || '')
+    );
+    const takanoTr = Array.isArray(state.transcripts)
+      ? state.transcripts.find((t: any) => t?.meeting_id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA')
+      : undefined;
+    if (!kawasakiPerson) {
+      kawasakiPerson = {
+        id: 'p-kawasaki-kei',
+        tenant_id: 'tenant-001',
+        display_name: '川崎 景',
+        phonetic_name: 'カワサキ ケイ',
+        status: 'active',
+        is_name_verified: true,
+        category_tags: ['BNI', '仕事'],
+        service_areas: ['大阪府', '京都府'],
+        meeting_count: 1,
+        notes: takanoTr?.summary?.split('\n')[0] || 'ビーンズ交流会・ジャズベリー関連の運営戦略および飲食店集客・人脈拡大モデル構築について高野陽行様・勝賀野様と協議。',
+        created_at: takanoMeeting.created_at || '2026-11-22T14:39:30.152Z',
+        updated_at: new Date().toISOString(),
+      };
+      state.persons.push(kawasakiPerson);
+    } else {
+      kawasakiPerson.display_name = '川崎 景';
+      kawasakiPerson.phonetic_name = kawasakiPerson.phonetic_name || 'カワサキ ケイ';
+      kawasakiPerson.status = 'active';
+      kawasakiPerson.meeting_count = Math.max(1, kawasakiPerson.meeting_count || 1);
+    }
+    if (!Array.isArray(takanoMeeting.participant_ids)) takanoMeeting.participant_ids = [];
+    if (takanoPerson && !takanoMeeting.participant_ids.includes(takanoPerson.id)) {
+      takanoMeeting.participant_ids.unshift(takanoPerson.id);
+    }
+    if (kawasakiPerson && !takanoMeeting.participant_ids.includes(kawasakiPerson.id)) {
+      takanoMeeting.participant_ids.push(kawasakiPerson.id);
+    }
+    takanoMeeting.title = '高野 陽行様・川崎 景様と面談（ビーンズ・ジャズベリー交流会運営戦略）';
+    if (takanoPerson && kawasakiPerson && Array.isArray(state.relationships)) {
+      const hasRel = state.relationships.some(
+        (r: any) =>
+          r?.tenant_id === 'tenant-001' &&
+          ((r.from_person_id === takanoPerson.id && r.to_person_id === kawasakiPerson.id) ||
+            (r.from_person_id === kawasakiPerson.id && r.to_person_id === takanoPerson.id))
+      );
+      if (!hasRel) {
+        state.relationships.push({
+          id: 'rel-takano-kawasaki',
+          tenant_id: 'tenant-001',
+          from_person_id: takanoPerson.id,
+          to_person_id: kawasakiPerson.id,
+          relationship_type: '共同運営・協業連携（ビーンズ・ジャズベリー交流会企画）',
+          is_ai_inferred: false,
+          confidence: 0.99,
+          evidence_text: '2026/11/22 Zoom会議にて高野陽行様・川崎景様・勝賀野様の3名でビーンズおよびジャズベリー交流会の運営改善・ブランディング戦略を協議',
+          source_meeting_id: 'm-zoom-nUUblUGRdOUzkSVNFeAKA',
+        });
+      }
+    }
   }
 
   // テナントごとの同名人物重複・同日同一人物面談重複をサーバー側でも自動名寄せ（データ重複ゼロ保証）

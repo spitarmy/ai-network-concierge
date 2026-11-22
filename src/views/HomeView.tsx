@@ -59,9 +59,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const latestCompletedMeeting = meetings
     .filter(m => m.status === 'completed' || m.recording_status === 'completed')
     .sort((a, b) => new Date(b.scheduled_start_at).getTime() - new Date(a.scheduled_start_at).getTime())[0];
-  const upcomingParticipant: Person | undefined = upcomingMeeting && upcomingMeeting.participant_ids.length > 0
-    ? store.getPersonById(upcomingMeeting.participant_ids[0])
-    : undefined;
+  const upcomingParticipants: Person[] = upcomingMeeting
+    ? (upcomingMeeting.participant_ids.map(pid => store.getPersonById(pid)).filter(Boolean) as Person[])
+    : [];
+  const upcomingParticipant: Person | undefined = upcomingParticipants[0];
+  const upcomingParticipantsLabel = upcomingParticipants.length > 0
+    ? upcomingParticipants.map(p => `${p.display_name}様`).join('・')
+    : '面談相手様';
   const upcomingOrg = upcomingParticipant ? store.getOrgMembershipsForPerson(upcomingParticipant.id)[0] : undefined;
 
   // 参加者の前回話題・未完了約束を取得
@@ -217,7 +221,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div>
                 <div className="flex items-center space-x-2">
                   <h2 className="text-xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
-                    {upcomingParticipant ? upcomingParticipant.display_name : upcomingMeeting.title}
+                    {upcomingParticipants.length > 1
+                      ? upcomingParticipants.map(p => p.display_name).join(' 様・') + ' 様'
+                      : (upcomingParticipant ? upcomingParticipant.display_name : upcomingMeeting.title)}
                   </h2>
                   {upcomingParticipant?.phonetic_name && (
                     <span className="text-xs text-neutral-400 font-normal">
@@ -420,7 +426,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-800/50 space-y-2">
                 <span className="text-apple-blue dark:text-apple-darkBlue font-bold flex items-center space-x-1">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>AI面談要約（{upcomingParticipant?.display_name || '面談相手'}様）</span>
+                  <span>AI面談要約（{upcomingParticipantsLabel}）</span>
                 </span>
                 <StructuredTextBlock
                   text={upcomingTranscript.summary}
@@ -466,9 +472,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* 今後の予定がある時でも、直近に完了したZoom面談のAI要約・お礼状が埋もれないよう常時表示 */}
       {latestCompletedMeeting && upcomingMeeting && latestCompletedMeeting.id !== upcomingMeeting.id && (() => {
-        const cp = latestCompletedMeeting.participant_ids[0]
-          ? store.getPersonById(latestCompletedMeeting.participant_ids[0])
-          : undefined;
+        const cps = latestCompletedMeeting.participant_ids
+          .map(pid => store.getPersonById(pid))
+          .filter(Boolean) as Person[];
+        const cp = cps[0];
         const cpOrg = cp ? store.getOrgMembershipsForPerson(cp.id)[0] : undefined;
         const tr = store.getTranscriptForMeeting(latestCompletedMeeting.id);
         return (
@@ -483,7 +490,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mt-1">
-                    {cp ? `${cp.display_name} 様` : latestCompletedMeeting.title}
+                    {cps.length > 0 ? cps.map(p => `${p.display_name} 様`).join('・') : latestCompletedMeeting.title}
                     {cpOrg ? `（${cpOrg.organization_name}）` : ''}
                   </h3>
                 </div>

@@ -456,9 +456,39 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const sessions = Array.from(sessionMap.values()).sort(
-      (a, b) => new Date(b.start_time || 0).getTime() - new Date(a.start_time || 0).getTime()
-    );
+    const fixZoomAiText = (txt?: string): string =>
+      (txt || '')
+        .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
+        .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
+        .replace(/正勝賀野/g, '勝賀野')
+        .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
+        .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+        .replace(/ラズベリー/g, 'ジャズベリー')
+        .replace(/無党開発|武藤開発/g, '夢叶開発')
+        .replace(/免费/g, '無料');
+
+    const sessions = Array.from(sessionMap.values())
+      .map(s => ({
+        ...s,
+        summary_overview: fixZoomAiText(s.summary_overview),
+        summary_details: Array.isArray(s.summary_details)
+          ? s.summary_details.map((d: any) => ({
+              ...d,
+              label: fixZoomAiText(d.label),
+              summary: fixZoomAiText(d.summary),
+            }))
+          : [],
+        next_steps: Array.isArray(s.next_steps)
+          ? s.next_steps.map((st: string) => fixZoomAiText(st))
+          : [],
+        attendees: Array.isArray(s.attendees)
+          ? s.attendees.map((a: string) => (/^K\s*Kawasaki$|^Kawasaki\s*K$/i.test(String(a).trim()) ? '川崎 景' : a))
+          : [],
+        transcript_text: fixZoomAiText(s.transcript_text),
+      }))
+      .sort(
+        (a, b) => new Date(b.start_time || 0).getTime() - new Date(a.start_time || 0).getTime()
+      );
 
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 200;

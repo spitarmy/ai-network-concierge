@@ -614,4 +614,51 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(store.getPersons().length).toBe(shoganoPersonsCount);
     expect(store.getPersons().some(p => p.display_name.includes('ブランディング'))).toBe(false);
   });
+
+  it('高野陽行様・川崎景様のZoom会議にて、「K」が「川崎景」、「ラズベリー」が「ジャズベリー」へ正確に補正され、両名が参加者・人物カルテとして紐付くこと', () => {
+    store.setTenantId('tenant-001');
+    store.ingestZoomSessions([
+      {
+        uuid: 'nUU+blUGRdOUzkSVNFeAKA==',
+        meeting_id: '89527504054',
+        topic: 'ZENNOBATE Meeting Room',
+        start_time: '2026-11-22T12:58:56Z',
+        duration: 100,
+        attendees: ['4/勝賀野 太郎/残置物撤去', '高野陽行', 'K Kawasaki'],
+        summary_overview: 'Kは、自身のテーブルではビジネス的な会話が深まった一方で、全体としては仕組みによって結果が出る形にする必要があると指摘した。',
+        summary_details: [
+          {
+            label: 'ビジネスコミュニティ交流会改善提案',
+            summary: '高野陽行は、ラズベリーでの交流会の経験を振り返り、ビジネスコミュニティの価値をより明確にする必要性について話し合った。正勝賀野は初回の交流会の認識を共有した。',
+          },
+        ],
+        next_steps: [
+          '4/勝賀野: 次回京都開催の交流会の日程が決まり次第、Kに早めに共有する',
+        ],
+      },
+    ]);
+    store.reconcileLegacyAndDuplicateData();
+
+    const takano = store.getPersons().find(p => p.display_name === '高野 陽行');
+    const kawasaki = store.getPersons().find(p => p.display_name === '川崎 景');
+    expect(takano).toBeDefined();
+    expect(kawasaki).toBeDefined();
+    expect(kawasaki?.phonetic_name).toBe('カワサキ ケイ');
+
+    const m = store.getMeetings().find(mt => mt.id === 'm-zoom-nUUblUGRdOUzkSVNFeAKA');
+    expect(m).toBeDefined();
+    expect(m?.participant_ids).toContain(takano!.id);
+    expect(m?.participant_ids).toContain(kawasaki!.id);
+    expect(m?.title).toContain('高野 陽行様・川崎 景様');
+
+    const tr = store.getTranscriptForMeeting('m-zoom-nUUblUGRdOUzkSVNFeAKA');
+    expect(tr?.summary).toContain('川崎景は、自身のテーブルでは');
+    expect(tr?.summary).toContain('ジャズベリーでの交流会');
+    expect(tr?.summary).not.toContain('ラズベリー');
+    expect(tr?.summary).not.toContain('正勝賀野');
+
+    const facts = store.getFactsForPerson(takano!.id);
+    expect(facts.some(f => f.fact_value.includes('川崎景に早めに共有する'))).toBe(true);
+    expect(facts.some(f => f.fact_value.includes('ジャズベリーでの交流会'))).toBe(true);
+  });
 });
