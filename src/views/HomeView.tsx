@@ -186,6 +186,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Zoom無料版・スマホ利用時の具体的な使い方ガイド */}
+          <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-[11px] text-neutral-700 dark:text-neutral-300 space-y-1.5">
+            <div className="font-bold text-amber-800 dark:text-amber-300">
+              💡 Zoom無料版（Freeプラン）の方・スマホ利用の方でも100%使えます！
+            </div>
+            <ul className="list-disc list-inside space-y-1 leading-relaxed">
+              <li>
+                <strong>PCでZoom無料版を使う場合：</strong>コンシェルジュの「<strong>🔴 マイク＋PC音声で今すぐ録音開始</strong>」を押してZoomするか、Zoom無料版の「ローカル記録（PCに保存される <code>.m4a</code> 音声ファイル）」をアップロードするだけで全文AI文字起こし＆カルテ化できます。
+              </li>
+              <li>
+                <strong>対面（カフェ等）でスマホを使う場合：</strong>スマホ画面で「<strong>🔴 今すぐ録音開始</strong>」を押すか、iPhone標準「ボイスメモ」の録音ファイルをアップロードするだけでOKです。
+              </li>
+              <li>
+                <strong>スマホ単体でZoom無料版を使う場合：</strong>文字起こしやメモを貼るほか、<strong>面談終了直後に「🔴 今すぐ録音開始」を押してスマホに向かって30秒だけ要点を喋る（例：「〇〇会社の田中さんと面談、京都チャプターで不動産買取、来週ランチで工務店を紹介する約束」）</strong>だけで、AIが完璧なカルテとお礼LINE文を生成します。
+              </li>
+            </ul>
+          </div>
         </section>
       )}
 

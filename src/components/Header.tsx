@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard, RotateCw, Cloud } from 'lucide-react';
+import { Search, Moon, Sun, AlertTriangle, Layers, LayoutDashboard, RotateCw, Cloud, LogOut } from 'lucide-react';
 import { Tenant } from '../types';
 import { store } from '../services/store';
 import { forceReloadApp } from '../utils/updateManager';
@@ -19,6 +19,7 @@ interface HeaderProps {
   isSyncing?: boolean;
   onManualSync?: () => Promise<void>;
   onOpenOwnerSetup?: () => void;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   isSyncing = false,
   onManualSync,
   onOpenOwnerSetup,
+  onLogout,
 }) => {
   const budgetRatio = currentTenant.current_spend_jpy / currentTenant.monthly_budget_jpy;
   const isBudgetWarning = budgetRatio >= 0.8;
@@ -160,6 +162,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
           </button>
+
+          {/* オーナー画面ロック / ログアウトボタン */}
+          {!isLockedTenant && onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              title="オーナーアカウントをロック（ログアウト）"
+              className="p-1.5 rounded-xl text-neutral-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shrink-0"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </header>

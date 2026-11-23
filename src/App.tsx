@@ -17,6 +17,7 @@ import { ReviewQueueView } from './views/ReviewQueueView';
 import { SettingsView } from './views/SettingsView';
 import { LegalView } from './views/LegalView';
 import { PresentationView } from './views/PresentationView';
+import { OwnerLoginGate, isOwnerAuthenticated, logoutOwner } from './components/OwnerLoginGate';
 import { store } from './services/store';
 import { checkIsUpdateAvailable, forceReloadApp } from './utils/updateManager';
 
@@ -32,9 +33,21 @@ export const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isNewSignupMode, setIsNewSignupMode] = useState(false);
+  const [ownerAuthed, setOwnerAuthed] = useState<boolean>(() => isOwnerAuthenticated());
   const [, setRefreshKey] = useState(0);
 
+  const isPublicOrPartnerRoute =
+    store.isTenantLockedMode() ||
+    isNewSignupMode ||
+    currentView === 'privacy' ||
+    currentView === 'terms' ||
+    currentView === 'deck';
+  const requiresOwnerLogin = !isPublicOrPartnerRoute && !ownerAuthed;
+
   const runCloudAndZoomSync = useCallback(async () => {
+    if (!store.isTenantLockedMode() && !isOwnerAuthenticated()) {
+      return;
+    }
     setIsSyncing(true);
     try {
       const res = await store.syncAllWithCloud();
@@ -211,6 +224,30 @@ export const App: React.FC = () => {
     return <PresentationView onBack={() => setCurrentView('home')} />;
   }
 
+  if (requiresOwnerLogin) {
+    return (
+      <OwnerLoginGate
+        onAuthenticated={() => {
+          setOwnerAuthed(true);
+          runCloudAndZoomSync();
+        }}
+        onSwitchToPartnerTenant={(tid) => {
+          store.setTenantLockedMode(tid);
+          store.setTenantId(tid);
+          const url = new URL(window.location.href);
+          url.searchParams.set('tenant', tid);
+          window.history.replaceState({}, '', url.toString());
+          setRefreshKey(k => k + 1);
+          runCloudAndZoomSync();
+        }}
+        onStartNewSignup={() => {
+          setIsNewSignupMode(true);
+          setIsOnboardingOpen(true);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-apple-bg dark:bg-apple-darkBg text-[#1D1D1F] dark:text-[#F5F5F7]">
       {/* PC サイドバー & スマホ 下部タブバー */}
@@ -244,6 +281,10 @@ export const App: React.FC = () => {
           onOpenOwnerSetup={() => {
             setIsNewSignupMode(false);
             setIsOnboardingOpen(true);
+          }}
+          onLogout={() => {
+            logoutOwner();
+            setOwnerAuthed(false);
           }}
         />
 

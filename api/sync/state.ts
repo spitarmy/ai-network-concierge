@@ -25,18 +25,26 @@ const SAMPLE_IDS = new Set([
 declare global {
   // eslint-disable-next-line no-var
   var __AI_CONCIERGE_CLOUD_STATE__: { state: any; deletedIds: string[]; updatedAt: string } | undefined;
+  // eslint-disable-next-line no-var
+  var __AI_CONCIERGE_TENANT_STATES__: Record<string, { state: any; deletedIds: string[]; updatedAt: string }> | undefined;
 }
 
-function getBlobVaultConfig(): { key: Buffer; pathname: string } | null {
+function getBlobVaultConfig(tenantId?: string): { key: Buffer; pathname: string } | null {
   const token = (process.env.BLOB_READ_WRITE_TOKEN || '').trim();
   if (!token) return null;
   const key = crypto.createHash('sha256').update(`ai-concierge-aes256:${token}`).digest();
+  const isCustomTenant = Boolean(tenantId && tenantId !== 'tenant-001');
+  if (isCustomTenant) {
+    const safeTenant = String(tenantId).replace(/[^a-zA-Z0-9_-]/g, '');
+    const tHash = crypto.createHmac('sha256', token).update(`ai-concierge-tenant-vault-v1:${safeTenant}`).digest('hex').slice(0, 32);
+    return { key, pathname: `vault/tenant_${safeTenant}_${tHash}.enc` };
+  }
   const pathHash = crypto.createHmac('sha256', token).update('ai-concierge-state-vault-v1').digest('hex').slice(0, 32);
   return { key, pathname: `vault/state_${pathHash}.enc` };
 }
 
-async function readFromBlob(): Promise<{ state: any; deletedIds: string[]; updatedAt: string } | null> {
-  const cfg = getBlobVaultConfig();
+async function readFromBlob(tenantId?: string): Promise<{ state: any; deletedIds: string[]; updatedAt: string } | null> {
+  const cfg = getBlobVaultConfig(tenantId);
   if (!cfg) return null;
   try {
     const { blobs } = await list({ prefix: cfg.pathname, limit: 1 });
@@ -61,8 +69,8 @@ async function readFromBlob(): Promise<{ state: any; deletedIds: string[]; updat
   }
 }
 
-async function writeToBlob(payload: { state: any; deletedIds: string[]; updatedAt: string }): Promise<void> {
-  const cfg = getBlobVaultConfig();
+async function writeToBlob(payload: { state: any; deletedIds: string[]; updatedAt: string }, tenantId?: string): Promise<void> {
+  const cfg = getBlobVaultConfig(tenantId);
   if (!cfg) return;
   try {
     const iv = crypto.randomBytes(12);
@@ -120,8 +128,38 @@ async function writeToKV(payload: { state: any; deletedIds: string[]; updatedAt:
   }
 }
 
-async function loadCloudEnvelope(): Promise<{ state: any | null; deletedIds: string[]; updatedAt: string }> {
-  const blobData = await readFromBlob();
+async function loadCloudEnvelope(tenantId?: string): Promise<{ state: any | null; deletedIds: string[]; updatedAt: string }> {
+  const isCustomTenant = Boolean(tenantId && tenantId !== 'tenant-001');
+  if (!global.__AI_CONCIERGE_TENANT_STATES__) {
+    global.__AI_CONCIERGE_TENANT_STATES__ = {};
+  }
+
+  if (isCustomTenant && tenantId) {
+    const tenantBlob = await readFromBlob(tenantId);
+    if (tenantBlob && tenantBlob.state) {
+      global.__AI_CONCIERGE_TENANT_STATES__[tenantId] = tenantBlob;
+      return tenantBlob;
+    }
+    if (global.__AI_CONCIERGE_TENANT_STATES__[tenantId]?.state) {
+      return global.__AI_CONCIERGE_TENANT_STATES__[tenantId];
+    }
+    // 初回マイグレーション：マスターBlob内に既存の当該テナントデータがあれば切り出して専用Blobへ独立化
+    const masterBlob = await readFromBlob('tenant-001');
+    if (masterBlob && masterBlob.state) {
+      const migratedState = filterStateForTenant(ensureCoreTenantsAndDeduplicate(masterBlob.state), tenantId);
+      const migratedEnv = {
+        state: migratedState,
+        deletedIds: [],
+        updatedAt: new Date().toISOString(),
+      };
+      global.__AI_CONCIERGE_TENANT_STATES__[tenantId] = migratedEnv;
+      await writeToBlob(migratedEnv, tenantId);
+      return migratedEnv;
+    }
+    return { state: null, deletedIds: [], updatedAt: new Date(0).toISOString() };
+  }
+
+  const blobData = await readFromBlob('tenant-001');
   if (blobData && blobData.state) {
     global.__AI_CONCIERGE_CLOUD_STATE__ = blobData;
     return blobData;
@@ -152,14 +190,23 @@ async function loadCloudEnvelope(): Promise<{ state: any | null; deletedIds: str
   return { state: null, deletedIds: [], updatedAt: new Date(0).toISOString() };
 }
 
-async function saveCloudEnvelope(envelope: { state: any; deletedIds: string[]; updatedAt: string }): Promise<void> {
+async function saveCloudEnvelope(envelope: { state: any; deletedIds: string[]; updatedAt: string }, tenantId?: string): Promise<void> {
+  const isCustomTenant = Boolean(tenantId && tenantId !== 'tenant-001');
+  if (!global.__AI_CONCIERGE_TENANT_STATES__) {
+    global.__AI_CONCIERGE_TENANT_STATES__ = {};
+  }
+  if (isCustomTenant && tenantId) {
+    global.__AI_CONCIERGE_TENANT_STATES__[tenantId] = envelope;
+    await writeToBlob(envelope, tenantId);
+    return;
+  }
   global.__AI_CONCIERGE_CLOUD_STATE__ = envelope;
   try {
     fs.writeFileSync(TMP_STATE_PATH, JSON.stringify(envelope), 'utf8');
   } catch {
     // ignore
   }
-  await Promise.all([writeToBlob(envelope), writeToKV(envelope)]);
+  await Promise.all([writeToBlob(envelope, 'tenant-001'), writeToKV(envelope)]);
 }
 
 function getItemTime(item: any): number {
@@ -771,11 +818,10 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const envelope = await loadCloudEnvelope();
-
     if (req.method === 'GET') {
       const urlObj = new URL(req.url || '/api/sync/state', 'http://localhost');
       const queryTenantId = urlObj.searchParams.get('tenantId') || undefined;
+      const envelope = await loadCloudEnvelope(queryTenantId);
       res.setHeader('Content-Type', 'application/json');
       res.statusCode = 200;
       res.end(JSON.stringify({
@@ -799,8 +845,9 @@ export default async function handler(req: any, res: any) {
       : (req.body ? JSON.stringify(req.body) : await getRawBody(req));
     const payload = raw ? JSON.parse(raw) : {};
     const lockedTenantId: string | undefined = payload.lockedTenantId || undefined;
+    const envelope = await loadCloudEnvelope(lockedTenantId);
     const rawClientState = payload.state;
-    // ロック済み顧客テナントからのPOSTでは、そのテナント自身のレコードのみをマージ対象にし他テナントデータを保護（サーバーサイドRLS）
+    // ロック済み顧客テナントからのPOSTでは、そのテナント自身の専用Blobファイル（vault/tenant_<id>.enc）に対してのみ読み書きし、他テナントと100%物理分離
     const clientState = lockedTenantId && lockedTenantId !== 'tenant-001'
       ? filterStateForTenant(rawClientState, lockedTenantId)
       : rawClientState;
@@ -823,7 +870,7 @@ export default async function handler(req: any, res: any) {
       state: mergedState,
       deletedIds: mergedDeletedIds,
       updatedAt,
-    });
+    }, lockedTenantId);
 
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 200;
