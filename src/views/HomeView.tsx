@@ -187,20 +187,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </div>
 
-          {/* Zoom無料版・スマホ利用時の具体的な使い方ガイド */}
+          {/* Zoom無料版・スマホ利用時の具体的な使い方ガイド（通信量・バッテリー節約重視） */}
           <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-[11px] text-neutral-700 dark:text-neutral-300 space-y-1.5">
             <div className="font-bold text-amber-800 dark:text-amber-300">
-              💡 Zoom無料版（Freeプラン）の方・スマホ利用の方でも100%使えます！
+              💡 スマホ利用の方・Zoom無料版（Freeプラン）の方は「文字起こしコピペ」が最速・最推奨！
             </div>
             <ul className="list-disc list-inside space-y-1 leading-relaxed">
               <li>
-                <strong>PCでZoom無料版を使う場合：</strong>コンシェルジュの「<strong>🔴 マイク＋PC音声で今すぐ録音開始</strong>」を押してZoomするか、Zoom無料版の「ローカル記録（PCに保存される <code>.m4a</code> 音声ファイル）」をアップロードするだけで全文AI文字起こし＆カルテ化できます。
+                <strong>⚡ 通信量（ギガ）＆充電消費ゼロで最速（推奨）：</strong>長時間の音声ファイルをスマホで録音・送信すると通信量（約30〜50MB）やバッテリーを消費するため、<strong>文字起こしテキストやメモを「＋クイック追加 ＞ 文字起こし登録」にコピペ（ワンタップ貼付）する方法が最も高速（3〜5秒）で快適</strong>です。
               </li>
               <li>
-                <strong>対面（カフェ等）でスマホを使う場合：</strong>スマホ画面で「<strong>🔴 今すぐ録音開始</strong>」を押すか、iPhone標準「ボイスメモ」の録音ファイルをアップロードするだけでOKです。
+                <strong>📱 スマホの音声入力（キーボードの🎙️マイク）も超便利：</strong>面談直後にテキスト欄でスマホ標準の音声入力（🎙️）を押し、20〜30秒だけ話した内容（相手の名前・会社・チャプター・約束）を喋ってテキスト化するだけでも、AIが完璧なビジネス要約カルテ＆お礼LINE文に仕上げます。
               </li>
               <li>
-                <strong>スマホ単体でZoom無料版を使う場合：</strong>文字起こしやメモを貼るほか、<strong>面談終了直後に「🔴 今すぐ録音開始」を押してスマホに向かって30秒だけ要点を喋る（例：「〇〇会社の田中さんと面談、京都チャプターで不動産買取、来週ランチで工務店を紹介する約束」）</strong>だけで、AIが完璧なカルテとお礼LINE文を生成します。
+                <strong>💻 PC＋Wi-Fi環境の場合：</strong>Zoomクラウド自動連携のほか、画面内での直接録音や音声ファイル（<code>.m4a</code>）取込もご利用いただけます。
               </li>
             </ul>
           </div>

@@ -19,7 +19,7 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [activeTab, setActiveTab] = useState<'zoom_link' | 'file' | 'text'>('zoom_link');
+  const [activeTab, setActiveTab] = useState<'zoom_link' | 'file' | 'text'>('text');
   const [zoomRecordingUrl, setZoomRecordingUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transcriptText, setTranscriptText] = useState('');
@@ -248,6 +248,18 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
           <div className="flex p-1 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder">
             <button
               type="button"
+              onClick={() => setActiveTab('text')}
+              className={`flex-1 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 ${
+                activeTab === 'text'
+                  ? 'bg-white dark:bg-neutral-700 text-purple-700 dark:text-purple-300 shadow-xs font-bold'
+                  : 'text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>📋 文字起こし貼付（推奨）</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('zoom_link')}
               className={`flex-1 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 ${
                 activeTab === 'zoom_link'
@@ -269,18 +281,6 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
             >
               <Upload className="w-3.5 h-3.5" />
               <span>音声ファイル</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('text')}
-              className={`flex-1 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 ${
-                activeTab === 'text'
-                  ? 'bg-white dark:bg-neutral-700 text-purple-700 dark:text-purple-300 shadow-xs font-bold'
-                  : 'text-neutral-500 hover:text-neutral-700'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>文字起こし / テキスト</span>
             </button>
           </div>
 
@@ -359,18 +359,40 @@ export const MeetingRecordingModal: React.FC<MeetingRecordingModalProps> = ({
             </div>
           )}
 
-          {/* タブ3: テキスト・文字起こし貼り付け */}
+          {/* タブ3: テキスト・文字起こし貼り付け（通信量・充電消費ゼロで最速） */}
           {activeTab === 'text' && (
-            <div className="space-y-2">
-              <label className="block text-neutral-500 font-semibold">
-                Zoomの文字起こし、または会話内容を貼り付け:
-              </label>
+            <div className="space-y-2.5">
+              <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-[11px] text-purple-900 dark:text-purple-200 leading-relaxed">
+                <strong>⚡ スマホ・Zoom無料版ともに最推奨：</strong>文字起こしや会話メモをコピペするだけで、<strong>データ通信量・バッテリー消費ゼロ</strong>で3〜5秒で書き言葉のビジネス要約とお礼LINE文を生成します。
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="block text-neutral-700 dark:text-neutral-200 font-bold">
+                  📋 文字起こし、または会話メモを貼り付け:
+                </label>
+                <button
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={async () => {
+                    try {
+                      const clip = await navigator.clipboard.readText();
+                      if (clip && clip.trim()) {
+                        setTranscriptText(clip);
+                      }
+                    } catch {
+                      // fallback to manual paste
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-600/10 hover:bg-purple-600/20 text-purple-700 dark:text-purple-300 text-[11px] font-bold transition-colors"
+                >
+                  📋 ワンタップ貼付
+                </button>
+              </div>
               <textarea
                 rows={6}
                 value={transcriptText}
                 disabled={isProcessing}
                 onChange={(e) => setTranscriptText(e.target.value)}
-                placeholder="Zoomの文字起こしテキスト、または面談の会話内容をそのまま貼り付けてください。AIが自動で整理・分析します。"
+                placeholder="Zoomの文字起こしテキスト、またはスマホの文字起こしアプリ・会話メモをそのまま貼り付けてください（スマホキーボードの🎙️音声入力で要点を喋ってもOK）。"
                 className="w-full p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-sans text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:opacity-60"
               />
             </div>

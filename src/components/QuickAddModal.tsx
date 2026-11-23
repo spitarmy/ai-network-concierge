@@ -277,8 +277,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
               activeTab === 'voice' ? 'bg-white dark:bg-neutral-700 shadow-sm text-purple-600 dark:text-purple-400 font-bold' : 'text-neutral-500'
             }`}
           >
-            <Mic className="w-3.5 h-3.5" />
-            <span>録音から登録</span>
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>文字起こし登録</span>
           </button>
           <button
             onClick={() => setActiveTab('paste')}
@@ -723,20 +723,53 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           {activeTab === 'voice' && (
             <div className="space-y-4">
               <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs text-purple-900 dark:text-purple-200 leading-relaxed">
-                <strong>🎙️ 自分のZoomルームは全自動 / 相手のルームもワンタップ録音で自動カルテ化:</strong>
+                <strong>⚡ スマホ・Zoom無料版ともに「文字起こしコピペ」が最速・最推奨！</strong>
                 <p className="mt-1">
-                  ご自身がホストのZoom面談はWebhookで自動取り込みされます。<strong>お相手がZoomルームを用意してくれた場合</strong>も、下の「この場で直接録音」または「録音ファイル／文字起こし」からワンタップでカルテ・相関図まで自動登録できます（全国の方言もすべて標準語の書き言葉へ自動変換）。
+                  文字起こしテキストや会話メモをそのまま貼り付けるだけで、<strong>データ通信量（ギガ）・スマホの充電消費ゼロ</strong>で、AIが3〜5秒で人物カルテ・書き言葉要約・次回ToDo・相関図まで一発登録します（全国の方言も標準語のビジネス文書へ自動変換）。
                 </p>
               </div>
 
-              {/* 相手ホスト面談用：その場ワンタップ録音 & 音声ファイル直接アップロード */}
-              <div className="p-3.5 rounded-2xl bg-neutral-100/90 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder space-y-2.5">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#1D1D1F] dark:text-[#F5F5F7] flex items-center space-x-1.5">
+                  <label className="block text-neutral-700 dark:text-neutral-200 text-xs font-bold">
+                    📋 文字起こしテキスト・面談メモを貼り付け（最推奨）
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isVoiceAnalyzing}
+                    onClick={async () => {
+                      try {
+                        const clip = await navigator.clipboard.readText();
+                        if (clip && clip.trim()) {
+                          setTranscriptInput(clip);
+                        }
+                      } catch {
+                        // clipboard permission denied; user can paste manually
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-purple-600/10 hover:bg-purple-600/20 text-purple-700 dark:text-purple-300 text-[11px] font-bold transition-colors"
+                  >
+                    📋 コピーした文字をワンタップ貼付
+                  </button>
+                </div>
+                <textarea
+                  value={transcriptInput}
+                  disabled={isVoiceAnalyzing}
+                  onChange={(e) => setTranscriptInput(e.target.value)}
+                  placeholder="Zoomの文字起こしやスマホの文字起こしアプリ・面談メモをここに貼り付けてください（キーボードの🎙️音声入力で要点を喋って入力してもOK）。"
+                  rows={6}
+                  className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-60"
+                />
+              </div>
+
+              {/* サブオプション：PCでの直接録音 & 音声ファイルアップロード */}
+              <div className="p-3 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-apple-border dark:border-apple-darkBorder space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center space-x-1.5">
                     <Mic className="w-3.5 h-3.5 text-red-500" />
-                    <span>相手がZoomルームを用意した面談（音声から直接AI登録）</span>
+                    <span>補助機能：PCでの直接録音・音声ファイル取込（Wi-Fi環境推奨）</span>
                   </span>
-                  <span className="text-[10px] text-neutral-500">※相手方の録音同意を得てご利用ください</span>
+                  <span className="text-[10px] text-neutral-400">※録音同意を得て利用</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -745,7 +778,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                       type="button"
                       disabled={isVoiceAnalyzing}
                       onClick={handleStartLiveRecording}
-                      className="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all active:scale-[0.98]"
+                      className="py-2 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all active:scale-[0.98]"
                     >
                       <Mic className="w-3.5 h-3.5" />
                       <span>🔴 この場で直接録音を開始</span>
@@ -754,14 +787,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     <button
                       type="button"
                       onClick={handleStopLiveRecording}
-                      className="py-2.5 px-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md animate-pulse"
+                      className="py-2 px-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md animate-pulse"
                     >
                       <Square className="w-3.5 h-3.5 text-red-500 fill-red-500" />
                       <span>⏹ 録音停止してAI自動登録 ({Math.floor(liveRecSec / 60)}:{String(liveRecSec % 60).padStart(2, '0')})</span>
                     </button>
                   )}
 
-                  <label className="py-2.5 px-3 rounded-xl bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-all">
+                  <label className="py-2 px-3 rounded-xl bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-apple-border dark:border-apple-darkBorder text-[#1D1D1F] dark:text-[#F5F5F7] font-semibold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-all">
                     <Upload className="w-3.5 h-3.5 text-purple-600" />
                     <span>📁 録音ファイル(.m4a/.mp3)選択</span>
                     <input
@@ -776,20 +809,6 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     />
                   </label>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-neutral-500 mb-1 text-xs font-medium">
-                  または 文字起こしテキスト・面談メモを貼り付け
-                </label>
-                <textarea
-                  value={transcriptInput}
-                  disabled={isVoiceAnalyzing}
-                  onChange={(e) => setTranscriptInput(e.target.value)}
-                  placeholder="Zoomの文字起こしや面談メモを貼り付けてください。下のボタンから自己紹介の実演サンプルを一発挿入できます。"
-                  rows={6}
-                  className="w-full p-3 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-apple-border dark:border-apple-darkBorder text-xs text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-60"
-                />
               </div>
 
               {!isVoiceAnalyzing && (
