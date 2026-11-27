@@ -460,14 +460,31 @@ export default async function handler(req: any, res: any) {
       (txt || '')
         .replace(/この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。?\s*/g, '')
         .replace(/冒頭では(?:[0-9０-９]+\s*[/／]\s*)?勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。?\s*/g, '')
+        .replace(/[、。]?[^。]*?(?:風邪気味のため声が聞きにくい|体調不良のため声が小さい)[^。]*?。?\s*/g, '')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
         .replace(/正勝賀野/g, '勝賀野')
         .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
         .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+        .replace(/美器[（(]桑本みき[）)]|桑本\s*みき|美器\s*川本/g, '川本美器')
+        .replace(/陵平\s*高田/g, '高田陵平')
+        .replace(/(?<![川本])美器(?=[はがもにのへと、。・店舗])/g, '川本美器')
+        .replace(/(?<![高田])陵平(?=[はがもにのへと、。・:：])/g, '高田陵平')
+        .replace(/リライトチャプター/g, 'ディライトチャプター')
+        .replace(/インビクタスチャプター/g, 'インヴィクタスチャプター')
+        .replace(/3島から/g, '三島宏幸様（だんじりチャプター）から')
+        .replace(/生命神社/g, '晴明神社')
         .replace(/ラズベリー/g, 'ジャズベリー')
         .replace(/無党開発|武藤開発/g, '夢叶開発')
         .replace(/免费/g, '無料');
+
+    const normalizeAttendeeName = (raw: string): string => {
+      const s = String(raw || '').trim();
+      if (/^K\s*Kawasaki$|^Kawasaki\s*K$/i.test(s)) return '川崎 景';
+      if (/^美器\s*川本$|^桑本\s*みき$|^川本\s*美器$/.test(s)) return '川本 美器';
+      if (/^陵平\s*高田$|^高田\s*陵平$/.test(s)) return '高田 陵平';
+      return s;
+    };
 
     const sessions = Array.from(sessionMap.values())
       .map(s => ({
@@ -484,7 +501,7 @@ export default async function handler(req: any, res: any) {
           ? s.next_steps.map((st: string) => fixZoomAiText(st))
           : [],
         attendees: Array.isArray(s.attendees)
-          ? s.attendees.map((a: string) => (/^K\s*Kawasaki$|^Kawasaki\s*K$/i.test(String(a).trim()) ? '川崎 景' : a))
+          ? s.attendees.map((a: string) => normalizeAttendeeName(a))
           : [],
         transcript_text: fixZoomAiText(s.transcript_text),
       }))

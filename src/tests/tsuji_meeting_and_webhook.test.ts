@@ -680,4 +680,62 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(facts.some(f => f.fact_value.includes('川崎景に早めに共有する'))).toBe(true);
     expect(facts.some(f => f.fact_value.includes('ジャズベリーでの交流会'))).toBe(true);
   });
+
+  it('川本美器様（ディライトチャプター）・高田陵平様（インヴィクタスチャプター）のZoom面談にて、高田様の重複カルテが1名に統合されインヴィクタスチャプターが登録され、川本様の誤チャプター（インテグレーション）や誤字（桑本みき・リライト・風邪雑談）が完全除去されること', () => {
+    store.setTenantId('tenant-001');
+    store.ingestZoomSessions([
+      {
+        uuid: 'wd6wBnHzQI6x8a6ytmmxSA==',
+        meeting_id: '89527504054',
+        topic: 'ZENNOBATE Meeting Room',
+        start_time: '2026-11-27T02:57:37Z',
+        duration: 60,
+        attendees: ['4/勝賀野 太郎/残置物撤去', '美器 川本', '陵平 高田'],
+        summary_overview: 'この会議では、4/勝賀野と陵平が美器（桑本みき）と初めてのオンライン面談を行い、美器が風邪気味のため声が聞きにくい可能性があることを伝え、勝賀野はそれを受け入れると応じた。美器は京都でヨーロッパワインのショップを経営し、リライトチャプターに所属している。',
+        summary_details: [
+          {
+            label: '参加者の自己紹介と近況報告',
+            summary: '美器は体調不良のため声が小さいことを説明した。3島から紹介され、今年8月にインテグレーションチャプターのイベントが開催されたことに触れた。店舗は生命神社から徒歩2〜3分。',
+          },
+        ],
+        next_steps: [
+          '陵平: 美器のワインショップ店舗を見学し、バーに置くワインの購入について相談する。',
+        ],
+      },
+    ]);
+    store.reconcileLegacyAndDuplicateData();
+
+    // 高田陵平様が1名に統合され、京都シティセントラルリージョン・インヴィクタスチャプター所属であること
+    const takadaList = store.getPersons().filter(p => /高田/.test(p.display_name));
+    expect(takadaList.length).toBe(1);
+    const takada = takadaList[0];
+    expect(takada.display_name).toBe('高田 陵平');
+    expect(takada.phonetic_name).toBe('タカダ リョウヘイ');
+    expect(takada.status).toBe('active');
+    const takadaBni = store.getBNIMembershipsForPerson(takada.id);
+    expect(takadaBni.length).toBe(1);
+    expect(takadaBni[0].chapter_name).toBe('インヴィクタスチャプター');
+    expect(takadaBni[0].region_name).toContain('京都シティセントラルリージョン');
+
+    // 川本美器様が「川本 美器」に正規化され、京都シティセントラルリージョン・ディライトチャプター所属であること（インテグレーションチャプターではないこと）
+    const kawamoto = store.getPersons().find(p => /川本/.test(p.display_name));
+    expect(kawamoto).toBeDefined();
+    expect(kawamoto?.display_name).toBe('川本 美器');
+    expect(kawamoto?.phonetic_name).toBe('カワモト ミキ');
+    expect(kawamoto?.notes).not.toContain('桑本');
+    expect(kawamoto?.notes).not.toContain('風邪気味');
+    const kawamotoBni = store.getBNIMembershipsForPerson(kawamoto!.id);
+    expect(kawamotoBni.length).toBe(1);
+    expect(kawamotoBni[0].chapter_name).toBe('ディライトチャプター');
+    expect(kawamotoBni[0].region_name).toContain('京都シティセントラルリージョン');
+
+    // 面談要約から「桑本みき」「風邪気味」「体調不良」「リライトチャプター」が消えていること
+    const tr = store.getTranscriptForMeeting('m-zoom-wd6wBnHzQI6x8a6ytmmxSA');
+    expect(tr?.summary).toContain('ディライトチャプター');
+    expect(tr?.summary).toContain('インヴィクタスチャプター');
+    expect(tr?.summary).toContain('WineShop Gorríon');
+    expect(tr?.summary).not.toContain('桑本');
+    expect(tr?.summary).not.toContain('風邪気味');
+    expect(tr?.summary).not.toContain('体調不良');
+  });
 });

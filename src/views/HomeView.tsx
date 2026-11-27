@@ -274,15 +274,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span className="text-xs uppercase font-mono font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-md">
                     {upcomingMeeting.provider}
                   </span>
-                  {upcomingOrg && (
-                    <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                      • {upcomingOrg.organization_name}{upcomingOrg.title ? `（${upcomingOrg.title}）` : ''}
-                    </span>
-                  )}
-                  {currentChapter && (
-                    <span className="text-xs text-neutral-400">
-                      • {currentChapter.region_name}・{currentChapter.chapter_name}
-                    </span>
+                  {upcomingParticipants.length > 1 ? (
+                    upcomingParticipants.map(p => {
+                      const pOrg = store.getOrgMembershipsForPerson(p.id)[0];
+                      const pChap = store.getBNIMembershipsForPerson(p.id).find(m => m.status === 'active');
+                      if (!pOrg && !pChap) return null;
+                      return (
+                        <span
+                          key={p.id}
+                          className="text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100/80 dark:bg-neutral-800/80 px-2 py-0.5 rounded-md"
+                        >
+                          • {p.display_name}様: {pOrg ? `${pOrg.organization_name}${pOrg.title ? `（${pOrg.title}）` : ''}` : ''}{pOrg && pChap ? ' / ' : ''}{pChap ? `${pChap.region_name.replace(/\s*\(.*?\)/, '')}・${pChap.chapter_name}` : ''}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <>
+                      {upcomingOrg && (
+                        <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                          • {upcomingOrg.organization_name}{upcomingOrg.title ? `（${upcomingOrg.title}）` : ''}
+                        </span>
+                      )}
+                      {currentChapter && (
+                        <span className="text-xs text-neutral-400">
+                          • {currentChapter.region_name}・{currentChapter.chapter_name}
+                        </span>
+                      )}
+                    </>
                   )}
                   {upcomingParticipant && (
                     <span className="text-xs text-neutral-400">
@@ -322,7 +340,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </span>
               )}
 
-              {upcomingParticipant ? (
+              {upcomingParticipants.length > 1 ? (
+                upcomingParticipants.map(p => (
+                  <button
+                    key={`open-${p.id}`}
+                    onClick={() => onSelectPerson(p.id)}
+                    className="inline-flex items-center justify-center space-x-1 px-3.5 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <span>{p.display_name}様のカルテ</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                ))
+              ) : upcomingParticipant ? (
                 <button
                   onClick={() => onSelectPerson(upcomingParticipant.id)}
                   className="inline-flex items-center justify-center space-x-1 px-4 py-2 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white text-xs font-medium hover:opacity-90 active:scale-95 transition-all shadow-sm"

@@ -3520,16 +3520,18 @@ class DataStore {
       {
         id: 'p-takada-invictus',
         tenant_id: tid,
-        display_name: '高田さん（祇園バーRoute Zマスター・インヴィクタス）',
-        phonetic_name: 'タカダ',
-        status: 'provisional',
+        display_name: '高田 陵平',
+        phonetic_name: 'タカダ リョウヘイ',
+        status: 'active',
         is_name_verified: true,
-        category_tags: ['BNI', '仕事'],
-        service_areas: ['京都府（祇園・京都市）'],
-        notes: 'BNI 京都シティセントラルリージョン「インヴィクタスチャプター」所属。勝賀野様が運営する京都・祇園のバー「Route Z」のマスター。森 雄平様と同チャプターであり、中川 丈太郎様とも女性アルバイト求人原稿作成に向けた1to1面談を実施予定。',
-        meeting_count: 0,
+        category_tags: ['BNI', '仕事', 'パートナー'],
+        service_areas: ['京都府（祇園・京都市）', '関西一円'],
+        office_address: '京都府京都市東山区（祇園バー Route Z）',
+        notes: 'BNI 京都シティセントラルリージョン（Kyoto City Central）「インヴィクタスチャプター」所属。勝賀野様と共同で京都・祇園のバー「Route Z」を運営（マスター）。森 雄平様と同チャプターでコネクト連携を行い、中川 丈太郎様とも女性アルバイト求人原稿作成連携、川本 美器様（WineShop Gorríon / ディライトチャプター）とも祇園バー「Route Z」へのワイン導入・グラスワイン提供および飲食店相互紹介で協業。',
+        meeting_count: 1,
+        last_interacted_at: '2026-11-27T03:57:37.000Z',
         created_at: '2026-11-19T03:05:00Z',
-        updated_at: '2026-11-20T06:15:00Z',
+        updated_at: '2026-11-27T03:57:37.000Z',
       },
       {
         id: 'p-sugimoto-ai-prov',
@@ -3833,6 +3835,22 @@ class DataStore {
     if (/^K\s*Kawasaki$|^Kawasaki\s*K$/i.test(cleaned)) {
       return '川崎 景';
     }
+    if (/^美器\s*川本$|^桑本\s*みき$|^川本\s*美器$/.test(cleaned)) {
+      return '川本 美器';
+    }
+    if (/^陵平\s*高田$|^高田\s*陵平$/.test(cleaned)) {
+      return '高田 陵平';
+    }
+    const twoParts = cleaned.split(/[\s　]+/);
+    if (twoParts.length === 2 && /^[一-龯ぁ-んァ-ヶー]{1,4}$/.test(twoParts[0]) && /^[一-龯ぁ-んァ-ヶー]{1,4}$/.test(twoParts[1])) {
+      const reversed = `${twoParts[1]} ${twoParts[0]}`;
+      const matchExistingReversed = (this.state.persons || []).some(
+        p => p.tenant_id === this.state.currentTenantId && p.status !== 'deleted' && p.display_name === reversed
+      );
+      if (matchExistingReversed) {
+        return reversed;
+      }
+    }
     if (/^[一-龯]{4}$/.test(cleaned)) {
       cleaned = `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
     }
@@ -3899,12 +3917,21 @@ class DataStore {
       return s
         .replace(/この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。?\s*/g, '')
         .replace(/冒頭では(?:[0-9０-９]+\s*[/／]\s*)?勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。?\s*/g, '')
+        .replace(/[^。]*?(?:風邪気味のため声が聞きにくい|体調不良のため声が小さい)[^。]*?。?\s*/g, '')
         .replace(/武藤開発|無党開発/g, '夢叶開発')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
         .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
         .replace(/正勝賀野/g, '勝賀野')
         .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
         .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+        .replace(/美器[（(]桑本みき[）)]|桑本\s*みき|美器\s*川本/g, '川本美器')
+        .replace(/陵平\s*高田/g, '高田陵平')
+        .replace(/(?<![川本])美器(?=[はがもにのへと、。・店舗])/g, '川本美器')
+        .replace(/(?<![高田])陵平(?=[はがもにのへと、。・:：])/g, '高田陵平')
+        .replace(/リライトチャプター/g, 'ディライトチャプター')
+        .replace(/インビクタスチャプター/g, 'インヴィクタスチャプター')
+        .replace(/3島から/g, '三島宏幸様（だんじりチャプター）から')
+        .replace(/生命神社/g, '晴明神社')
         .replace(/ラズベリー/g, 'ジャズベリー')
         .replace(/免费/g, '無料')
         .trim();
@@ -3921,6 +3948,16 @@ class DataStore {
       if (/^K\s*Kawasaki$|^Kawasaki\s*K$|^K$/i.test((p.display_name || '').trim())) {
         p.display_name = '川崎 景';
         p.phonetic_name = p.phonetic_name || 'カワサキ ケイ';
+        changed = true;
+      }
+      if (/^美器\s*川本$|^桑本\s*みき$/i.test((p.display_name || '').trim())) {
+        p.display_name = '川本 美器';
+        p.phonetic_name = p.phonetic_name || 'カワモト ミキ';
+        changed = true;
+      }
+      if (/^陵平\s*高田$|^高田さん（祇園バーRoute Zマスター・インヴィクタス）$/i.test((p.display_name || '').trim())) {
+        p.display_name = '高田 陵平';
+        p.phonetic_name = p.phonetic_name || 'タカダ リョウヘイ';
         changed = true;
       }
       if (Array.isArray(p.category_tags)) {
@@ -4176,6 +4213,383 @@ class DataStore {
           } else if (!existingRel.relationship_type.includes('オーダースーツ')) {
             existingRel.relationship_type = '共同運営・協業連携（ビーンズ・ジャズベリー交流会 / オーダースーツ×腕時計アステラ）';
             existingRel.evidence_text = '2026/11/22 Zoom会議にて高野陽行様・川崎景様（オーダースーツ事業）・勝賀野様の3名でビーンズおよびジャズベリー交流会の運営改善とオーダーメイド腕時計「アステラ」連携を協議';
+            changed = true;
+          }
+        }
+      }
+
+      // 1.6 2026/11/27 川本美器様（京都・ディライトチャプター / WineShop Gorríon 代表）・高田陵平様（京都・インヴィクタスチャプター / 祇園バー Route Z マスター）のZoom面談（m-zoom-wd6wBnHzQI6x8a6ytmmxSA）のチャプター確定・重複統合
+      const kawamotoMeeting = (this.state.meetings || []).find(
+        m => (m.id === 'm-zoom-wd6wBnHzQI6x8a6ytmmxSA' || m.zoom_uuid === 'wd6wBnHzQI6x8a6ytmmxSA==') && m.tenant_id === 'tenant-001'
+      );
+      if (kawamotoMeeting) {
+        const kmDateIso = kawamotoMeeting.scheduled_end_at || kawamotoMeeting.scheduled_start_at || '2026-11-27T03:57:37.000Z';
+
+        // (A) 高田 陵平 様（p-takada-invictus に一本化し、重複 p-1795750960567-uha7i / p-1795750973371-w7377 を完全統合、京都シティセントラルリージョン・インヴィクタスチャプターを確定保証）
+        let takadaPerson = (this.state.persons || []).find(
+          p => p.tenant_id === 'tenant-001' && p.id === 'p-takada-invictus'
+        );
+        if (!takadaPerson) {
+          takadaPerson = (this.state.persons || []).find(
+            p => p.tenant_id === 'tenant-001' && p.status !== 'deleted' && /高田\s*陵平|陵平\s*高田|^高田さん/.test(p.display_name || '')
+          );
+        }
+        const takadaNotesClean =
+          'BNI 京都シティセントラルリージョン（Kyoto City Central）「インヴィクタスチャプター」所属。勝賀野様と共同で京都・祇園のバー「Route Z」を運営（マスター）。森 雄平様と同チャプターでコネクト連携を行い、中川 丈太郎様とも女性アルバイト求人原稿作成連携、川本 美器様（WineShop Gorríon / ディライトチャプター）とも祇園バー「Route Z」へのワイン導入・グラスワイン提供および飲食店相互紹介で協業。';
+        if (!takadaPerson) {
+          takadaPerson = {
+            id: 'p-takada-invictus',
+            tenant_id: 'tenant-001',
+            display_name: '高田 陵平',
+            phonetic_name: 'タカダ リョウヘイ',
+            status: 'active',
+            is_name_verified: true,
+            category_tags: ['BNI', '仕事', 'パートナー'],
+            service_areas: ['京都府（祇園・京都市）', '関西一円'],
+            office_address: '京都府京都市東山区（祇園バー Route Z）',
+            meeting_count: 1,
+            last_interacted_at: kmDateIso,
+            notes: takadaNotesClean,
+            created_at: '2026-11-19T03:05:00Z',
+            updated_at: kmDateIso,
+          };
+          this.state.persons.unshift(takadaPerson);
+          changed = true;
+        } else if (
+          takadaPerson.display_name !== '高田 陵平' ||
+          takadaPerson.status !== 'active' ||
+          takadaPerson.phonetic_name !== 'タカダ リョウヘイ' ||
+          !takadaPerson.notes?.includes('WineShop Gorríon')
+        ) {
+          takadaPerson.display_name = '高田 陵平';
+          takadaPerson.phonetic_name = 'タカダ リョウヘイ';
+          takadaPerson.status = 'active';
+          takadaPerson.is_name_verified = true;
+          takadaPerson.category_tags = Array.from(new Set([...(takadaPerson.category_tags || []), 'BNI', '仕事', 'パートナー']));
+          takadaPerson.service_areas = ['京都府（祇園・京都市）', '関西一円'];
+          takadaPerson.office_address = takadaPerson.office_address || '京都府京都市東山区（祇園バー Route Z）';
+          takadaPerson.meeting_count = Math.max(1, takadaPerson.meeting_count || 1);
+          takadaPerson.last_interacted_at = kmDateIso;
+          takadaPerson.notes = takadaNotesClean;
+          changed = true;
+        }
+
+        const dupTakadaPersons = (this.state.persons || []).filter(
+          p =>
+            p.tenant_id === 'tenant-001' &&
+            p.id !== takadaPerson!.id &&
+            (/高田\s*陵平|陵平\s*高田|^高田さん/.test(p.display_name || '') ||
+              p.id === 'p-1795750960567-uha7i' ||
+              p.id === 'p-1795750973371-w7377')
+        );
+        for (const dupP of dupTakadaPersons) {
+          this.deletedIds.add(dupP.id);
+          this.mergePersons(takadaPerson.id, dupP.id);
+          changed = true;
+        }
+
+        // 高田様のBNI所属（京都シティセントラルリージョン・インヴィクタスチャプター: chap-bni-254）を確定保証
+        for (const bm of this.state.bniMemberships || []) {
+          if (bm.person_id === takadaPerson.id && bm.id !== 'bnim-takada-1') {
+            this.deletedIds.add(bm.id);
+            changed = true;
+          }
+        }
+        this.state.bniMemberships = (this.state.bniMemberships || []).filter(
+          bm => !(bm.person_id === takadaPerson!.id && bm.id !== 'bnim-takada-1')
+        );
+        const existingTakadaBni = (this.state.bniMemberships || []).find(bm => bm.id === 'bnim-takada-1');
+        if (!existingTakadaBni) {
+          this.state.bniMemberships.unshift({
+            id: 'bnim-takada-1',
+            tenant_id: 'tenant-001',
+            person_id: takadaPerson.id,
+            chapter_id: 'chap-bni-254',
+            chapter_name: 'インヴィクタスチャプター',
+            region_name: '京都シティセントラルリージョン (Kyoto City Central)',
+            category: 'バー・飲食店経営（祇園バー「Route Z」マスター）',
+            status: 'active',
+            joined_on: '2026-04-01',
+          });
+          changed = true;
+        } else if (
+          existingTakadaBni.person_id !== takadaPerson.id ||
+          existingTakadaBni.chapter_name !== 'インヴィクタスチャプター' ||
+          existingTakadaBni.region_name !== '京都シティセントラルリージョン (Kyoto City Central)'
+        ) {
+          existingTakadaBni.person_id = takadaPerson.id;
+          existingTakadaBni.chapter_id = 'chap-bni-254';
+          existingTakadaBni.chapter_name = 'インヴィクタスチャプター';
+          existingTakadaBni.region_name = '京都シティセントラルリージョン (Kyoto City Central)';
+          existingTakadaBni.category = 'バー・飲食店経営（祇園バー「Route Z」マスター）';
+          existingTakadaBni.status = 'active';
+          changed = true;
+        }
+
+        if (!(this.state.organizations || []).some(o => o.id === 'org-route-z')) {
+          this.state.organizations.push({
+            id: 'org-route-z',
+            tenant_id: 'tenant-001',
+            name: '祇園バー Route Z',
+          });
+          changed = true;
+        }
+        if (!(this.state.organizationMemberships || []).some(om => om.person_id === takadaPerson!.id)) {
+          this.state.organizationMemberships.push({
+            id: 'om-takada-1',
+            tenant_id: 'tenant-001',
+            person_id: takadaPerson.id,
+            organization_id: 'org-route-z',
+            organization_name: '祇園バー Route Z',
+            title: 'マスター（共同運営）',
+            is_current: true,
+            started_on: '2026-04-01',
+          });
+          changed = true;
+        }
+        if (!(this.state.businessOfferings || []).some(bo => bo.person_id === takadaPerson!.id)) {
+          this.state.businessOfferings.push({
+            id: 'bo-takada-1',
+            tenant_id: 'tenant-001',
+            person_id: takadaPerson.id,
+            service_title: '京都・祇園バー「Route Z」運営（経営者交流・二次会・店舗協業）',
+            specialties: '京都・祇園でのバー運営、BNIインヴィクタスチャプターを軸とした京都・関西の経営者・飲食店ネットワーク構築、ワイン・高級スイーツ等の店舗導入協業',
+            target_clients: '京都・祇園エリアで会食・二次会・交流会を行う経営者様、飲食店・酒類卸パートナー様',
+            service_area: '京都府（祇園・京都市）・関西一円',
+            is_active: true,
+          });
+          changed = true;
+        }
+
+        // (B) 川本 美器 様（p-1795750960554-z5i2n: 「美器 川本」「桑本みき」→「川本 美器」、誤マッチした大阪・インテグレーションチャプターを破棄し、京都シティセントラルリージョン・ディライトチャプター chap-bni-297 を確定保証）
+        let kawamotoPerson = (this.state.persons || []).find(
+          p =>
+            p.tenant_id === 'tenant-001' &&
+            p.status !== 'deleted' &&
+            (p.id === 'p-1795750960554-z5i2n' || /川本\s*美器|美器\s*川本|桑本\s*みき/.test(p.display_name || ''))
+        );
+        const kawamotoNotesClean =
+          'BNI 京都シティセントラルリージョン（Kyoto City Central）「ディライトチャプター」所属（入会8ヶ月目・カテゴリー：ワイン販売）。京都市上京区（西陣織会館近く・晴明神社から徒歩2〜3分）にてヨーロッパ産中心（フランス・イタリア・スペイン・ポルトガル・オーストリア・ドイツ等）のワインショップ「WineShop Gorríon（ゴリオン）」を経営（店舗販売・EC通販・飲食店向け卸・ワイン会企画）。実家は西陣織の織元。ワイン買取ライセンスの取得も進行中。勝賀野様・高田様が運営する祇園バー「Route Z」へのグラスワイン（赤・白3,000〜4,000円帯やシャンパン）導入および、勝賀野様の遺品整理・残置物撤去現場から出る未開栓ワイン・古酒の買取査定連携に合意。';
+        if (kawamotoPerson) {
+          if (
+            kawamotoPerson.display_name !== '川本 美器' ||
+            kawamotoPerson.phonetic_name !== 'カワモト ミキ' ||
+            kawamotoPerson.status !== 'active' ||
+            !kawamotoPerson.notes ||
+            /桑本|風邪気味|体調不良|インテグレーション/.test(kawamotoPerson.notes) ||
+            !kawamotoPerson.notes.includes('ディライトチャプター')
+          ) {
+            kawamotoPerson.display_name = '川本 美器';
+            kawamotoPerson.phonetic_name = 'カワモト ミキ';
+            kawamotoPerson.status = 'active';
+            kawamotoPerson.is_name_verified = true;
+            kawamotoPerson.category_tags = Array.from(new Set([...(kawamotoPerson.category_tags || []), 'BNI', '仕事']));
+            kawamotoPerson.service_areas = ['京都府（上京区・西陣・祇園・京都市全域）', '大阪府', '全国EC対応'];
+            kawamotoPerson.office_address = '京都府京都市上京区（西陣織会館・晴明神社徒歩2〜3分）';
+            kawamotoPerson.meeting_count = Math.max(1, kawamotoPerson.meeting_count || 1);
+            kawamotoPerson.last_interacted_at = kmDateIso;
+            kawamotoPerson.notes = kawamotoNotesClean;
+            changed = true;
+          }
+
+          // 誤登録された大阪のインテグレーションチャプター（bnim-1795750960560-3yto 等）を削除し、京都シティセントラル・ディライトチャプター（chap-bni-297）へ統一
+          for (const bm of this.state.bniMemberships || []) {
+            if (bm.person_id === kawamotoPerson.id && bm.id !== 'bnim-kawamoto-1') {
+              this.deletedIds.add(bm.id);
+              changed = true;
+            }
+          }
+          this.state.bniMemberships = (this.state.bniMemberships || []).filter(
+            bm => !(bm.person_id === kawamotoPerson!.id && bm.id !== 'bnim-kawamoto-1')
+          );
+          const existingKawamotoBni = (this.state.bniMemberships || []).find(bm => bm.id === 'bnim-kawamoto-1');
+          if (!existingKawamotoBni) {
+            this.state.bniMemberships.unshift({
+              id: 'bnim-kawamoto-1',
+              tenant_id: 'tenant-001',
+              person_id: kawamotoPerson.id,
+              chapter_id: 'chap-bni-297',
+              chapter_name: 'ディライトチャプター',
+              region_name: '京都シティセントラルリージョン (Kyoto City Central)',
+              category: 'ワイン販売（WineShop Gorríon 代表・飲食店向けワイン卸・買取）',
+              status: 'active',
+              joined_on: '2026-04-01',
+            });
+            changed = true;
+          } else if (
+            existingKawamotoBni.person_id !== kawamotoPerson.id ||
+            existingKawamotoBni.chapter_name !== 'ディライトチャプター' ||
+            existingKawamotoBni.region_name !== '京都シティセントラルリージョン (Kyoto City Central)'
+          ) {
+            existingKawamotoBni.person_id = kawamotoPerson.id;
+            existingKawamotoBni.chapter_id = 'chap-bni-297';
+            existingKawamotoBni.chapter_name = 'ディライトチャプター';
+            existingKawamotoBni.region_name = '京都シティセントラルリージョン (Kyoto City Central)';
+            existingKawamotoBni.category = 'ワイン販売（WineShop Gorríon 代表・飲食店向けワイン卸・買取）';
+            existingKawamotoBni.status = 'active';
+            changed = true;
+          }
+
+          for (const bo of this.state.businessOfferings || []) {
+            if (bo.person_id === kawamotoPerson.id) {
+              if (/桑本|インテグレーション/.test(`${bo.service_title} ${bo.specialties} ${bo.target_clients}`)) {
+                bo.service_title = 'ヨーロッパワイン専門店「WineShop Gorríon」運営・飲食店向け卸・ワイン会企画・古酒買取連携';
+                bo.specialties = 'ヨーロッパ産ワイン（仏・伊・西・葡・墺・独）の厳選仕入・店舗販売（京都市上京区・晴明神社近く）・EC通販、飲食店向け小ロット卸提案、ワイン会イベント開催、遺品整理等の未開栓ワイン査定買取';
+                bo.target_clients = 'ワイン導入を希望するバー・飲食店オーナー様（京都・大阪）、ワイン愛好家・経営者様、未開栓ワインの売却・買取を希望する方';
+                bo.service_area = '京都府・大阪府・全国EC対応';
+                changed = true;
+              }
+            }
+          }
+        }
+
+        // (C) 面談 m-zoom-wd6wBnHzQI6x8a6ytmmxSA のタイトル・参加者・文字起こし要約・Factsを確定クリーン化
+        const expectedKmTitle =
+          '川本 美器様・高田 陵平様と1to1（京都・ディライト＆インヴィクタスチャプター / WineShop Gorríon 祇園バーRoute Zワイン導入・相互紹介）';
+        if (kawamotoMeeting.title !== expectedKmTitle) {
+          kawamotoMeeting.title = expectedKmTitle;
+          changed = true;
+        }
+        const targetPids = [kawamotoPerson?.id, takadaPerson?.id].filter(Boolean) as string[];
+        if (JSON.stringify(kawamotoMeeting.participant_ids) !== JSON.stringify(targetPids)) {
+          kawamotoMeeting.participant_ids = targetPids;
+          changed = true;
+        }
+
+        const cleanKmSummary = [
+          'BNI 京都シティセントラルリージョン「ディライトチャプター」所属の川本 美器様（WineShop Gorríon 代表 / ワイン販売）および「インヴィクタスチャプター」所属の高田 陵平様（祇園バー「Route Z」マスター）・勝賀野様の3名による1to1面談。川本様は京都市上京区（西陣織会館・晴明神社から徒歩2〜3分）にてヨーロッパ産ワイン専門店「WineShop Gorríon（ゴリオン）」を運営（実家は西陣織の織元）し、店舗販売・EC通販・飲食店向け卸・ワイン会イベントおよびワイン買取ライセンス取得を展開。勝賀野様・高田様が運営する祇園バー「Route Z」へのグラスワイン（赤・白3,000〜4,000円帯やシャンパン）導入、および勝賀野様の遺品整理・残置物撤去現場から出る未開栓ワインの買取査定連携・飲食店相互紹介で合意。',
+          '・事業背景とWineShop Gorríonの強み: 川本美器様は三島宏幸様（だんじりチャプター）からのご紹介で今回の1to1を実施。フランス・イタリア・スペイン・ポルトガル・オーストリア・ドイツ等のヨーロッパワインを中心に、試飲会・インポーターから厳選して仕入れ、飲食店ごとの料理や客層に合わせた小ロット卸・メニュー提案に強みを持つ。',
+          '・祇園バー「Route Z」へのワイン導入・店舗見学: 勝賀野様と高田陵平様が運営する祇園バー「Route Z」では現在ウイスキー・焼酎が中心でワインの取扱がないため、高田様が上京区の「WineShop Gorríon」実店舗を訪問し、バーでグラス提供しやすい3,000〜4,000円帯の赤・白ワインやシャンパンを選定して導入を進めることで合意。',
+          '・未開栓ワイン買取×遺品整理連携および相互紹介: 川本様が取得手続き中の酒類（ワイン）買取ライセンスを活用し、勝賀野様の遺品整理・残置物撤去現場で出る未開栓ワイン・古酒の査定・買取連携を協議。また、川本様からディライトチャプターの近味様（不動産関連・元警察官）、勝賀野様・高田様から中書島のバー経営者様やワイン愛好家の知人経営者を相互に紹介し、祇園バー「Route Z」での懇親会を開催することで一致。',
+        ].join('\n');
+
+        const kmTr = (this.state.transcripts || []).find(t => t.meeting_id === kawamotoMeeting.id);
+        if (kmTr) {
+          if (
+            !kmTr.summary ||
+            /桑本|風邪気味|体調不良|リライトチャプター|3島/.test(kmTr.summary) ||
+            !kmTr.summary.includes('ディライトチャプター') ||
+            !kmTr.summary.includes('インヴィクタスチャプター') ||
+            !kmTr.summary.includes('WineShop Gorríon')
+          ) {
+            kmTr.summary = cleanKmSummary;
+            (kmTr as any).ai_refined = true;
+            changed = true;
+          }
+          if (kmTr.full_text) {
+            const fixedFull = fixMuto(kmTr.full_text) || kmTr.full_text;
+            if (fixedFull !== kmTr.full_text) {
+              kmTr.full_text = fixedFull;
+              changed = true;
+            }
+          }
+        }
+
+        // 川本様・高田様の確定Factsを保証し、生の誤認識Fact（fact-zoom-*）を除去
+        for (const f of this.state.facts || []) {
+          if (
+            f.source_id === kawamotoMeeting.id &&
+            (f.id.startsWith('fact-zoom-') || /桑本|風邪気味|体調不良|リライトチャプター/.test(f.fact_value || ''))
+          ) {
+            this.deletedIds.add(f.id);
+            changed = true;
+          }
+        }
+        this.state.facts = (this.state.facts || []).filter(
+          f =>
+            !(
+              f.source_id === kawamotoMeeting.id &&
+              (f.id.startsWith('fact-zoom-') || /桑本|風邪気味|体調不良|リライトチャプター/.test(f.fact_value || ''))
+            )
+        );
+
+        const kmCoreFacts: Fact[] = [
+          ...(kawamotoPerson
+            ? [
+                {
+                  id: 'fact-kawamoto-topic-1',
+                  tenant_id: 'tenant-001',
+                  person_id: kawamotoPerson.id,
+                  fact_category: 'topic' as const,
+                  fact_key: '盛り上がった話題・事業内容',
+                  fact_value:
+                    'BNI 京都シティセントラルリージョン「ディライトチャプター」所属（カテゴリー：ワイン販売）。京都市上京区（西陣織会館・晴明神社徒歩2〜3分）にてヨーロッパ産ワイン専門店「WineShop Gorríon（ゴリオン）」を経営（実家は西陣織の織元）。祇園バー「Route Z」へのグラスワイン（3,000〜4,000円帯）・シャンパン導入、および遺品整理・残置物撤去現場で出る未開栓ワインの買取連携・飲食店相互紹介に合意',
+                  source_type: 'meeting_speech' as const,
+                  source_id: kawamotoMeeting.id,
+                  source_evidence: '2026/11/27 Zoom 1to1面談（川本美器様・高田陵平様・勝賀野様）',
+                  confidence: 0.99,
+                  verification_status: 'verified' as const,
+                  visibility: 'referral_eligible' as const,
+                  valid_from: kmDateIso,
+                  created_at: kmDateIso,
+                },
+                {
+                  id: 'fact-kawamoto-promise-1',
+                  tenant_id: 'tenant-001',
+                  person_id: kawamotoPerson.id,
+                  fact_category: 'promise' as const,
+                  fact_key: '保留中の約束・ToDo',
+                  fact_value:
+                    '高田陵平様が上京区の「WineShop Gorríon」実店舗を訪問して祇園バー「Route Z」用ワインを選定・導入し、勝賀野様から中書島のバー経営者様・ワイン愛好家をご紹介、川本美器様からディライトチャプターの近味様（不動産関連・元警察官）をお繋ぎして祇園バー「Route Z」で懇親会を開催する',
+                  source_type: 'meeting_speech' as const,
+                  source_id: kawamotoMeeting.id,
+                  source_evidence: '2026/11/27 Zoom 1to1面談 Next Steps',
+                  confidence: 0.99,
+                  verification_status: 'verified' as const,
+                  visibility: 'referral_eligible' as const,
+                  valid_from: kmDateIso,
+                  created_at: kmDateIso,
+                },
+              ]
+            : []),
+          ...(takadaPerson
+            ? [
+                {
+                  id: 'fact-takada-topic-1',
+                  tenant_id: 'tenant-001',
+                  person_id: takadaPerson.id,
+                  fact_category: 'topic' as const,
+                  fact_key: '盛り上がった話題・事業内容',
+                  fact_value:
+                    'BNI 京都シティセントラルリージョン「インヴィクタスチャプター」所属。京都・祇園バー「Route Z」マスターとして勝賀野様と共同運営。川本美器様（WineShop Gorríon / ディライトチャプター）との1to1に同席し、バー「Route Z」でのグラスワイン（赤・白3,000〜4,000円帯）・シャンパン提供に向けた店舗訪問・仕入選定および京都エリアの飲食店・経営者相互紹介で合意',
+                  source_type: 'meeting_speech' as const,
+                  source_id: kawamotoMeeting.id,
+                  source_evidence: '2026/11/27 Zoom 1to1面談（川本美器様・高田陵平様・勝賀野様）',
+                  confidence: 0.99,
+                  verification_status: 'verified' as const,
+                  visibility: 'referral_eligible' as const,
+                  valid_from: kmDateIso,
+                  created_at: kmDateIso,
+                },
+                {
+                  id: 'fact-takada-promise-1',
+                  tenant_id: 'tenant-001',
+                  person_id: takadaPerson.id,
+                  fact_category: 'promise' as const,
+                  fact_key: '保留中の約束・ToDo',
+                  fact_value:
+                    '高田陵平様が川本美器様の「WineShop Gorríon」（京都市上京区・晴明神社近く）を訪問して祇園バー「Route Z」に置くワインを選定・購入し、川本様を祇園バー「Route Z」へ招待して懇親および飲食店紹介を進める',
+                  source_type: 'meeting_speech' as const,
+                  source_id: kawamotoMeeting.id,
+                  source_evidence: '2026/11/27 Zoom 1to1面談 Next Steps',
+                  confidence: 0.99,
+                  verification_status: 'verified' as const,
+                  visibility: 'referral_eligible' as const,
+                  valid_from: kmDateIso,
+                  created_at: kmDateIso,
+                },
+              ]
+            : []),
+        ];
+        for (const kf of kmCoreFacts) {
+          const existingIdx = (this.state.facts || []).findIndex(f => f.id === kf.id);
+          if (existingIdx >= 0) {
+            if (this.state.facts[existingIdx].fact_value !== kf.fact_value) {
+              this.state.facts[existingIdx] = kf;
+              changed = true;
+            }
+          } else {
+            this.state.facts.unshift(kf);
             changed = true;
           }
         }
@@ -4604,6 +5018,9 @@ class DataStore {
       'p-tsuji-akinori',
       'p-mishima-danjiri',
       'p-1794141793042',
+      'p-takada-invictus',
+      'p-1795750960554-z5i2n',
+      'p-kawasaki-kei',
     ]);
     const personsByNormName = new Map<string, Person[]>();
     for (const p of this.state.persons || []) {
@@ -4840,11 +5257,20 @@ class DataStore {
         (txt || '')
           .replace(/この会議は、前回のビーンズ交流会の反省と今後の運営方針について話し合うことを目的として行われた。?\s*/g, '')
           .replace(/冒頭では(?:[0-9０-９]+\s*[/／]\s*)?勝賀野が子供のインフルエンザに感染し体調を崩していることを共有し、高野陽行は寝起きで参加している状況を説明した。?\s*/g, '')
+          .replace(/[^。]*?(?:風邪気味のため声が聞きにくい|体調不良のため声が小さい)[^。]*?。?\s*/g, '')
           .replace(/[0-9０-９]+\s*[/／]\s*勝賀野\s*太郎\s*[/／]\s*残置物撤去/g, '勝賀野')
           .replace(/[0-9０-９]+\s*[/／]\s*勝賀野/g, '勝賀野')
           .replace(/正勝賀野/g, '勝賀野')
           .replace(/K\s*Kawasaki|Kawasaki\s*K/gi, '川崎景')
           .replace(/(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/gm, '$1川崎景')
+          .replace(/美器[（(]桑本みき[）)]|桑本\s*みき|美器\s*川本/g, '川本美器')
+          .replace(/陵平\s*高田/g, '高田陵平')
+          .replace(/(?<![川本])美器(?=[はがもにのへと、。・店舗])/g, '川本美器')
+          .replace(/(?<![高田])陵平(?=[はがもにのへと、。・:：])/g, '高田陵平')
+          .replace(/リライトチャプター/g, 'ディライトチャプター')
+          .replace(/インビクタスチャプター/g, 'インヴィクタスチャプター')
+          .replace(/3島から/g, '三島宏幸様（だんじりチャプター）から')
+          .replace(/生命神社/g, '晴明神社')
           .replace(/ラズベリー/g, 'ジャズベリー')
           .replace(/無党開発|武藤開発/g, '夢叶開発')
           .replace(/免费/g, '無料')
@@ -4958,18 +5384,25 @@ class DataStore {
           const normalizedContext = combinedZoomContext
             .replace(/ラインダース|マインダーズ|ライナッツ|ナインダーズ/g, 'ナインダーツ')
             .replace(/シャングリア/g, 'シャングリラ')
+            .replace(/リライト/g, 'ディライト')
+            .replace(/インビクタス/g, 'インヴィクタス')
             .replace(/ダンジェリ/g, 'だんじり');
-          const officialMatches: string[] = [];
+          const officialMatches: { name: string; isEventOnly: boolean }[] = [];
           for (const ch of OFFICIAL_BNI_CHAPTERS) {
             const bare = ch.chapter_name.replace(/チャプター$/, '');
             if (bare.length >= 2 && normalizedContext.includes(`${bare}チャプター`)) {
-              officialMatches.push(ch.chapter_name);
+              const isEventOnly =
+                new RegExp(`${bare}チャプター(?:のイベント|というイベント)`).test(normalizedContext) &&
+                !new RegExp(`${bare}チャプター(?:に所属|へ所属|所属|に入った|のメンバー)`).test(normalizedContext);
+              officialMatches.push({ name: ch.chapter_name, isEventOnly });
             }
           }
-          const nonSelfChap = officialMatches.find(c => !/だんじり/.test(c));
+          const nonSelfChap =
+            officialMatches.find(c => !/だんじり/.test(c.name) && !c.isEventOnly)?.name ||
+            officialMatches.find(c => !/だんじり/.test(c.name))?.name;
           const targetChapKeyword = nonSelfChap || '';
 
-          if (targetChapKeyword) {
+          if (targetChapKeyword && this.getBNIMembershipsForPerson(partnerPerson.id).length === 0) {
             const updatedBni = this.setPersonBNIMembership(
               partnerPerson.id,
               targetChapKeyword,
@@ -5122,9 +5555,11 @@ class DataStore {
             'm-zoom-Hloc8gk6T9CevFvvf9bJLQ',
             'm-1794813034745-2e1gm',
             'm-zoom-yWF6XymmQ9y7VeeDNcwag',
+            'm-zoom-wd6wBnHzQI6x8a6ytmmxSA',
           ].includes(targetMeeting.id);
           if (
             combinedSummary &&
+            !(existingTr as any)?.ai_refined &&
             (!existingTr.summary || existingTr.summary.length < combinedSummary.length) &&
             !isVerifiedSeedMeeting
           ) {
@@ -5143,6 +5578,7 @@ class DataStore {
         'm-zoom-Hloc8gk6T9CevFvvf9bJLQ',
         'm-1794813034745-2e1gm',
         'm-zoom-yWF6XymmQ9y7VeeDNcwag',
+        'm-zoom-wd6wBnHzQI6x8a6ytmmxSA',
       ].includes(targetMeeting.id);
 
       if (partnerPerson && !isVerifiedSeedMeetingForFacts) {
@@ -5291,7 +5727,7 @@ class DataStore {
     if (!obj) return false;
     const txt = `${obj.notes || ''} ${obj.summary || ''} ${obj.service_title || ''} ${obj.fact_value || ''}`;
     return (
-      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している/.test(txt) ||
+      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している|桑本みき|風邪気味のため声が聞きにくい|体調不良のため声が小さい|リライトチャプター/.test(txt) ||
       /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt) ||
       /[ãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\uFFFD\x80-\x9F]/.test(txt)
     );
@@ -7575,7 +8011,13 @@ class DataStore {
 
         const tr = this.state.transcripts.find(t => t.meeting_id === meeting.id);
         if (tr) {
-          tr.summary = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
+          const baseOverview = s.overview || `${s.companyName ? `${s.companyName}の` : ''}${person.display_name}様との1to1面談。${cleanTopic}。次回アクション: ${joinedPromise}`;
+          const topicBullets = (s.topic || '')
+            .split(/\r?\n/)
+            .map((line: string) => line.trim())
+            .filter((line: string) => line.length >= 10 && !baseOverview.includes(line.replace(/^[・•-]\s*/, '')))
+            .map((line: string) => (line.startsWith('・') ? line : `・${line.replace(/^[•-]\s*/, '')}`));
+          tr.summary = [baseOverview, ...topicBullets].filter(Boolean).join('\n');
           (tr as any).ai_refined = true;
           (tr as any).updated_at = nowIso;
         }
