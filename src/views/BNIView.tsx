@@ -51,8 +51,8 @@ export const BNIView: React.FC<BNIViewProps> = ({ onSelectPerson }) => {
     const map = new Map<string, { chapterId: string; chapterName: string; regionName: string; count: number }>();
     for (const { membership } of allMemberships) {
       const chap =
-        chapters.find(c => c.id === membership.chapter_id) ||
-        chapters.find(c => c.chapter_name === membership.chapter_name);
+        chapters.find(c => c.chapter_name === membership.chapter_name) ||
+        chapters.find(c => c.id === membership.chapter_id);
       const cid = chap?.id || membership.chapter_id;
       const existing = map.get(cid);
       if (existing) {

@@ -731,7 +731,7 @@ function ensureCoreTenantsAndDeduplicate(state: any): any {
         id: 'bnim-takada-1',
         tenant_id: 'tenant-001',
         person_id: takadaPerson.id,
-        chapter_id: 'chap-bni-254',
+        chapter_id: 'chap-bni-258',
         chapter_name: 'インヴィクタスチャプター',
         region_name: '京都シティセントラルリージョン (Kyoto City Central)',
         category: 'バー・飲食店経営（祇園バー「Route Z」マスター）',
@@ -740,7 +740,7 @@ function ensureCoreTenantsAndDeduplicate(state: any): any {
       });
     } else {
       existingTakadaBni.person_id = takadaPerson.id;
-      existingTakadaBni.chapter_id = 'chap-bni-254';
+      existingTakadaBni.chapter_id = 'chap-bni-258';
       existingTakadaBni.chapter_name = 'インヴィクタスチャプター';
       existingTakadaBni.region_name = '京都シティセントラルリージョン (Kyoto City Central)';
       existingTakadaBni.category = 'バー・飲食店経営（祇園バー「Route Z」マスター）';

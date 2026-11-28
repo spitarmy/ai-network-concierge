@@ -4288,7 +4288,7 @@ class DataStore {
           changed = true;
         }
 
-        // 高田様のBNI所属（京都シティセントラルリージョン・インヴィクタスチャプター: chap-bni-254）を確定保証
+        // 高田様のBNI所属（京都シティセントラルリージョン・インヴィクタスチャプター: chap-bni-258）を確定保証
         for (const bm of this.state.bniMemberships || []) {
           if (bm.person_id === takadaPerson.id && bm.id !== 'bnim-takada-1') {
             this.deletedIds.add(bm.id);
@@ -4304,7 +4304,7 @@ class DataStore {
             id: 'bnim-takada-1',
             tenant_id: 'tenant-001',
             person_id: takadaPerson.id,
-            chapter_id: 'chap-bni-254',
+            chapter_id: 'chap-bni-258',
             chapter_name: 'インヴィクタスチャプター',
             region_name: '京都シティセントラルリージョン (Kyoto City Central)',
             category: 'バー・飲食店経営（祇園バー「Route Z」マスター）',
@@ -4314,11 +4314,12 @@ class DataStore {
           changed = true;
         } else if (
           existingTakadaBni.person_id !== takadaPerson.id ||
+          existingTakadaBni.chapter_id !== 'chap-bni-258' ||
           existingTakadaBni.chapter_name !== 'インヴィクタスチャプター' ||
           existingTakadaBni.region_name !== '京都シティセントラルリージョン (Kyoto City Central)'
         ) {
           existingTakadaBni.person_id = takadaPerson.id;
-          existingTakadaBni.chapter_id = 'chap-bni-254';
+          existingTakadaBni.chapter_id = 'chap-bni-258';
           existingTakadaBni.chapter_name = 'インヴィクタスチャプター';
           existingTakadaBni.region_name = '京都シティセントラルリージョン (Kyoto City Central)';
           existingTakadaBni.category = 'バー・飲食店経営（祇園バー「Route Z」マスター）';
@@ -4912,6 +4913,13 @@ class DataStore {
     if (Array.isArray(this.state.bniMemberships)) {
       const seenBniKey = new Set<string>();
       this.state.bniMemberships = this.state.bniMemberships.filter(bm => {
+        if (bm.chapter_name) {
+          const matchedOfficial = OFFICIAL_BNI_CHAPTERS.find(c => c.chapter_name === bm.chapter_name);
+          if (matchedOfficial && bm.chapter_id !== matchedOfficial.id) {
+            bm.chapter_id = matchedOfficial.id;
+            changed = true;
+          }
+        }
         const key = `${bm.person_id}::${bm.chapter_name || ''}`;
         if (
           /彼は|彼女は|この人|その人|さっき|うち以外|他の|別の|自チャプター|僕の|この|どの|各|所属/.test(bm.chapter_name || '') ||

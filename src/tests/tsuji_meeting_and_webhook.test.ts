@@ -714,6 +714,7 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(takada.status).toBe('active');
     const takadaBni = store.getBNIMembershipsForPerson(takada.id);
     expect(takadaBni.length).toBe(1);
+    expect(takadaBni[0].chapter_id).toBe('chap-bni-258');
     expect(takadaBni[0].chapter_name).toBe('インヴィクタスチャプター');
     expect(takadaBni[0].region_name).toContain('京都シティセントラルリージョン');
 
