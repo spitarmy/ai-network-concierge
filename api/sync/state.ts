@@ -222,9 +222,9 @@ function isMojibakeString(s?: string): boolean {
 }
 
 function isColloquialOrPlaceholder(item: any): boolean {
-  const txt = `${item?.notes || ''} ${item?.summary || ''} ${item?.service_title || ''} ${item?.fact_value || ''}`;
+  const txt = `${item?.display_name || ''} ${item?.title || ''} ${item?.organization_name || ''} ${item?.notes || ''} ${item?.summary || ''} ${item?.service_title || ''} ${item?.fact_value || ''}`;
   return (
-    /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している|桑本みき|風邪気味のため声が聞きにくい|体調不良のため声が小さい|リライトチャプター/.test(txt) ||
+    /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している|桑本みき|風邪気味のため声が聞きにくい|体調不良のため声が小さい|リライトチャプター|全然大丈夫|株式会社が入るから/.test(txt) ||
     /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt) ||
     isMojibakeString(txt)
   );
@@ -948,6 +948,77 @@ function ensureCoreTenantsAndDeduplicate(state: any): any {
         state.facts[idx] = kf;
       } else {
         state.facts.unshift(kf);
+      }
+    }
+  }
+
+  // 2026/11/28 中野 亘 様（大阪東・だんじりチャプター副代表 / 中野亘税理士事務所 代表税理士）のカルテ・面談（m-1795860761886-5xnii）にて誤抽出された「全然大丈夫」「株式会社が入るから」をサーバー側でも完全浄化
+  if (Array.isArray(state.persons)) {
+    const nakanoPerson = state.persons.find(
+      (p: any) =>
+        p?.tenant_id === 'tenant-001' &&
+        p?.status !== 'deleted' &&
+        (p?.id === 'p-1795860761879-jkvhx' || /全然大丈夫|中野\s*亘|亘\s*中野/.test(p?.display_name || ''))
+    );
+    if (nakanoPerson) {
+      nakanoPerson.display_name = '中野 亘';
+      nakanoPerson.phonetic_name = 'ナカノ ワタル';
+      nakanoPerson.status = 'active';
+      nakanoPerson.is_name_verified = true;
+      nakanoPerson.category_tags = Array.from(new Set([...(nakanoPerson.category_tags || []), 'BNI', '仕事']));
+      nakanoPerson.service_areas = ['大阪府', '京都府', '関西一円', '全国対応'];
+      nakanoPerson.notes =
+        'BNI 大阪東リージョン（Osaka East）「だんじりチャプター」副代表（バイスプレジデント・カテゴリー：税理士）。中野亘税理士事務所 代表税理士。過去の税務申告にとどまらない売上向上・資金繰り・財務戦略に特化した財務コンサルティングおよび税務セカンドオピニオンを提供。特に医療・歯科・動物病院の新規開業支援（立地・物件選定、医療機器導入、創業融資獲得、広告に頼らない集客ノウハウ）および創業初期・スタートアップ事業者の資金調達指導・法人化支援に強みを持つ。勝賀野様が展開するAI古物査定ツール「カンテノ」、オーダーメイド腕時計「アステラ」、機密文書処理および不用品回収事業との協業・相互紹介に合意。';
+
+      if (Array.isArray(state.organizationMemberships)) {
+        state.organizationMemberships = state.organizationMemberships.filter(
+          (om: any) => !(om?.person_id === nakanoPerson.id && /株式会社が入るから/.test(om?.organization_name || ''))
+        );
+      }
+      if (Array.isArray(state.meetings)) {
+        for (const m of state.meetings) {
+          if (m?.id === 'm-1795860761886-5xnii' || (m?.participant_ids || []).includes(nakanoPerson.id) || /全然大丈夫/.test(m?.title || '')) {
+            m.title =
+              '中野 亘様と1to1（大阪東・だんじりチャプター / 中野亘税理士事務所 財務コンサル・医療/動物病院開業支援×不用品回収・腕時計アステラ連携）';
+          }
+        }
+      }
+      if (Array.isArray(state.consents)) {
+        for (const c of state.consents) {
+          if (c?.person_id === nakanoPerson.id || /全然大丈夫/.test(c?.person_name || '')) {
+            c.person_name = '中野 亘';
+          }
+        }
+      }
+      if (Array.isArray(state.transcripts)) {
+        for (const tr of state.transcripts) {
+          if (tr?.meeting_id === 'm-1795860761886-5xnii') {
+            tr.ai_refined = true;
+            if (Array.isArray(tr.utterances)) {
+              for (const u of tr.utterances) {
+                if (u?.resolved_person_id === nakanoPerson.id || /全然大丈夫/.test(u?.resolved_person_name || '')) {
+                  u.speaker_label = '中野 亘';
+                  u.resolved_person_name = '中野 亘';
+                }
+              }
+            }
+          }
+        }
+      }
+      if (Array.isArray(state.facts)) {
+        state.facts = state.facts.filter(
+          (f: any) => !(f?.person_id === nakanoPerson.id && /全然大丈夫|株式会社が入るから/.test(f?.fact_value || ''))
+        );
+      }
+      const mainKimura = state.persons.find((p: any) => p?.id === 'p-kimura-naofumi');
+      if (mainKimura) {
+        state.persons = state.persons.filter((p: any) => p?.id !== 'p-1795860783705-m5amu');
+        if (Array.isArray(state.relationships)) {
+          for (const r of state.relationships) {
+            if (r?.from_person_id === 'p-1795860783705-m5amu') r.from_person_id = mainKimura.id;
+            if (r?.to_person_id === 'p-1795860783705-m5amu') r.to_person_id = mainKimura.id;
+          }
+        }
       }
     }
   }

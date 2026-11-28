@@ -27,7 +27,7 @@ export function splitIntoStructuredLines(raw?: string | null): string[] {
   const rawLines = normalized
     .split('\n')
     .map(l => l.replace(/^[、,\s]+/, '').trim())
-    .filter(Boolean);
+    .filter(l => l && !/^[・•▪▫■◆▲▼\-*]+$/.test(l));
 
   const result: string[] = [];
   for (const line of rawLines) {

@@ -3825,6 +3825,28 @@ class DataStore {
     return tokens.some(tok => label.includes(tok));
   }
 
+  public isNonPersonPhrase(text: string): boolean {
+    if (!text) return true;
+    const t = text.replace(/\s+/g, '').trim();
+    if (!t || t.length < 2 || t.length > 14) return true;
+    // 相槌・会話表現・形容詞・一般名詞・文断片は絶対に人名として扱わない
+    if (
+      /大丈夫|全然|お疲れ|ありがと|よろしく|すみません|すいません|ごめん|ほんま|めっちゃ|素晴らし|結構|一応|誰か|今日|明日|明後日|昨日|今週|来週|再来週|今月|来月|今年|来年|時間|後半|前半|最後|最初|画面|共有|資料|文字起こし|会議|面談|打合せ|打ち合わせ|予定|相手未特定|面談のお相手|名称未設定|参加者|自分|ホスト|代表|社長|先生|株式会社|合同会社|有限会社|一般社団法人|チャプター|リージョン|カテゴリー|トレーニング|キースキル|紹介|相談|確認|了解|承知|問題ない|オッケー|OK|はい|ええ|ああ|うん|なるほど|そうなん|そうですね|ぼちぼち|だいたい|なんや|うわあ|よし|これ|それ|あれ|どれ|ここ|そこ|あそこ|どこ/.test(
+        t
+      )
+    ) {
+      return true;
+    }
+    // 助詞や活用語尾・句読点を含む文断片を除外
+    if (/[。、！？!?「」『』（）()・:：/／]/.test(t)) return true;
+    if (/(?:です|ます|ました|でした|ません|ない|なかった|たい|たく|たら|れば|ので|から|けど|けれど|のに|って|という|とか|など|くらい|ぐらい|ちゃん|くん)$/.test(t)) {
+      return true;
+    }
+    // ひらがなのみ3文字以上（例：「ほんま」「すごい」等）は人名として自動採用しない
+    if (/^[ぁ-んー]{3,}$/.test(t)) return true;
+    return false;
+  }
+
   private normalizeSpeakerName(raw: string): string {
     let cleaned = raw
       .replace(/^[0-9０-９]+\s*[/／]\s*/, '')
@@ -3841,6 +3863,12 @@ class DataStore {
     if (/^陵平\s*高田$|^高田\s*陵平$/.test(cleaned)) {
       return '高田 陵平';
     }
+    if (/^中野\s*亘$|^亘\s*中野$/.test(cleaned)) {
+      return '中野 亘';
+    }
+    if (this.isNonPersonPhrase(cleaned)) {
+      return '';
+    }
     const twoParts = cleaned.split(/[\s　]+/);
     if (twoParts.length === 2 && /^[一-龯ぁ-んァ-ヶー]{1,4}$/.test(twoParts[0]) && /^[一-龯ぁ-んァ-ヶー]{1,4}$/.test(twoParts[1])) {
       const reversed = `${twoParts[1]} ${twoParts[0]}`;
@@ -3851,7 +3879,10 @@ class DataStore {
         return reversed;
       }
     }
-    if (/^[一-龯]{4}$/.test(cleaned)) {
+    if (/^[一-龯]{3}$/.test(cleaned)) {
+      // 3文字の漢字フルネーム（例：「中野亘」）は「姓(2文字) 名(1文字)」に整形
+      cleaned = `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
+    } else if (/^[一-龯]{4}$/.test(cleaned)) {
       cleaned = `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
     }
     return cleaned;
@@ -4593,6 +4624,115 @@ class DataStore {
             this.state.facts.unshift(kf);
             changed = true;
           }
+        }
+      }
+
+      // 1.7 2026/11/28 中野 亘 様（大阪東・だんじりチャプター副代表 / 中野亘税理士事務所 代表税理士）のカルテ・面談（m-1795860761886-5xnii）にて誤抽出された「全然大丈夫」「株式会社が入るから」を完全浄化し「中野 亘」へ統一
+      const nakanoPerson = (this.state.persons || []).find(
+        p =>
+          p.tenant_id === 'tenant-001' &&
+          p.status !== 'deleted' &&
+          (p.id === 'p-1795860761879-jkvhx' || /全然大丈夫|中野\s*亘|亘\s*中野/.test(p.display_name || ''))
+      );
+      if (nakanoPerson) {
+        const nakanoNotesClean =
+          'BNI 大阪東リージョン（Osaka East）「だんじりチャプター」副代表（バイスプレジデント・カテゴリー：税理士）。中野亘税理士事務所 代表税理士。過去の税務申告にとどまらない売上向上・資金繰り・財務戦略に特化した財務コンサルティングおよび税務セカンドオピニオンを提供。特に医療・歯科・動物病院の新規開業支援（立地・物件選定、医療機器導入、創業融資獲得、広告に頼らない集客ノウハウ）および創業初期・スタートアップ事業者の資金調達指導・法人化支援に強みを持つ。勝賀野様が展開するAI古物査定ツール「カンテノ」、オーダーメイド腕時計「アステラ」、機密文書処理および不用品回収事業との協業・相互紹介に合意。';
+        if (
+          nakanoPerson.display_name !== '中野 亘' ||
+          nakanoPerson.phonetic_name !== 'ナカノ ワタル' ||
+          !nakanoPerson.is_name_verified ||
+          !nakanoPerson.notes ||
+          /全然大丈夫|株式会社が入るから/.test(nakanoPerson.notes)
+        ) {
+          nakanoPerson.display_name = '中野 亘';
+          nakanoPerson.phonetic_name = 'ナカノ ワタル';
+          nakanoPerson.status = 'active';
+          nakanoPerson.is_name_verified = true;
+          nakanoPerson.category_tags = Array.from(new Set([...(nakanoPerson.category_tags || []), 'BNI', '仕事']));
+          nakanoPerson.service_areas = ['大阪府', '京都府', '関西一円', '全国対応'];
+          nakanoPerson.notes = nakanoNotesClean;
+          changed = true;
+        }
+
+        // 「株式会社が入るから」等の誤組織を完全削除し、「中野亘税理士事務所（代表税理士）」に統一
+        for (const om of this.state.organizationMemberships || []) {
+          if (om.person_id === nakanoPerson.id && /株式会社が入るから/.test(om.organization_name || '')) {
+            this.deletedIds.add(om.id);
+            changed = true;
+          }
+        }
+        this.state.organizationMemberships = (this.state.organizationMemberships || []).filter(
+          om => !(om.person_id === nakanoPerson.id && /株式会社が入るから/.test(om.organization_name || ''))
+        );
+        if (!(this.state.organizationMemberships || []).some(om => om.person_id === nakanoPerson.id && om.organization_name === '中野亘税理士事務所')) {
+          this.addOrganizationMembership(nakanoPerson.id, '中野亘税理士事務所', '代表税理士');
+          changed = true;
+        }
+
+        // 面談タイトル・同意レコードの「全然大丈夫」を「中野 亘」に修正
+        for (const m of this.state.meetings || []) {
+          if (m.id === 'm-1795860761886-5xnii' || (m.participant_ids || []).includes(nakanoPerson.id) || /全然大丈夫/.test(m.title || '')) {
+            const expectedNakanoTitle =
+              '中野 亘様と1to1（大阪東・だんじりチャプター / 中野亘税理士事務所 財務コンサル・医療/動物病院開業支援×不用品回収・腕時計アステラ連携）';
+            if (m.title !== expectedNakanoTitle) {
+              m.title = expectedNakanoTitle;
+              changed = true;
+            }
+          }
+        }
+        for (const c of this.state.consents || []) {
+          if (c.person_id === nakanoPerson.id || /全然大丈夫/.test(c.person_name || '')) {
+            c.person_name = '中野 亘';
+            changed = true;
+          }
+        }
+        for (const tr of this.state.transcripts || []) {
+          if (tr.meeting_id === 'm-1795860761886-5xnii') {
+            (tr as any).ai_refined = true;
+            if (Array.isArray(tr.utterances)) {
+              for (const u of tr.utterances) {
+                if (u.resolved_person_id === nakanoPerson.id || /全然大丈夫/.test(u.resolved_person_name || '')) {
+                  u.speaker_label = '中野 亘';
+                  u.resolved_person_name = '中野 亘';
+                  changed = true;
+                }
+              }
+            }
+          }
+        }
+        for (const f of this.state.facts || []) {
+          if (f.person_id === nakanoPerson.id && /全然大丈夫|株式会社が入るから/.test(f.fact_value || '')) {
+            this.deletedIds.add(f.id);
+            changed = true;
+          }
+        }
+        this.state.facts = (this.state.facts || []).filter(
+          f => !(f.person_id === nakanoPerson.id && /全然大丈夫|株式会社が入るから/.test(f.fact_value || ''))
+        );
+
+        // 既に本登録済みの木村 尚史様（p-kimura-naofumi）に対して重複作成された仮カルテ p-1795860783705-m5amu を本カルテへ統合
+        const dupKimuraProv = (this.state.persons || []).find(p => p.id === 'p-1795860783705-m5amu');
+        const mainKimura = (this.state.persons || []).find(p => p.id === 'p-kimura-naofumi');
+        if (dupKimuraProv && mainKimura) {
+          this.deletedIds.add(dupKimuraProv.id);
+          this.mergePersons(mainKimura.id, dupKimuraProv.id);
+          changed = true;
+        }
+      }
+    }
+
+    // 1.8 全テナント共通ガード：万が一「全然大丈夫」等の非人名フレーズが人物名や会議名に残っていた場合は即座に文字起こし話者または要約内の実名へ自動修復
+    for (const p of this.state.persons || []) {
+      if (p.status !== 'deleted' && this.isNonPersonPhrase(p.display_name)) {
+        const pMeeting = (this.state.meetings || []).find(m => (m.participant_ids || []).includes(p.id));
+        const pTr = pMeeting ? (this.state.transcripts || []).find(t => t.meeting_id === pMeeting.id) : undefined;
+        const summaryMatch = (pTr?.summary || p.notes || '').match(/^([一-龯]{1,4}\s*[一-龯]{1,4})様は/);
+        if (summaryMatch && summaryMatch[1] && !this.isNonPersonPhrase(summaryMatch[1])) {
+          p.display_name = summaryMatch[1].trim();
+          if (pMeeting && this.isNonPersonPhrase(pMeeting.title.replace(/様と.*$/, ''))) {
+            pMeeting.title = `${p.display_name}様と1to1面談`;
+          }
+          changed = true;
         }
       }
     }
@@ -5733,9 +5873,9 @@ class DataStore {
 
   private isColloquialOrPlaceholderRecord(obj: any): boolean {
     if (!obj) return false;
-    const txt = `${obj.notes || ''} ${obj.summary || ''} ${obj.service_title || ''} ${obj.fact_value || ''}`;
+    const txt = `${obj.display_name || ''} ${obj.title || ''} ${obj.organization_name || ''} ${obj.notes || ''} ${obj.summary || ''} ${obj.service_title || ''} ${obj.fact_value || ''}`;
     return (
-      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している|桑本みき|風邪気味のため声が聞きにくい|体調不良のため声が小さい|リライトチャプター/.test(txt) ||
+      /LINEでZoom URLのみ受領|\[Zoom特定メモ\]|もうバーも大好きやし|サッカーボール蹴るなんて|さんであの奈良かに行ってみたいな|ラズベリーでの交流会|正勝賀野|インフルエンザに感染し体調を崩している|寝起きで参加している|桑本みき|風邪気味のため声が聞きにくい|体調不良のため声が小さい|リライトチャプター|全然大丈夫|株式会社が入るから/.test(txt) ||
       /(^|[、。・:：\s「『（(と])K(?=[はがもにのへと、。・\s」』）)]|$)/m.test(txt) ||
       /[ãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\uFFFD\x80-\x9F]/.test(txt)
     );
@@ -6659,6 +6799,9 @@ class DataStore {
       .replace(/[のんでにをはがと、。\s]+$/, '')
       .trim();
     if (!cleaned || /^(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)$/.test(cleaned)) return '';
+    // 「株式会社が入るから」「株式会社にする」のような助詞・動詞が続く会話文を会社名として誤抽出することを完全遮断
+    if (/^(?:株式会社|合同会社|有限会社|一般社団法人|NPO法人)[がはをにでともやへからよりまでだけばかりほどくらいぐらい]/.test(cleaned)) return '';
+    if (/(?:入る|する|なる|ある|いる|できる|つくる|作る|持つ|行く|来る)/.test(cleaned)) return '';
     if (/っていう|という|ゼノベイト|ZENNOBATE/i.test(cleaned)) return '';
     return cleaned;
   }
@@ -7446,19 +7589,24 @@ class DataStore {
       const utterancesList: { speaker: string; text: string }[] = [];
       let currentSpeaker = '';
 
-      for (const line of rawLinesAll) {
+      for (let lineIdx = 0; lineIdx < rawLinesAll.length; lineIdx++) {
+        const line = rawLinesAll[lineIdx];
         if (/^\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(\s*-->.*)?$/.test(line) || /^WEBVTT$/i.test(line)) {
           continue;
         }
         const colonMatch = line.match(/^([^\s:：]{1,24})\s*[:：]\s*(.+)$/);
-        if (colonMatch && !/^https?$/i.test(colonMatch[1])) {
+        if (colonMatch && !/^https?$/i.test(colonMatch[1]) && !this.isNonPersonPhrase(colonMatch[1])) {
           currentSpeaker = colonMatch[1].trim();
           utterancesList.push({ speaker: currentSpeaker, text: colonMatch[2].trim() });
           continue;
         }
+        const nextLine = rawLinesAll[lineIdx + 1] || '';
+        const isNextLineTimestamp = /^\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(\s*-->.*)?$/.test(nextLine);
         if (
+          isNextLineTimestamp &&
           line.length <= 22 &&
           !/[。、！？!?ですますでした]$/.test(line) &&
+          (this.isSelfSpeaker(line) || !this.isNonPersonPhrase(line)) &&
           (line.includes('/') || /^[一-龯ぁ-んァ-ヶーA-Za-z\s]{2,12}$/.test(line))
         ) {
           currentSpeaker = line;
@@ -7495,6 +7643,7 @@ class DataStore {
           const parts = fullSpeaker.trim().split(/\s+/);
           if (
             parts.length === 2 &&
+            parts[1].length >= 2 &&
             (titleHint.personName === parts[1] ||
               realName === parts[1] ||
               new RegExp(`${parts[1]}(?:さん|様|と申します|です|工業|開発|建設|商事)`).test(rawInput))
@@ -7509,11 +7658,11 @@ class DataStore {
         } else if (!isSurnameOnly) {
           const introMatches = Array.from(partnerTextJoined.matchAll(/(?:の|、|\s|^)([一-龯]{2,6})(?:と申します|です)/g));
           const validIntro = introMatches.find(
-            m => m[1] && !this.isSelfSpeaker(m[1]) && !/^(はじめまして|本日|私|僕|代表|社長|会議|面談|大丈夫|そうなん)$/.test(m[1])
+            m => m[1] && !this.isSelfSpeaker(m[1]) && !this.isNonPersonPhrase(m[1]) && !/^(はじめまして|本日|私|僕|代表|社長|会議|面談|大丈夫|そうなん)$/.test(m[1])
           );
           if (validIntro) {
             const raw = validIntro[1];
-            realName = (raw.length === 4 && !raw.includes(' ')) ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
+            realName = (raw.length === 4 || raw.length === 3) && !raw.includes(' ') ? `${raw.slice(0, 2)} ${raw.slice(2)}` : raw;
           } else if (externalSpeakers.length > 0) {
             realName = externalSpeakers[0];
           }
@@ -7871,8 +8020,17 @@ class DataStore {
         const s = data.summary;
         const nowIso = new Date().toISOString();
         const ownerNameKey = (ownerProf.owner_name || '勝賀野').replace(/\s+/g, '');
-        if (s.realName && s.realName.length >= 2 && !s.realName.replace(/\s+/g, '').includes(ownerNameKey)) {
+        if (
+          s.realName &&
+          s.realName.length >= 2 &&
+          !this.isNonPersonPhrase(s.realName) &&
+          !s.realName.replace(/\s+/g, '').includes(ownerNameKey)
+        ) {
           person.display_name = s.realName;
+          person.is_name_verified = true;
+          if (/全然大丈夫|相手未特定|面談のお相手|録音から自動解析/.test(meeting.title || '')) {
+            meeting.title = `${s.realName}様と${meeting.meeting_type === '1to1' ? '1to1面談' : '面談'}`;
+          }
         }
         if (s.phoneticName) person.phonetic_name = s.phoneticName;
         const ownerCompKey = (ownerProf.company_name || 'ゼノベイト').slice(0, 4);

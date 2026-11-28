@@ -739,4 +739,31 @@ describe('辻 晃典様・木村 尚史様 1to1面談実績およびZoom自動�
     expect(tr?.summary).not.toContain('風邪気味');
     expect(tr?.summary).not.toContain('体調不良');
   });
+
+  it('文字起こし中に「全然大丈夫」「お疲れ様でした」「株式会社が入るから」等の相槌や会話フレーズが含まれていても、決して人物名や会社名として採用されず、話者ラベル「中野亘」から「中野 亘」が確実に抽出されること', () => {
+    store.setTenantId('tenant-001');
+    const rawNakanoTranscript = [
+      '勝賀野',
+      '18:03:47',
+      'ありがとうございます。',
+      '中野亘',
+      '18:03:48',
+      'めっちゃ怪しいなあ。これ。くろ黒黒に黒で。',
+      '勝賀野',
+      '18:03:52',
+      'ほんまっすか。すみません。ちょっとあのトラブルで遅くなってしまってごめんなさあ。',
+      '中野亘',
+      '18:03:56',
+      '全然大丈夫。',
+      'お疲れ様でした。',
+      'だんじりチャプターで税理士をやってます中野亘税理士事務所の中野亘です。株式会社が入るから法人化のタイミングも相談に乗っています。',
+    ].join('\n');
+
+    const res = store.autoRegisterFromPostMeetingTranscript(rawNakanoTranscript, '1to1');
+    expect(res.person.display_name).toBe('中野 亘');
+    expect(res.person.display_name).not.toContain('全然大丈夫');
+    expect(res.summary.realName).toBe('中野 亘');
+    expect(res.summary.companyName).not.toContain('株式会社が入るから');
+    expect(store.getPersons().some(p => p.display_name.includes('全然大丈夫'))).toBe(false);
+  });
 });
