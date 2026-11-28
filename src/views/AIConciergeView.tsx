@@ -7,6 +7,117 @@ interface AIConciergeViewProps {
   onSelectPerson: (personId: string) => void;
 }
 
+const renderInlineFormatted = (text: string): React.ReactNode => {
+  // `**太字**` をきれいにハイライト付きの太字へ変換し、残った単独の `*` 記号を除去
+  const parts = text.split(/(\*\*[^*]+?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      const inner = part.slice(2, -2).trim();
+      return (
+        <strong
+          key={i}
+          className="font-bold text-[#1D1D1F] dark:text-[#F5F5F7] bg-apple-blue/8 dark:bg-apple-darkBlue/20 px-1 py-0.5 rounded-md"
+        >
+          {inner}
+        </strong>
+      );
+    }
+    return <React.Fragment key={i}>{part.replace(/\*\*/g, '')}</React.Fragment>;
+  });
+};
+
+const renderFormattedAIMessage = (rawText: string): React.ReactNode => {
+  if (!rawText) return null;
+  const lines = rawText.split(/\r?\n/);
+
+  return (
+    <div className="space-y-2">
+      {lines.map((rawLine, idx) => {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1" />;
+        }
+
+        // 区切り線 (---, ***, ===)
+        if (/^(?:---+|\*\*\*+|===+)$/.test(trimmed)) {
+          return (
+            <hr
+              key={idx}
+              className="my-3 border-t border-apple-border dark:border-apple-darkBorder"
+            />
+          );
+        }
+
+        // 見出し (### 1. 三島 宏幸 様 ...)
+        const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+        if (headingMatch) {
+          const cleanHeading = headingMatch[2].replace(/\*\*/g, '').trim();
+          return (
+            <div
+              key={idx}
+              className="mt-3 mb-1.5 px-3 py-2 rounded-xl bg-apple-blue/10 dark:bg-apple-darkBlue/20 border-l-4 border-apple-blue dark:border-apple-darkBlue font-bold text-[#1D1D1F] dark:text-[#F5F5F7] text-xs sm:text-sm"
+            >
+              {cleanHeading}
+            </div>
+          );
+        }
+
+        // 番号付きリスト (1. **高野 陽行 様** ...)
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+        if (numMatch) {
+          const isIndented = /^\s{2,}/.test(rawLine);
+          return (
+            <div
+              key={idx}
+              className={`flex items-start gap-2 ${isIndented ? 'pl-4' : 'mt-1.5'} leading-relaxed`}
+            >
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-apple-blue text-white text-[11px] font-bold shrink-0 mt-0.5">
+                {numMatch[1]}
+              </span>
+              <div className="flex-1 text-neutral-800 dark:text-neutral-100">
+                {renderInlineFormatted(numMatch[2])}
+              </div>
+            </div>
+          );
+        }
+
+        // 箇条書き (* xxx, - xxx, ・xxx, • xxx)
+        const bulletMatch = trimmed.match(/^(?:[*\-•・])\s*(.+)$/);
+        if (bulletMatch) {
+          const leadingSpaces = (rawLine.match(/^\s*/)?.[0] || '').length;
+          const isSubBullet = leadingSpaces >= 2;
+          return (
+            <div
+              key={idx}
+              className={`flex items-start gap-2 ${
+                isSubBullet
+                  ? 'pl-5 text-neutral-600 dark:text-neutral-300 text-xs'
+                  : 'pl-1 text-neutral-800 dark:text-neutral-100'
+              } leading-relaxed`}
+            >
+              <span
+                className={`shrink-0 mt-1.5 rounded-full ${
+                  isSubBullet
+                    ? 'w-1.5 h-1.5 bg-neutral-400 dark:bg-neutral-500'
+                    : 'w-2 h-2 bg-apple-blue dark:bg-apple-darkBlue'
+                }`}
+              />
+              <div className="flex-1">{renderInlineFormatted(bulletMatch[1])}</div>
+            </div>
+          );
+        }
+
+        // 通常テキスト段落
+        return (
+          <p key={idx} className="leading-relaxed">
+            {renderInlineFormatted(trimmed)}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
 export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson }) => {
   const [inputQuery, setInputQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -304,12 +415,16 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
               }`}
             >
               {m.sender === 'ai' && m.engineLabel && (
-                <div className="text-[10px] font-medium text-neutral-400 mb-1.5 flex items-center space-x-1">
+                <div className="text-[10px] font-medium text-neutral-400 mb-2 flex items-center space-x-1">
                   <Sparkles className="w-3 h-3 text-apple-blue" />
                   <span>{m.engineLabel}</span>
                 </div>
               )}
-              <p className="whitespace-pre-wrap">{m.text}</p>
+              {m.sender === 'ai' ? (
+                renderFormattedAIMessage(m.text)
+              ) : (
+                <p className="whitespace-pre-wrap">{m.text}</p>
+              )}
 
               {/* 出典付き事実の提示 (AI-07) */}
               {m.facts && m.facts.length > 0 && (
