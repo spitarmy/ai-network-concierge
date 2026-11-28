@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Send, Mic, User, FileText, ArrowRight, Sparkles, Key, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Mic, User, FileText, ArrowRight, Sparkles, Key, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { store } from '../services/store';
 import { getStoredGeminiApiKey, setStoredGeminiApiKey } from '../services/geminiAudioTranscribe';
 
@@ -10,6 +10,8 @@ interface AIConciergeViewProps {
 export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson }) => {
   const [inputQuery, setInputQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStepIdx, setLoadingStepIdx] = useState(0);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const [serverHasGemini, setServerHasGemini] = useState(false);
   const [localApiKey, setLocalApiKey] = useState(() => getStoredGeminiApiKey());
   const [showKeyInput, setShowKeyInput] = useState(false);
@@ -44,6 +46,32 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
   ]);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
 
+  const loadingSteps = [
+    '登録済みの人脈カルテ・BNIチャプター所属を照合しています...',
+    '過去の1to1面談の話題・紹介ニーズ・約束ToDoを検索しています...',
+    '根拠となる出典セグメント（Facts）から回答を作成しています...',
+  ];
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingStepIdx(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setLoadingStepIdx(prev => (prev + 1) % loadingSteps.length);
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [isLoading, loadingSteps.length]);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [messages, isLoading]);
+
   const handleSaveApiKey = () => {
     setStoredGeminiApiKey(keyDraft.trim());
     setLocalApiKey(keyDraft.trim());
@@ -69,7 +97,16 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
       setIsLoading(true);
       try {
         const persons = store.getPersons();
+        const ownerProfile = store.getCurrentOwnerProfile();
         const contextPayload = {
+          owner: {
+            name: ownerProfile.owner_name,
+            company: ownerProfile.company_name,
+            bni_region: ownerProfile.bni_region_name,
+            bni_chapter: ownerProfile.bni_chapter_name,
+            bni_category: ownerProfile.bni_category,
+            specialty: ownerProfile.specialty_summary,
+          },
           persons: persons.map(p => ({
             id: p.id,
             name: p.display_name,
@@ -253,7 +290,7 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
       )}
 
       {/* チャット履歴 */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+      <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-4 pr-1">
         {messages.map((m, idx) => (
           <div
             key={idx}
@@ -311,6 +348,29 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
             </div>
           </div>
         ))}
+
+        {/* AI回答作成中のリアルタイム進行インジケーター（反応がない不安をゼロにする） */}
+        {isLoading && (
+          <div className="flex flex-col items-start animate-fadeIn">
+            <div className="max-w-xl p-4 rounded-3xl rounded-bl-none bg-white dark:bg-[#1C1C1E] border border-apple-blue/30 dark:border-apple-darkBlue/40 text-neutral-800 dark:text-neutral-200 shadow-sm space-y-2">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="w-4 h-4 text-apple-blue animate-spin shrink-0" />
+                <span className="text-xs sm:text-sm font-bold text-apple-blue dark:text-apple-darkBlue">
+                  AI人脈秘書が回答を作成しています...
+                </span>
+                <span className="inline-flex items-center space-x-1 pl-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-apple-blue animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-apple-blue animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-apple-blue animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </div>
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center space-x-1.5 pl-6">
+                <Sparkles className="w-3 h-3 text-apple-blue/80 shrink-0" />
+                <span>{loadingSteps[loadingStepIdx]}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 提案プロンプトチップス（テナントごとの実登録データに応じて動的生成） */}
@@ -360,16 +420,30 @@ export const AIConciergeView: React.FC<AIConciergeViewProps> = ({ onSelectPerson
           value={inputQuery}
           onChange={(e) => setInputQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder={isVoiceActive ? '音声を聞き取っています...' : '人脈について質問してください...'}
-          className="flex-1 bg-transparent text-xs sm:text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none"
+          disabled={isLoading}
+          placeholder={
+            isLoading
+              ? 'AIがカルテと面談記録を照合して回答を作成中です...'
+              : isVoiceActive
+                ? '音声を聞き取っています...'
+                : '人脈について質問してください...'
+          }
+          className="flex-1 bg-transparent text-xs sm:text-sm text-[#1D1D1F] dark:text-[#F5F5F7] placeholder-neutral-400 focus:outline-none disabled:opacity-60"
         />
 
         <button
           onClick={() => handleSend()}
-          disabled={!inputQuery.trim()}
-          className="p-2.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+          disabled={!inputQuery.trim() || isLoading}
+          className="p-2.5 rounded-xl bg-apple-blue dark:bg-apple-darkBlue text-white hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center space-x-1"
         >
-          <Send className="w-4 h-4" />
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-[11px] font-semibold pr-1 hidden sm:inline">作成中</span>
+            </>
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
         </button>
       </div>
     </div>

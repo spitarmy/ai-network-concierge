@@ -8737,6 +8737,34 @@ Givers Gainの精神のもと、${recipient_name}様のお役に立てる良質�
 
     // 1. 人物名・会社名による動的マッチング
     const qNoSpace = q.replace(/\s+/g, '');
+
+    // 1.5 「自チャプター」「同じチャプター」に関するリファーラル・紹介相談への対応
+    if (/自チャプター|同じチャプター/.test(q)) {
+      const ownerChap = this.getCurrentOwnerProfile().bni_chapter_name || 'だんじりチャプター';
+      const sameChapPersons = persons.filter(p =>
+        this.getBNIMembershipsForPerson(p.id).some(bm => bm.chapter_name === ownerChap)
+      );
+      if (sameChapPersons.length > 0) {
+        const lines = sameChapPersons.map(p => {
+          const org = this.getOrgMembershipsForPerson(p.id)[0]?.organization_name;
+          const off = this.getBusinessOfferingsForPerson(p.id)[0];
+          const bni = this.getBNIMembershipsForPerson(p.id)[0];
+          const target = off?.target_clients || '協業・相互紹介先';
+          return `• ${p.display_name}様${org ? `（${org}）` : ''} [${bni?.category || '専門'}]: 求めている紹介対象は「${target}」`;
+        });
+        const relatedFacts = sameChapPersons.flatMap(p =>
+          this.getFactsForPerson(p.id).filter(f => f.visibility !== 'private')
+        );
+        return {
+          answer: `自チャプター（${ownerChap}）の登録メンバーおよびリファーラル候補は以下の通りです。\n\n${lines.join('\n')}\n\n各メンバーのカルテまたは「紹介ハブ」より紹介メッセージ下書きを作成できます。`,
+          facts: relatedFacts.slice(0, 6),
+          relatedPersons: sameChapPersons,
+          confidence: 0.98,
+          hasDefiniteAnswer: true,
+        };
+      }
+    }
+
     const matchedPerson = persons.find(p => {
       const name = p.display_name.toLowerCase();
       const nameNoSpace = name.replace(/\s+/g, '');
